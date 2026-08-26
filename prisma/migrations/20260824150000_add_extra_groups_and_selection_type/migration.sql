@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE `Extra`
+  ADD COLUMN `groupName` VARCHAR(191) NOT NULL DEFAULT 'Extras',
+  ADD COLUMN `selectionType` VARCHAR(191) NOT NULL DEFAULT 'MULTIPLE';

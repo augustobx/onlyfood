@@ -1,0 +1,895 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model SystemConfig {
+  id              String  @id @default(uuid())
+  tenantId        String? @unique
+  appName         String  @default("BeatsBurgers")
+  logoUrl         String?
+  splashUrl       String?
+  splashType      String  @default("IMAGE") // IMAGE, VIDEO
+  splashVideoUrl  String? @default("/uploads/splashvid.mp4")
+  backgroundUrl   String?
+  backgroundBlur  Boolean @default(false)
+  whatsappMessage String  @default("Hola, tu pedido está en estado: {{estado}}. Gracias por elegirnos!")
+  isStoreOpen     Boolean @default(true)
+  closedMessage   String  @default("Lo sentimos, actualmente nuestro local se encuentra cerrado.")
+  
+  primaryColor    String  @default("#f97316") // orange-500
+  secondaryColor  String  @default("#9333ea") // purple-600
+  storeTheme      String  @default("ORIGINAL") // ORIGINAL, NEXO
+  
+  splashEnabled   Boolean @default(false)
+  splashDuration  Int     @default(3) // seconds
+  
+  welcomeBalloonEnabled  Boolean @default(false)
+  welcomeBalloonText     String  @default("¡Te damos la bienvenida a BeatsBurgers!")
+  welcomeBalloonDuration Int     @default(5) // seconds
+  
+  deliveryCost    Float   @default(0)
+  globalDiscount  Float   @default(0) // percentage 0-100
+  
+  paymentCash     Boolean @default(true)
+  paymentMp       Boolean @default(true)
+  autoPrintTickets Boolean @default(true)
+  printingMode     String  @default("BROWSER") // BROWSER, PRINTNODE
+  printNodeCounterPrinterId Int?
+  printNodeKitchenPrinterId Int?
+
+  isRouletteActive Boolean @default(false)
+  rouletteCost     Int     @default(100)
+  isPointsCatalogActive Boolean @default(true)
+
+  // Pedidos Anticipados, Programados y Horarios
+  allowImmediateOrders   Boolean @default(true)
+  allowScheduledTomorrow Boolean @default(true)
+  allowAdvanceOrders     Boolean @default(true)
+  advanceOrderMinDays    Int     @default(1)
+  advanceOrderMaxDays    Int     @default(30)
+  asapEstimatedMinutes   Int     @default(40)
+  businessHours          String? @db.Text
+  autoScheduleEnabled    Boolean @default(false)
+
+  mpAccessToken    String?
+  mpPublicKey      String?
+
+  vapidPublicKey   String? // Web Push PubKey
+  vapidPrivateKey  String? // Web Push PrivKey
+
+  // WhatsApp Bot
+  whatsappBotEnabled Boolean @default(false)
+  metaApiToken       String? @db.Text
+  metaPhoneNumberId  String?
+  metaVerifyToken    String?
+
+  updatedAt       DateTime @updatedAt
+
+  // Configuracion de Impresoras
+  printerCounterName String?  @default("")
+  printerCounterSize String?  @default("80mm")
+  printerKitchenName String?  @default("")
+  printerKitchenSize String?  @default("80mm")
+
+  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id              String   @id @default(uuid())
+  tenantId        String?
+  endpoint        String   @db.Text
+  endpointHash    String
+  p256dh          String   @db.Text
+  auth            String   @db.Text
+  orderId         String?  // The order this subscription tracks
+  clientId        String?  // The registered client (optional)
+  createdAt       DateTime @default(now())
+
+  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, endpointHash])
+  @@index([orderId])
+  @@index([tenantId])
+}
+
+model RoulettePrize {
+  id              String  @id @default(uuid())
+  tenantId        String?
+  name            String
+  probability     Float
+  
+  type            String  // PRODUCT, PERCENT, AMOUNT
+  value           Float?  
+  productId       String? 
+  
+  bgColor         String  @default("#f97316")
+  textColor       String  @default("#ffffff")
+  
+  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product         Product? @relation(fields: [productId], references: [id])
+  wins            RouletteWin[]
+
+  @@index([tenantId])
+}
+
+model RouletteWin {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  clientId  String
+  prizeId   String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  claimedAt DateTime?
+
+  tenant    Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  prize     RoulettePrize @relation(fields: [prizeId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, clientId, claimedAt, expiresAt])
+  @@index([clientId, claimedAt, expiresAt])
+}
+
+model PointReward {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  name        String
+  description String?
+  pointsCost  Int      @default(100)
+  type        String   // PRODUCT, PERCENT, AMOUNT, COMBO, PROMO
+  value       Float?   // Descuento % o $
+  productId   String?
+  imageUrl    String?
+  badgeText   String?  // e.g. "HOT", "PROMO", "POPULAR"
+  minTierId   String?  // Exclusivo para nivel mínimo de cliente
+  isActive    Boolean  @default(true)
+  sequence    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product     Product?      @relation(fields: [productId], references: [id])
+  minTier     CustomerTier? @relation(fields: [minTierId], references: [id], onDelete: SetNull)
+  redemptions PointRedemption[]
+
+  @@index([tenantId, isActive, sequence])
+}
+
+model PointRedemption {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  clientId    String
+  rewardId    String
+  pointsSpent Int
+  status      String   @default("AVAILABLE") // AVAILABLE, USED, CANCELLED
+  usedOrderId String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+  usedAt      DateTime?
+
+  tenant      Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  reward      PointReward @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, clientId, status])
+  @@index([clientId, status])
+}
+
+model DeliveryTimeSlot {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  locationId String?
+  time      String   // e.g. "21:00"
+  capacity  Int      // Total initial cupos
+  available Int      // Current real-time available cupos
+  isActive  Boolean  @default(true)
+  sequence  Int      @default(0) // Chronological sorting
+
+  tenant    Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location  Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  orders    Order[]
+
+  @@index([tenantId, locationId, isActive])
+}
+
+model Messenger {
+  id        String  @id @default(uuid())
+  tenantId  String?
+  locationId String?
+  name      String
+  phone     String
+  isActive  Boolean @default(true)
+
+  tenant    Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location  Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  orders    Order[]
+
+  @@index([tenantId, locationId, isActive])
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  tenantId String?
+  name     String
+  isActive Boolean   @default(true)
+  sequence Int       @default(0)
+
+  tenant      Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products    Product[]
+  ingredients IngredientCategory[]
+
+  @@index([tenantId, sequence])
+}
+
+model Product {
+  suggestedCost Float @default(0)
+  id          String       @id @default(uuid())
+  tenantId    String?
+  name        String
+  categoryId  String?
+  basePrice   Float
+  description String?
+  imageUrl    String?
+  showImage   Boolean      @default(true)
+  isActive    Boolean      @default(true)
+  isCombo     Boolean      @default(false)
+  
+  allowHalf    Boolean      @default(false)
+  onlyHalf     Boolean      @default(false)
+  allowRemoveIngredients Boolean @default(true)
+  availableDays String?     @default("")
+  sequence    Int          @default(0)
+  
+  points       Int          @default(0)
+  
+  tenant      Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  ingredients ProductIngredient[]
+  extras      ProductExtra[]
+  orderItems  OrderItem[]
+  
+  orderItemsAsSecondHalf OrderItem[] @relation("SecondHalf")
+  comboItemsConfig   ProductComboItem[] @relation("ComboToItems")
+  partOfCombosConfig ProductComboItem[] @relation("ItemToCombo")
+
+  orderItemsAsComboItem OrderItemComboItem[]
+  roulettePrizes        RoulettePrize[]
+  pointRewards          PointReward[]
+
+  @@index([tenantId, categoryId, isActive])
+  @@index([tenantId, sequence])
+}
+
+model Ingredient {
+  id              String  @id @default(uuid())
+  tenantId        String?
+  name            String
+  isActive        Boolean @default(true)
+
+  purchaseVolume   String?
+  purchasePrice    Float    @default(0)
+  yieldUnits       Float    @default(1)
+  costPerUnit      Float    @default(0)
+  stock            Float    @default(0)
+  
+  tenant          Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categories      IngredientCategory[]
+  products        ProductIngredient[]
+  removedInOrders OrderItemRemovedIngredient[]
+  comboRemovedInOrders OrderItemComboRemovedIngredient[]
+
+  @@index([tenantId, isActive])
+}
+
+model IngredientCategory {
+  ingredientId String
+  categoryId   String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([ingredientId, categoryId])
+}
+
+model ProductIngredient {
+  productId    String
+  ingredientId String
+  isRemovable  Boolean @default(true)
+  quantity     Float   @default(1)
+  
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@id([productId, ingredientId])
+}
+
+model Extra {
+  id            String         @id @default(uuid())
+  tenantId      String?
+  name          String
+  price         Float
+  groupName     String         @default("Extras") // e.g. "Guarnición / Papas", "Agregados", "Salsas"
+  selectionType String         @default("MULTIPLE") // "SINGLE" (solo 1), "MULTIPLE" (varios)
+  isActive      Boolean        @default(true)
+
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products      ProductExtra[]
+  orderExtras   OrderItemExtra[]
+
+  @@index([tenantId, isActive])
+}
+
+model ProductExtra {
+  productId String
+  extraId   String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  extra     Extra   @relation(fields: [extraId], references: [id], onDelete: Cascade)
+
+  @@id([productId, extraId])
+}
+
+model ProductComboItem {
+  id        String  @id @default(uuid())
+  comboId   String
+  productId String
+  quantity  Int     @default(1)
+  
+  combo     Product @relation("ComboToItems", fields: [comboId], references: [id], onDelete: Cascade)
+  product   Product @relation("ItemToCombo", fields: [productId], references: [id], onDelete: Restrict)
+}
+
+model Order {
+  id               String   @id @default(uuid())
+  tenantId         String?
+  locationId       String?
+  clientName       String
+  clientPhone      String
+  needsDelivery    Boolean
+  deliveryAddress  String?
+  deliveryTime     String?
+  deliverySlotId   String?
+
+  // Pedidos Inmediatos vs Programados/Encargo
+  orderType        String   @default("IMMEDIATE") // IMMEDIATE, SCHEDULED_TOMORROW, CUSTOM_DATE
+  scheduledDate    DateTime?
+  scheduledTime    String?
+
+  status           String   @default("NEW") // NEW, IN_PROCESS, FINISHED, DELIVERED, CANCELLED
+  paymentMethod    String   // CASH, MP, ADMIN
+  paymentStatus    String   @default("PENDING") // PENDING, PAID, FAILED
+  mpPreferenceId   String?
+  total            Float
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  messengerId      String?
+  messenger        Messenger? @relation(fields: [messengerId], references: [id])
+
+  clientId         String?
+  client           Client?    @relation(fields: [clientId], references: [id])
+  earnedPoints     Int        @default(0)
+  pointsAwarded    Boolean    @default(false)
+  stockCommitted   Boolean    @default(false)
+
+  tenant           Tenant?    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location         Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  items            OrderItem[]
+  history          OrderHistory[]
+  deliverySlot     DeliveryTimeSlot? @relation(fields: [deliverySlotId], references: [id], onDelete: SetNull)
+  payments         PaymentRecord[]
+  printDispatches  PrintDispatch[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, locationId, createdAt])
+  @@index([tenantId, clientId])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([clientId])
+  @@index([orderType, scheduledDate])
+}
+
+model PrintDispatch {
+  id             String   @id @default(uuid())
+  tenantId       String?
+  orderId        String
+  kind           String   // KITCHEN, COUNTER
+  status         String   @default("PENDING") // PENDING, PROCESSING, SENT, FAILED
+  printNodeJobId Int?
+  attempts       Int      @default(0)
+  error          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant         Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, kind])
+  @@index([tenantId, status])
+  @@index([status, updatedAt])
+}
+
+model PaymentRecord {
+  id                String   @id @default(uuid())
+  tenantId          String?
+  providerPaymentId String   @unique
+  orderId           String
+  status            String
+  amount             Float
+  currency           String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant            Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, orderId])
+  @@index([orderId])
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  productId       String
+  quantity        Int
+  unitPrice       Float
+  subtotal        Float
+  notes           String?
+
+  isHalfAndHalf        Boolean @default(false)
+  secondHalfProductId  String?
+  secondHalfProduct    Product? @relation("SecondHalf", fields: [secondHalfProductId], references: [id], onDelete: Restrict)
+
+  order                 Order                        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product               Product                      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  removedIngredients    OrderItemRemovedIngredient[]
+  addedExtras           OrderItemExtra[]
+  comboItems            OrderItemComboItem[]
+}
+
+model OrderItemComboItem {
+  id          String @id @default(uuid())
+  orderItemId String
+  productId   String
+  quantity    Int    @default(1)
+  
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  removedIngredients OrderItemComboRemovedIngredient[]
+}
+
+model OrderItemComboRemovedIngredient {
+  comboItemId  String
+  ingredientId String
+  
+  comboItem    OrderItemComboItem @relation(fields: [comboItemId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient         @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@id([comboItemId, ingredientId])
+}
+
+model OrderItemRemovedIngredient {
+  orderItemId  String
+  ingredientId String
+
+  orderItem    OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@id([orderItemId, ingredientId])
+}
+
+model OrderItemExtra {
+  orderItemId String
+  extraId     String
+  price       Float
+
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  extra       Extra     @relation(fields: [extraId], references: [id], onDelete: Restrict)
+
+  @@id([orderItemId, extraId])
+}
+
+model OrderHistory {
+  id        String   @id @default(uuid())
+  orderId   String
+  status    String
+  createdAt DateTime @default(now())
+  
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model CustomerTier {
+  id               String        @id @default(uuid())
+  tenantId         String?
+  name             String        // e.g. "Beaters Select", "Beaters Gold", "Beater Club"
+  badgeText        String        // e.g. "SELECT", "GOLD", "VIP"
+  minOrdersCount   Int           @default(0) // Mínimo pedidos completados
+  minPoints        Int           @default(0) // Mínimo puntos
+  minSpent         Float         @default(0) // Mínimo dinero total gastado
+  discountPercent  Float         @default(0) // Descuento extra % automático
+  pointsMultiplier Float         @default(1.0) // Multiplicador de puntos al comprar
+  color            String        @default("#f97316") // Hex color
+  bgGradient       String        @default("from-amber-500 to-yellow-600")
+  iconName         String        @default("Crown") // Crown, Flame, Star, Sparkles, Trophy, Zap
+  description      String?
+  sequence         Int           @default(0)
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  tenant           Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rewards          PointReward[]
+  clients          Client[]
+
+  @@index([tenantId, sequence])
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  phone     String
+  phoneLoginKey String? @db.VarChar(6)
+  password  String
+  passwordSetupRequired Boolean  @default(false)
+  name      String?
+  points    Int      @default(0)
+  customTierId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  tenant    Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customTier CustomerTier? @relation(fields: [customTierId], references: [id], onDelete: SetNull)
+  orders    Order[]
+  sessions  Session[]
+  rouletteWins RouletteWin[]
+  pointRedemptions PointRedemption[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId, phoneLoginKey])
+  @@index([phoneLoginKey])
+}
+
+model AdminSession {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}
+
+model WebhookEvent {
+  id        String   @id
+  provider  String
+  createdAt DateTime @default(now())
+
+  @@index([provider, createdAt])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  clientId  String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model WhatsAppSession {
+  id           String   @id @default(uuid())
+  tenantId     String?
+  phone        String
+  state        String
+  cart         Json?
+  tempData     Json?
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model MediaAsset {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  name      String
+  filename  String
+  url       String
+  sizeBytes Int      @default(0)
+  mimeType  String   @default("image/jpeg")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, filename])
+  @@index([tenantId, createdAt])
+  @@index([createdAt])
+}
+
+// ==========================================
+// MODELOS SAAS PLATAFORMA (GLOBALES - FASE 1)
+// ==========================================
+
+model Tenant {
+  id          String   @id @default(uuid())
+  slug        String   @unique // ej: "beats", "roma"
+  name        String   // ej: "BeatsBurgers"
+  status      String   @default("ACTIVE") // ACTIVE, SUSPENDED, TRIAL, CANCELLED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  domains       TenantDomain[]
+  subscription  Subscription?
+  locations     Location[]
+  memberships   TenantMembership[]
+  features      TenantFeature[]
+  settings      TenantSettings?
+  integrations  TenantIntegration[]
+  auditLogs     PlatformAuditLog[]
+
+  // Relaciones con entidades del negocio
+  systemConfigs       SystemConfig[]
+  categories          Category[]
+  products            Product[]
+  ingredients         Ingredient[]
+  extras              Extra[]
+  orders              Order[]
+  clients             Client[]
+  tiers               CustomerTier[]
+  rewards             PointReward[]
+  redemptions         PointRedemption[]
+  roulettePrizes      RoulettePrize[]
+  rouletteWins        RouletteWin[]
+  deliveryTimeSlots   DeliveryTimeSlot[]
+  messengers          Messenger[]
+  mediaAssets         MediaAsset[]
+  pushSubscriptions   PushSubscription[]
+  whatsappSessions    WhatsAppSession[]
+  sessions            Session[]
+  paymentRecords      PaymentRecord[]
+  printDispatches     PrintDispatch[]
+
+  @@index([status])
+}
+
+model TenantDomain {
+  id          String    @id @default(uuid())
+  tenantId    String
+  hostname    String    @unique // ej: "beats.producto.nanolabs.app" o "pedidos.beatsburgers.com"
+  isPrimary   Boolean   @default(false)
+  isCustom    Boolean   @default(false)
+  verifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Plan {
+  id           String   @id @default(uuid())
+  code         String   @unique // "STARTER", "PRO", "BUSINESS"
+  name         String
+  priceMonthly Float    @default(0)
+  maxLocations Int      @default(1)
+  maxProducts  Int      @default(100)
+  features     Json     // Lista o mapa de features
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                 String    @id @default(uuid())
+  tenantId           String    @unique
+  planId             String
+  status             String    @default("ACTIVE") // TRIAL, ACTIVE, PAST_DUE, SUSPENDED, CANCELED
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime  @default(now())
+  currentPeriodEnd   DateTime
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan               Plan      @relation(fields: [planId], references: [id])
+
+  @@index([status])
+}
+
+model Location {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String   @default("Principal")
+  code        String   @default("main")
+  address     String?
+  phone       String?
+  isMain      Boolean  @default(true)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders      Order[]
+  slots       DeliveryTimeSlot[]
+  messengers  Messenger[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+}
+
+model TenantFeature {
+  id          String   @id @default(uuid())
+  tenantId    String
+  featureKey  String   // "whatsapp", "loyalty", "roulette", "customDomain", "printNode"
+  isEnabled   Boolean  @default(true)
+  config      Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, featureKey])
+  @@index([tenantId])
+}
+
+model TenantSettings {
+  id              String  @id @default(uuid())
+  tenantId        String  @unique
+  appName         String  @default("BeatsBurgers")
+  logoUrl         String?
+  splashUrl       String?
+  splashType      String  @default("IMAGE")
+  splashVideoUrl  String? @default("/uploads/splashvid.mp4")
+  backgroundUrl   String?
+  backgroundBlur  Boolean @default(false)
+  whatsappMessage String  @default("Hola, tu pedido está en estado: {{estado}}. Gracias por elegirnos!")
+  isStoreOpen     Boolean @default(true)
+  closedMessage   String  @default("Lo sentimos, actualmente nuestro local se encuentra cerrado.")
+  
+  primaryColor    String  @default("#f97316")
+  secondaryColor  String  @default("#9333ea")
+  storeTheme      String  @default("ORIGINAL")
+  
+  splashEnabled   Boolean @default(false)
+  splashDuration  Int     @default(3)
+  
+  welcomeBalloonEnabled  Boolean @default(false)
+  welcomeBalloonText     String  @default("¡Te damos la bienvenida!")
+  welcomeBalloonDuration Int     @default(5)
+  
+  deliveryCost    Float   @default(0)
+  globalDiscount  Float   @default(0)
+  
+  paymentCash     Boolean @default(true)
+  paymentMp       Boolean @default(true)
+  autoPrintTickets Boolean @default(true)
+  printingMode     String  @default("BROWSER")
+  printNodeCounterPrinterId Int?
+  printNodeKitchenPrinterId Int?
+  printerCounterName String?  @default("")
+  printerCounterSize String?  @default("80mm")
+  printerKitchenName String?  @default("")
+  printerKitchenSize String?  @default("80mm")
+
+  isRouletteActive Boolean @default(false)
+  rouletteCost     Int     @default(100)
+  isPointsCatalogActive Boolean @default(true)
+
+  allowImmediateOrders   Boolean @default(true)
+  allowScheduledTomorrow Boolean @default(true)
+  allowAdvanceOrders     Boolean @default(true)
+  advanceOrderMinDays    Int     @default(1)
+  advanceOrderMaxDays    Int     @default(30)
+  asapEstimatedMinutes   Int     @default(40)
+  businessHours          String? @db.Text
+  autoScheduleEnabled    Boolean @default(false)
+
+  vapidPublicKey   String?
+  vapidPrivateKey  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model TenantIntegration {
+  id               String   @id @default(uuid())
+  tenantId         String
+  type             String   // "MERCADO_PAGO", "WHATSAPP", "PRINTNODE"
+  encryptedPayload String   @db.Text
+  iv               String
+  authTag          String
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type])
+  @@index([tenantId])
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  isSuperAdmin  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memberships   TenantMembership[]
+  sessions      UserSession[]
+  auditLogs     PlatformAuditLog[]
+}
+
+model TenantMembership {
+  id          String   @id @default(uuid())
+  tenantId    String
+  userId      String
+  role        String   @default("STAFF") // OWNER, MANAGER, KITCHEN, CASHIER, DELIVERY, STAFF
+  permissions Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model PlatformAuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  userId    String?
+  action    String
+  resource  String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+}

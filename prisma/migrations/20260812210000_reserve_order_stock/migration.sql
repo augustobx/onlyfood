@@ -1,0 +1,6 @@
+ALTER TABLE `Order`
+ADD COLUMN `stockCommitted` BOOLEAN NOT NULL DEFAULT false;
+
+UPDATE `Order`
+SET `stockCommitted` = true
+WHERE `status` IN ('IN_PROCESS', 'PENDING_DELIVERY', 'OUT_FOR_DELIVERY', 'FINISHED', 'DELIVERED');
