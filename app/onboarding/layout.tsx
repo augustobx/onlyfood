@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Crea tu Tienda Online | NanoLabs OnlyFood SaaS",
-  description: "Lanza tu menú digital, pedidos por WhatsApp y delivery propio en menos de 2 minutos.",
+  description: "Lanza tu menú digital, avisos de pedidos por WhatsApp y delivery propio en menos de 2 minutos.",
 };
 
 export default function OnboardingLayout({

@@ -12,7 +12,6 @@ export const publicConfigSelect = {
   splashVideoUrl: true,
   backgroundUrl: true,
   backgroundBlur: true,
-  whatsappMessage: true,
   isStoreOpen: true,
   closedMessage: true,
   primaryColor: true,

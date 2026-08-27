@@ -18,9 +18,12 @@ Disponible cuando la feature `whatsapp` está activa. Cada integración necesita
 
 - GET `/api/webhooks/whatsapp`: valida el verify token contra las integraciones cifradas.
 - POST: exige `X-Hub-Signature-256` con `META_APP_SECRET` y resuelve por `metadata.phone_number_id`.
-- Las sesiones usan `(tenantId, phone)`.
+- El sistema no procesa conversaciones entrantes ni crea pedidos desde WhatsApp.
+- Los avisos se disparan al confirmar el pedido, comenzar la preparación y dejarlo listo para retiro o envío.
+- Todos los envíos usan plantillas Utility aprobadas y quedan registrados en `WhatsAppNotification`.
+- El webhook actualiza cada registro a `SENT`, `DELIVERED`, `READ` o `FAILED` según Meta.
 
-Configurar Meta para enviar metadata con phone number ID. Un número no registrado produce rechazo; nunca se elige un tenant por defecto.
+Configurar Meta para enviar metadata con phone number ID y suscribir el campo `messages`. Un número no registrado se ignora; nunca se elige un tenant por defecto. La versión de Graph API se guarda por comercio y `META_GRAPH_API_VERSION` funciona como fallback. Ver [configuración y plantillas](./whatsapp-notifications.md).
 
 ## PrintNode
 

@@ -4,6 +4,7 @@ import { constantTimeEqual } from "@/lib/request-security";
 import { dispatchOrderPrint } from "@/lib/printnode";
 import { reconcileMercadoPagoPayment } from "@/lib/mercadopago-payments";
 import { getTenantIntegration, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
+import { dispatchWhatsAppNotification, queueRelatedOrderConfirmationNotifications } from "@/lib/whatsapp-notifications";
 
 async function verifySignature(request: Request, dataId: string, tenantId: string): Promise<boolean> {
   const credentials = await getTenantIntegration<MercadoPagoCredentials>(tenantId, "MERCADO_PAGO");
@@ -47,7 +48,13 @@ export async function POST(request: Request) {
 
     const result = await reconcileMercadoPagoPayment(dataId, undefined, tenantId);
     if (result.transitionedToPaid) {
-      after(() => dispatchOrderPrint(result.orderId, { tenantId }).catch((error) => console.error("Mercado Pago automatic print failed", { orderId: result.orderId, error })));
+      const notificationIds = await queueRelatedOrderConfirmationNotifications(result.orderId, tenantId);
+      after(async () => {
+        await Promise.allSettled([
+          dispatchOrderPrint(result.orderId, { tenantId }),
+          ...notificationIds.map((id) => dispatchWhatsAppNotification(id, tenantId)),
+        ]);
+      });
     }
     return NextResponse.json({ success: true });
   } catch (error) {

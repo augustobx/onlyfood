@@ -9,6 +9,7 @@ import { getAdminOrderCatalog } from "@/app/actions/admin-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 
 type CatalogData = Awaited<ReturnType<typeof getAdminOrderCatalog>>;
@@ -44,6 +45,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
   const [comboRemoved, setComboRemoved] = useState<Record<string, string[]>>({});
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
   const [needsDelivery, setNeedsDelivery] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [slotId, setSlotId] = useState("");
@@ -134,6 +136,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
       const result = await createAdminOrder({
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
+        whatsappOptIn,
         needsDelivery,
         deliveryAddress: needsDelivery ? deliveryAddress.trim() : null,
         deliverySlotId: slotId || null,
@@ -157,6 +160,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
       setCart([]);
       setClientName("");
       setClientPhone("");
+      setWhatsappOptIn(false);
       setDeliveryAddress("");
       setNeedsDelivery(false);
       setOrderType("IMMEDIATE");
@@ -222,6 +226,10 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
 
                 <Input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nombre del cliente" maxLength={100} />
                 <Input value={clientPhone} onChange={(event) => setClientPhone(event.target.value.replace(/[^+\d]/g, ""))} placeholder="Teléfono" inputMode="tel" maxLength={16} />
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border bg-slate-50 p-3 text-xs text-slate-700">
+                  <Checkbox checked={whatsappOptIn} onCheckedChange={(checked) => setWhatsappOptIn(checked === true)} />
+                  El cliente autorizó recibir confirmación y estados de este pedido por WhatsApp.
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => setNeedsDelivery(false)} className={`rounded-xl border p-3 text-sm font-black ${!needsDelivery ? "border-orange-500 bg-orange-50 text-orange-700" : "text-slate-500"}`}>Retira</button>
                   <button type="button" onClick={() => setNeedsDelivery(true)} className={`rounded-xl border p-3 text-sm font-black ${needsDelivery ? "border-orange-500 bg-orange-50 text-orange-700" : "text-slate-500"}`}>Envío</button>

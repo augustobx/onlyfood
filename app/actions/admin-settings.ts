@@ -3,17 +3,17 @@
 import { z } from "zod";
 import { getTenantDb } from "@/lib/tenant-db";
 import { getTenantContext } from "@/lib/tenant-context";
-import { saveTenantIntegration } from "@/lib/tenant-integrations";
+import { getTenantIntegration, saveTenantIntegration, setTenantIntegrationActive, type WhatsAppCredentials } from "@/lib/tenant-integrations";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
 import { sendOrderPush } from "@/lib/push-notifications";
+import { dispatchWhatsAppNotification } from "@/lib/whatsapp-notifications";
 
 const idSchema = z.string().min(1).max(100);
 const optionalAssetUrl = z.union([z.literal(""), z.string().url().max(2048), z.string().regex(/^\/(?!\/)[^\s]{1,2047}$/)]).nullable().optional();
 const configSchema = z.object({
   appName: z.string().trim().min(1).max(80),
   isStoreOpen: z.boolean(), closedMessage: z.string().trim().min(1).max(500),
-  whatsappMessage: z.string().trim().min(1).max(1000),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/), secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   storeTheme: z.enum(["ORIGINAL", "NEXO", "URBAN_DARK", "FAST_NEO", "CLEAN_BOUTIQUE"]),
   splashEnabled: z.boolean(), splashDuration: z.number().int().min(0).max(30),
@@ -28,8 +28,20 @@ const configSchema = z.object({
   mpAccessToken: z.string().trim().max(1000).nullable().optional(), mpPublicKey: z.string().trim().max(1000).nullable().optional(),
   printerCounterName: z.string().max(100).nullable().optional(), printerCounterSize: z.enum(["58mm", "80mm"]),
   printerKitchenName: z.string().max(100).nullable().optional(), printerKitchenSize: z.enum(["58mm", "80mm"]),
-  whatsappBotEnabled: z.boolean(), metaApiToken: z.string().trim().max(4000).nullable().optional(),
-  metaPhoneNumberId: z.string().trim().max(100).nullable().optional(), metaVerifyToken: z.string().trim().max(500).nullable().optional(),
+  whatsappNotificationsEnabled: z.boolean(),
+  whatsappNotifyOrderConfirmed: z.boolean(),
+  whatsappNotifyOrderPreparing: z.boolean(),
+  whatsappNotifyOrderReady: z.boolean(),
+  whatsappTemplateLanguage: z.string().trim().regex(/^[a-z]{2}_[A-Z]{2}$/).max(10),
+  whatsappConfirmedTemplate: z.string().trim().regex(/^[a-z0-9_]+$/).max(100),
+  whatsappPreparingTemplate: z.string().trim().regex(/^[a-z0-9_]+$/).max(100),
+  whatsappReadyPickupTemplate: z.string().trim().regex(/^[a-z0-9_]+$/).max(100),
+  whatsappReadyDeliveryTemplate: z.string().trim().regex(/^[a-z0-9_]+$/).max(100),
+  whatsappDefaultCountryCode: z.string().trim().regex(/^\d{1,4}$/),
+  metaApiToken: z.string().trim().max(4000).nullable().optional(),
+  metaPhoneNumberId: z.union([z.literal(""), z.string().trim().regex(/^\d{5,30}$/).max(100)]).nullable().optional(),
+  metaVerifyToken: z.union([z.literal(""), z.string().trim().min(16).max(500)]).nullable().optional(),
+  metaApiVersion: z.string().trim().regex(/^v\d{1,2}\.\d$/).max(10),
   allowImmediateOrders: z.boolean().default(true),
   allowScheduledTomorrow: z.boolean().default(true),
   allowAdvanceOrders: z.boolean().default(true),
@@ -52,6 +64,7 @@ export async function updateConfig(id: string, data: unknown) {
   try {
     const tenant = await getTenantContext();
     const db = await getTenantDb();
+    const existingWhatsApp = await getTenantIntegration<WhatsAppCredentials>(tenant.id, "WHATSAPP");
 
     // Guardar integraciones de forma cifrada si se modificaron
     if (parsed.data.mpAccessToken) {
@@ -61,11 +74,19 @@ export async function updateConfig(id: string, data: unknown) {
       });
     }
 
-    if (parsed.data.metaApiToken && parsed.data.metaPhoneNumberId) {
+    const nextWhatsApp: WhatsAppCredentials = {
+      apiToken: parsed.data.metaApiToken || existingWhatsApp?.apiToken || "",
+      phoneNumberId: parsed.data.metaPhoneNumberId || existingWhatsApp?.phoneNumberId || "",
+      verifyToken: parsed.data.metaVerifyToken || existingWhatsApp?.verifyToken || "",
+      apiVersion: parsed.data.metaApiVersion || existingWhatsApp?.apiVersion || "v23.0",
+    };
+    const whatsappCredentialsTouched = Boolean(parsed.data.metaApiToken || parsed.data.metaPhoneNumberId || parsed.data.metaVerifyToken);
+    if ((parsed.data.whatsappNotificationsEnabled || whatsappCredentialsTouched) && (!nextWhatsApp.apiToken || !nextWhatsApp.phoneNumberId || !nextWhatsApp.verifyToken)) {
+      return { success: false, error: "Para activar WhatsApp completá el token permanente, Phone Number ID y token de verificación." };
+    }
+    if (whatsappCredentialsTouched || existingWhatsApp) {
       await saveTenantIntegration(tenant.id, "WHATSAPP", {
-        apiToken: parsed.data.metaApiToken,
-        phoneNumberId: parsed.data.metaPhoneNumberId,
-        verifyToken: parsed.data.metaVerifyToken || "",
+        ...nextWhatsApp,
       });
     }
 
@@ -75,6 +96,7 @@ export async function updateConfig(id: string, data: unknown) {
       metaApiToken: _metaApiToken,
       metaPhoneNumberId: _metaPhoneNumberId,
       metaVerifyToken: _metaVerifyToken,
+      metaApiVersion: _metaApiVersion,
       ...configData
     } = parsed.data;
     const safeConfigData = {
@@ -97,11 +119,56 @@ export async function updateConfig(id: string, data: unknown) {
     });
 
     revalidatePath("/admin/settings"); revalidatePath("/admin/live"); revalidatePath("/");
-    return { success: true };
+    return { success: true, whatsappConfigured: Boolean(nextWhatsApp.apiToken && nextWhatsApp.phoneNumberId && nextWhatsApp.verifyToken) };
   } catch (error) {
     console.error("Config update failed", error);
     return { success: false, error: "No se pudo actualizar la configuracion." };
   }
+}
+
+export async function testWhatsAppConnection() {
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
+  const credentials = await getTenantIntegration<WhatsAppCredentials>(tenant.id, "WHATSAPP");
+  if (!credentials?.apiToken || !credentials.phoneNumberId) return { success: false, error: "No hay credenciales activas de WhatsApp." };
+  const apiVersion = credentials.apiVersion || process.env.META_GRAPH_API_VERSION || "v23.0";
+  try {
+    const response = await fetch(`https://graph.facebook.com/${apiVersion}/${credentials.phoneNumberId}?fields=display_phone_number,verified_name`, {
+      headers: { Authorization: `Bearer ${credentials.apiToken}` },
+      signal: AbortSignal.timeout(10_000),
+      cache: "no-store",
+    });
+    const body = await response.json().catch(() => ({})) as { display_phone_number?: string; verified_name?: string; error?: { message?: string } };
+    if (!response.ok) return { success: false, error: body.error?.message || `Meta respondió HTTP ${response.status}.` };
+    return { success: true, phone: body.display_phone_number || credentials.phoneNumberId, name: body.verified_name || "Cuenta verificada" };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "No se pudo conectar con Meta." };
+  }
+}
+
+export async function disconnectWhatsAppIntegration() {
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
+  const db = await getTenantDb();
+  await Promise.all([
+    setTenantIntegrationActive(tenant.id, "WHATSAPP", false),
+    db.systemConfig.updateMany({ where: {}, data: { whatsappNotificationsEnabled: false } }),
+  ]);
+  revalidatePath("/admin/settings");
+  return { success: true };
+}
+
+export async function retryWhatsAppNotification(notificationId: string) {
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const parsedId = z.string().uuid().safeParse(notificationId);
+  if (!parsedId.success) return { success: false, error: "Notificación inválida." };
+  const tenant = await getTenantContext();
+  const db = await getTenantDb();
+  const notification = await db.whatsAppNotification.findFirst({ where: { id: notificationId }, select: { status: true } });
+  if (!notification || notification.status !== "FAILED") return { success: false, error: "Solo se pueden reintentar envíos fallidos." };
+  const result = await dispatchWhatsAppNotification(notificationId, tenant.id);
+  revalidatePath("/admin/settings");
+  return result;
 }
 
 export async function setStoreOpen(isStoreOpen: boolean) {

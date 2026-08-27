@@ -13,6 +13,7 @@ import { consumeRateLimit, getRequestIp, getRequestOrigin } from "@/lib/request-
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
 import { dispatchOrderPrint } from "@/lib/printnode";
 import { reconcileMercadoPagoPayment } from "@/lib/mercadopago-payments";
+import { dispatchWhatsAppNotification, queueOrderWhatsAppNotification, queueRelatedOrderConfirmationNotifications } from "@/lib/whatsapp-notifications";
 import { requireAdmin } from "@/lib/admin-session";
 import { createOrderTrackingToken } from "@/lib/order-tracking";
 import { calculateBestQuantityDiscount } from "@/lib/quantity-discounts";
@@ -39,6 +40,7 @@ const cartItemSchema = z.object({
 const orderSchema = z.object({
   clientName: z.string().trim().min(2).max(100),
   clientPhone: z.string().trim().min(6).max(35),
+  whatsappOptIn: z.boolean().default(false),
   needsDelivery: z.boolean(),
   deliveryAddress: z.string().trim().max(250).optional().nullable(),
   deliverySlotId: optionalIdField,
@@ -121,6 +123,12 @@ export async function confirmMercadoPagoReturn(orderId: string, paymentId: strin
   try {
     const tenant = await getTenantContext();
     const result = await reconcileMercadoPagoPayment(paymentId, orderId, tenant.id);
+    if (result.transitionedToPaid) {
+      const notificationIds = await queueRelatedOrderConfirmationNotifications(result.orderId, tenant.id);
+      if (notificationIds.length) {
+        after(() => Promise.allSettled(notificationIds.map((id) => dispatchWhatsAppNotification(id, tenant.id))));
+      }
+    }
     revalidatePath(`/track/${orderId}`);
     revalidatePath("/admin/live");
     return { success: true, paymentStatus: result.paymentStatus };
@@ -642,6 +650,8 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             trackingTokenHash: tracking.tokenHash,
             clientName: data.clientName,
             clientPhone: data.clientPhone,
+            whatsappOptIn: data.whatsappOptIn,
+            whatsappOptInAt: data.whatsappOptIn ? new Date() : null,
             needsDelivery: data.needsDelivery,
             deliveryAddress: data.needsDelivery ? data.deliveryAddress : null,
             deliveryTime: groupDeliveryTime,
@@ -774,6 +784,12 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
     if (primaryOrder.paymentMethod === "CASH" || primaryOrder.paymentMethod === "ADMIN") {
       for (const ord of result.orders) {
         after(() => dispatchOrderPrint(ord.id, { tenantId: tenant.id }).catch((error) => console.error("Automatic print failed", { orderId: ord.id, error })));
+      }
+      const notificationIds = (await Promise.all(
+        result.orders.map((order) => queueOrderWhatsAppNotification(order.id, "ORDER_CONFIRMED", tenant.id)),
+      )).filter((id): id is string => Boolean(id));
+      if (notificationIds.length) {
+        after(() => Promise.allSettled(notificationIds.map((id) => dispatchWhatsAppNotification(id, tenant.id))));
       }
     }
 

@@ -8,15 +8,29 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { updateConfig, broadcastPushNotification } from "@/app/actions/admin-settings";
+import { updateConfig, broadcastPushNotification, disconnectWhatsAppIntegration, retryWhatsAppNotification, testWhatsAppConnection } from "@/app/actions/admin-settings";
 import { testConfiguredPrinter } from "@/app/actions/admin-printing";
-import { Save, Store, Palette, Wallet, Megaphone, Send, Printer, CreditCard, MessageCircle, Calendar, Clock, Sparkles } from "lucide-react";
+import { Save, Store, Palette, Wallet, Megaphone, Send, Printer, CreditCard, MessageCircle, Calendar, Clock, CircleCheck, CircleAlert, RefreshCw, Unplug } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parseBusinessHours, DaySchedule } from "@/lib/business-hours";
 import { MediaPickerInput } from "@/components/admin/MediaPickerInput";
 
-export function SettingsForm({ initialConfig, printNodeApiKeyConfigured }: { initialConfig: any; printNodeApiKeyConfigured: boolean }) {
+export function SettingsForm({
+  initialConfig,
+  printNodeApiKeyConfigured,
+  whatsappIntegrationConfigured,
+  metaAppSecretConfigured,
+  whatsappWebhookUrl,
+  whatsappNotifications,
+}: {
+  initialConfig: any;
+  printNodeApiKeyConfigured: boolean;
+  whatsappIntegrationConfigured: boolean;
+  metaAppSecretConfigured: boolean;
+  whatsappWebhookUrl: string;
+  whatsappNotifications: any[];
+}) {
   const [cfg, setCfg] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
   const [businessHours, setBusinessHours] = useState<DaySchedule[]>(() => parseBusinessHours(initialConfig.businessHours));
@@ -26,6 +40,10 @@ export function SettingsForm({ initialConfig, printNodeApiKeyConfigured }: { ini
   const [promoBody, setPromoBody] = useState("");
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [testingPrinter, setTestingPrinter] = useState<"KITCHEN" | "COUNTER" | null>(null);
+  const [testingWhatsApp, setTestingWhatsApp] = useState(false);
+  const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
+  const [retryingNotification, setRetryingNotification] = useState<string | null>(null);
+  const [waConfigured, setWaConfigured] = useState(whatsappIntegrationConfigured);
 
   const updateField = (field: string, value: any) => {
     setCfg((prev: any) => ({ ...prev, [field]: value }));
@@ -41,7 +59,6 @@ export function SettingsForm({ initialConfig, printNodeApiKeyConfigured }: { ini
       appName: cfg.appName,
       isStoreOpen: cfg.isStoreOpen,
       closedMessage: cfg.closedMessage,
-      whatsappMessage: cfg.whatsappMessage,
       primaryColor: cfg.primaryColor,
       secondaryColor: cfg.secondaryColor,
       storeTheme: cfg.storeTheme || "ORIGINAL",
@@ -83,20 +100,58 @@ export function SettingsForm({ initialConfig, printNodeApiKeyConfigured }: { ini
       printerKitchenName: cfg.printerKitchenName,
       printerKitchenSize: cfg.printerKitchenSize || "80mm",
 
-      // WhatsApp Bot
-      whatsappBotEnabled: cfg.whatsappBotEnabled,
+      // Notificaciones transaccionales por WhatsApp
+      whatsappNotificationsEnabled: cfg.whatsappNotificationsEnabled,
+      whatsappNotifyOrderConfirmed: Boolean(cfg.whatsappNotifyOrderConfirmed ?? true),
+      whatsappNotifyOrderPreparing: Boolean(cfg.whatsappNotifyOrderPreparing ?? true),
+      whatsappNotifyOrderReady: Boolean(cfg.whatsappNotifyOrderReady ?? true),
+      whatsappTemplateLanguage: cfg.whatsappTemplateLanguage || "es_AR",
+      whatsappConfirmedTemplate: cfg.whatsappConfirmedTemplate || "onlyfood_order_confirmed",
+      whatsappPreparingTemplate: cfg.whatsappPreparingTemplate || "onlyfood_order_preparing",
+      whatsappReadyPickupTemplate: cfg.whatsappReadyPickupTemplate || "onlyfood_order_ready_pickup",
+      whatsappReadyDeliveryTemplate: cfg.whatsappReadyDeliveryTemplate || "onlyfood_order_ready_delivery",
+      whatsappDefaultCountryCode: cfg.whatsappDefaultCountryCode || "549",
       metaApiToken: cfg.metaApiToken,
       metaPhoneNumberId: cfg.metaPhoneNumberId,
       metaVerifyToken: cfg.metaVerifyToken,
+      metaApiVersion: cfg.metaApiVersion || "v23.0",
     };
 
     const result = await updateConfig(cfg.id, dataToSave);
     if (result.success) {
       toast.success("Configuración general guardada");
+      if ("whatsappConfigured" in result) setWaConfigured(Boolean(result.whatsappConfigured));
     } else {
       toast.error("Error", { description: result.error });
     }
     setIsSaving(false);
+  };
+
+  const handleWhatsAppTest = async () => {
+    setTestingWhatsApp(true);
+    const result = await testWhatsAppConnection();
+    if (result.success) toast.success("Conexión con Meta correcta", { description: `${result.name} · ${result.phone}` });
+    else toast.error("No se pudo validar WhatsApp", { description: result.error });
+    setTestingWhatsApp(false);
+  };
+
+  const handleWhatsAppDisconnect = async () => {
+    setDisconnectingWhatsApp(true);
+    const result = await disconnectWhatsAppIntegration();
+    if (result.success) {
+      setWaConfigured(false);
+      setCfg((prev: any) => ({ ...prev, whatsappNotificationsEnabled: false, metaApiToken: null, metaPhoneNumberId: null, metaVerifyToken: null }));
+      toast.success("Integración de WhatsApp desconectada");
+    } else toast.error("No se pudo desconectar WhatsApp");
+    setDisconnectingWhatsApp(false);
+  };
+
+  const handleWhatsAppRetry = async (notificationId: string) => {
+    setRetryingNotification(notificationId);
+    const result = await retryWhatsAppNotification(notificationId);
+    if (result.success) toast.success("Notificación reenviada");
+    else toast.error("El reintento falló", { description: result.error });
+    setRetryingNotification(null);
   };
 
   const handlePrinterTest = async (kind: "KITCHEN" | "COUNTER") => {
@@ -191,11 +246,6 @@ export function SettingsForm({ initialConfig, printNodeApiKeyConfigured }: { ini
                 </div>
               )}
 
-              <div className="space-y-2 border-t pt-4">
-                <Label>Mensaje de WhatsApp para notificaciones</Label>
-                <p className="text-xs text-muted-foreground pb-2">Usa {'{{estado}}'} para insertar dinámicamente el estado del pedido.</p>
-                <Textarea value={cfg.whatsappMessage} onChange={e => updateField('whatsappMessage', e.target.value)} />
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -447,52 +497,88 @@ export function SettingsForm({ initialConfig, printNodeApiKeyConfigured }: { ini
           </Card>
         </TabsContent>
 
-        {/* WhatsApp Bot Tab */}
+        {/* WhatsApp transactional notifications */}
         <TabsContent value="whatsapp" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Bot Automático de WhatsApp</CardTitle>
-              <CardDescription>Configuración de Meta Cloud API para automatizar pedidos.</CardDescription>
+              <CardTitle>Avisos automáticos por WhatsApp</CardTitle>
+              <CardDescription>Envía plantillas oficiales de Meta cuando el pedido se confirma, entra en cocina o queda listo. Este módulo no responde mensajes ni toma pedidos.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between border-2 border-green-200 rounded-xl p-4 bg-green-50">
                 <div className="space-y-0.5">
-                  <Label className="text-base text-slate-800 font-bold">Activar Bot de WhatsApp</Label>
-                  <p className="text-sm text-muted-foreground">Si se activa, el sistema responderá automáticamente a los mensajes entrantes para tomar pedidos.</p>
+                  <Label className="text-base text-slate-800 font-bold">Activar avisos de pedidos</Label>
+                  <p className="text-sm text-muted-foreground">Los avisos se envían automáticamente al teléfono informado por el cliente.</p>
                 </div>
-                <Switch checked={cfg.whatsappBotEnabled} onCheckedChange={v => updateField('whatsappBotEnabled', v)} />
+                <Switch checked={cfg.whatsappNotificationsEnabled} onCheckedChange={v => updateField('whatsappNotificationsEnabled', v)} />
               </div>
 
-              {cfg.whatsappBotEnabled && (
-                <div className="space-y-4 bg-slate-50 p-4 border rounded-xl animate-in fade-in">
-                  <div className="space-y-2">
-                    <Label className="font-bold">Token de Acceso Permanente (Meta API)</Label>
-                    <Input
-                      type="password"
-                      placeholder="EAA..."
-                      value={cfg.metaApiToken || ''}
-                      onChange={e => updateField('metaApiToken', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2 pt-2">
-                    <Label className="font-bold">ID del Número de Teléfono (Phone Number ID)</Label>
-                    <Input
-                      placeholder="1234567890"
-                      value={cfg.metaPhoneNumberId || ''}
-                      onChange={e => updateField('metaPhoneNumberId', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2 pt-2">
-                    <Label className="font-bold">Token de Verificación (Webhook Verify Token)</Label>
-                    <Input
-                      placeholder="mi_token_secreto_123"
-                      value={cfg.metaVerifyToken || ''}
-                      onChange={e => updateField('metaVerifyToken', e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Este token debes ingresarlo en la configuración del Webhook en Meta Developers.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className={`rounded-xl border p-3 ${waConfigured ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                  <div className="flex items-center gap-2 font-bold text-sm">{waConfigured ? <CircleCheck className="h-4 w-4 text-emerald-600" /> : <CircleAlert className="h-4 w-4 text-amber-600" />} Credenciales del comercio</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{waConfigured ? "Configuradas y cifradas" : "Falta guardar token, Phone Number ID y verify token"}</p>
+                </div>
+                <div className={`rounded-xl border p-3 ${metaAppSecretConfigured ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+                  <div className="flex items-center gap-2 font-bold text-sm">{metaAppSecretConfigured ? <CircleCheck className="h-4 w-4 text-emerald-600" /> : <CircleAlert className="h-4 w-4 text-red-600" />} App Secret de la plataforma</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{metaAppSecretConfigured ? "Configurado en el servidor" : "Falta META_APP_SECRET en el contenedor"}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-xl border bg-slate-50 p-4">
+                <Label className="font-bold">URL del webhook para Meta</Label>
+                <Input readOnly value={whatsappWebhookUrl || "Configurá BASE_URL en el servidor"} className="font-mono text-xs" />
+                <p className="text-xs text-muted-foreground">Suscribí el campo <strong>messages</strong>. El endpoint registra entregas, lecturas y errores; ignora conversaciones entrantes.</p>
+              </div>
+
+              <div className="space-y-4 bg-slate-50 p-4 border rounded-xl">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2"><Label className="font-bold">Token de Acceso Permanente</Label><Input type="password" placeholder={waConfigured ? "Guardado · dejar vacío para conservar" : "EAA..."} value={cfg.metaApiToken || ''} onChange={e => updateField('metaApiToken', e.target.value)} /></div>
+                  <div className="space-y-2"><Label className="font-bold">Phone Number ID</Label><Input placeholder="1234567890" value={cfg.metaPhoneNumberId || ''} onChange={e => updateField('metaPhoneNumberId', e.target.value)} /></div>
+                  <div className="space-y-2"><Label className="font-bold">Token de verificación del webhook</Label><Input type="password" placeholder={waConfigured ? "Guardado · dejar vacío para conservar" : "Mínimo 16 caracteres"} value={cfg.metaVerifyToken || ''} onChange={e => updateField('metaVerifyToken', e.target.value)} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2"><Label className="font-bold">Graph API</Label><Input value={cfg.metaApiVersion || 'v23.0'} onChange={e => updateField('metaApiVersion', e.target.value)} placeholder="v23.0" /></div>
+                    <div className="space-y-2"><Label className="font-bold">Prefijo país</Label><Input value={cfg.whatsappDefaultCountryCode || '549'} onChange={e => updateField('whatsappDefaultCountryCode', e.target.value)} placeholder="549" /></div>
                   </div>
                 </div>
-              )}
+                <p className="text-xs text-muted-foreground">Para Argentina usá <strong>549</strong>. Guardá teléfonos con código de área, sin 0 ni 15.</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" onClick={handleWhatsAppTest} disabled={!waConfigured || testingWhatsApp}><RefreshCw className={`mr-2 h-4 w-4 ${testingWhatsApp ? "animate-spin" : ""}`} /> Validar conexión</Button>
+                  <Button type="button" variant="outline" className="text-red-700" onClick={handleWhatsAppDisconnect} disabled={!waConfigured || disconnectingWhatsApp}><Unplug className="mr-2 h-4 w-4" /> Desconectar</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Eventos y plantillas aprobadas</CardTitle><CardDescription>Los nombres deben coincidir exactamente con plantillas Utility aprobadas en WhatsApp Manager.</CardDescription></CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-3">
+                {[
+                  ["whatsappNotifyOrderConfirmed", "Pedido confirmado", "Productos, cantidades, total y modalidad."],
+                  ["whatsappNotifyOrderPreparing", "Pedido en cocina", "Cuando pasa a En preparación."],
+                  ["whatsappNotifyOrderReady", "Pedido listo", "Texto diferente para retiro o envío."],
+                ].map(([field, title, description]) => <div key={field} className="flex items-start justify-between gap-3 rounded-xl border p-3"><div><p className="text-sm font-bold">{title}</p><p className="text-xs text-muted-foreground">{description}</p></div><Switch checked={Boolean(cfg[field])} onCheckedChange={value => updateField(field, value)} /></div>)}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2"><Label>Idioma</Label><Input value={cfg.whatsappTemplateLanguage || 'es_AR'} onChange={e => updateField('whatsappTemplateLanguage', e.target.value)} /></div>
+                <div className="space-y-2"><Label>Confirmado · 6 variables</Label><Input value={cfg.whatsappConfirmedTemplate || ''} onChange={e => updateField('whatsappConfirmedTemplate', e.target.value)} /></div>
+                <div className="space-y-2"><Label>En cocina · 3 variables</Label><Input value={cfg.whatsappPreparingTemplate || ''} onChange={e => updateField('whatsappPreparingTemplate', e.target.value)} /></div>
+                <div className="space-y-2"><Label>Listo para retirar · 3 variables</Label><Input value={cfg.whatsappReadyPickupTemplate || ''} onChange={e => updateField('whatsappReadyPickupTemplate', e.target.value)} /></div>
+                <div className="space-y-2 md:col-span-2"><Label>Listo para enviar · 4 variables</Label><Input value={cfg.whatsappReadyDeliveryTemplate || ''} onChange={e => updateField('whatsappReadyDeliveryTemplate', e.target.value)} /></div>
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-950 space-y-2">
+                <p><strong>Confirmado:</strong> 1 cliente, 2 pedido, 3 comercio, 4 detalle, 5 total, 6 entrega/retiro.</p>
+                <p><strong>En cocina:</strong> 1 cliente, 2 pedido, 3 comercio.</p>
+                <p><strong>Listo retiro:</strong> 1 cliente, 2 pedido, 3 comercio.</p>
+                <p><strong>Listo envío:</strong> 1 cliente, 2 pedido, 3 dirección, 4 comercio.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Últimos envíos</CardTitle><CardDescription>Aceptación, entrega, lectura y errores informados por Meta.</CardDescription></CardHeader>
+            <CardContent>
+              {whatsappNotifications.length === 0 ? <p className="text-sm text-muted-foreground">Todavía no hay notificaciones registradas.</p> : <div className="space-y-2">{whatsappNotifications.map(notification => <div key={notification.id} className="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold">#{notification.order.id.slice(-6).toUpperCase()} · {notification.order.clientName}</p><p className="truncate text-xs text-muted-foreground">{notification.event} · {notification.templateName} · intento {notification.attempts}</p>{notification.error && <p className="mt-1 text-xs text-red-700">{notification.error}</p>}</div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${notification.status === 'FAILED' ? 'bg-red-100 text-red-700' : notification.status === 'READ' || notification.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{notification.status}</span>{notification.status === "FAILED" && <Button type="button" size="sm" variant="outline" onClick={() => handleWhatsAppRetry(notification.id)} disabled={retryingNotification === notification.id}><RefreshCw className={`mr-1 h-3 w-3 ${retryingNotification === notification.id ? 'animate-spin' : ''}`} /> Reintentar</Button>}</div></div>)}</div>}
             </CardContent>
           </Card>
         </TabsContent>

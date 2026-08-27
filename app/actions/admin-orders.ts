@@ -7,10 +7,11 @@ import { getTenantDb } from "@/lib/tenant-db";
 import { requireAdmin } from "@/lib/admin-session";
 import { sendOrderPush } from "@/lib/push-notifications";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue } from "@/lib/inventory";
-import type { Prisma } from "@prisma/client";
 import { findAndReconcileMercadoPagoOrder } from "@/lib/mercadopago-payments";
 import { dispatchOrderPrint } from "@/lib/printnode";
 import { startOfBusinessDayUtc } from "@/lib/time";
+import { dispatchWhatsAppNotification, queueRelatedOrderConfirmationNotifications, queueOrderWhatsAppNotification } from "@/lib/whatsapp-notifications";
+import { notificationEventForStatus } from "@/lib/whatsapp-message-utils";
 
 const statusSchema = z.enum(["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"]);
 const transitions: Record<string, string[]> = {
@@ -109,8 +110,13 @@ export async function reconcilePendingMercadoPagoOrders() {
   const results = await Promise.allSettled(pending.map((order) => findAndReconcileMercadoPagoOrder(order.id, order.tenantId || undefined)));
   const newlyPaid = results.flatMap((result) => result.status === "fulfilled" && result.value.transitionedToPaid ? [result.value.orderId] : []);
   if (newlyPaid.length) {
+    const notificationIds = (await Promise.all(newlyPaid.map((orderId) => queueRelatedOrderConfirmationNotifications(orderId, pending.find((order) => order.id === orderId)?.tenantId || "")))).flat();
     after(async () => {
       for (const orderId of newlyPaid) await dispatchOrderPrint(orderId).catch((error) => console.error("Mercado Pago reconciliation print failed", { orderId, error }));
+      await Promise.allSettled(notificationIds.map(async (id) => {
+        const notification = await db.whatsAppNotification.findFirst({ where: { id }, select: { tenantId: true } });
+        if (notification) await dispatchWhatsAppNotification(id, notification.tenantId);
+      }));
     });
     revalidatePath("/admin/live");
   }
@@ -230,6 +236,11 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
       CANCELLED: "❌ Tu pedido fue cancelado.",
     };
     await sendOrderPush(order.id, "Actualización de tu pedido", messages[order.status] || "Tu pedido cambió de estado.");
+    const whatsappEvent = notificationEventForStatus(order.status, order.needsDelivery);
+    if (whatsappEvent) {
+      const notificationId = await queueOrderWhatsAppNotification(order.id, whatsappEvent, order.tenantId);
+      if (notificationId) after(() => dispatchWhatsAppNotification(notificationId, order.tenantId));
+    }
     revalidatePath("/admin/live");
     revalidatePath(`/track/${order.id}`);
     return { success: true, order };

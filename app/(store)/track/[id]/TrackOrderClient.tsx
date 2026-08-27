@@ -13,7 +13,6 @@ import {
   Check, 
   ShoppingBag, 
   UserRound, 
-  MessageCircle, 
   Phone, 
   Share2, 
   AlertCircle,
@@ -295,11 +294,6 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
     navigator.clipboard.writeText(order.id);
     toast.success("Número de orden copiado");
   };
-
-  // WhatsApp support message
-  const whatsappUrl = config?.whatsappMessage
-    ? `https://wa.me/?text=${encodeURIComponent(`Hola! Quiero consultar por mi orden #${order.id.slice(-6).toUpperCase()}`)}`
-    : null;
 
   // Build list of all related orders (including current one) sorted by scheduled date
   const allOrdersList = [
@@ -730,18 +724,6 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
             </Button>
           </div>
 
-          {/* WhatsApp Support button if configured */}
-          {whatsappUrl && (
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`w-full h-12 rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors ${s.secondaryBtn}`}
-            >
-              <MessageCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span>¿Dudas con tu pedido? Consultanos por WhatsApp</span>
-            </a>
-          )}
         </div>
 
       </main>

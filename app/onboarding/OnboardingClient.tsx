@@ -124,7 +124,7 @@ export default function OnboardingClient() {
                 Contanos sobre tu local gastronómico
               </h2>
               <p className="text-sm text-slate-400">
-                Vamos a preparar tu menú digital, pedidos por WhatsApp y delivery propio.
+                Vamos a preparar tu menú digital, avisos de pedidos por WhatsApp y delivery propio.
               </p>
             </div>
 
@@ -289,7 +289,7 @@ export default function OnboardingClient() {
                   <div className="text-xs text-slate-400 mt-1">Automatización total</div>
                   <ul className="mt-4 space-y-2 text-xs text-slate-300">
                     <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-purple-400" /> Sucursales ilimitadas</li>
-                    <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-purple-400" /> Bot de WhatsApp Inteligente</li>
+                    <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-purple-400" /> Avisos automáticos por WhatsApp</li>
                     <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-purple-400" /> Dominio Propio SSL</li>
                     <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-purple-400" /> Soporte prioritario 24/7</li>
                   </ul>

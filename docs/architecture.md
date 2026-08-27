@@ -60,7 +60,7 @@ NanoLabs OnlyFood es una plataforma SaaS Multi-Tenant diseñada para operar cien
 4. **Portal de Onboarding Público (`/onboarding`):** Registro autoservicio en 3 pasos con siembra automática de catálogo según rubro comercial.
 5. **Webhooks y APIs de Integración (`/api/webhooks/*`):**
    * `/api/webhooks/mercadopago`: Cobro de pedidos de clientes.
-   * `/api/webhooks/whatsapp`: Recepción de mensajes del bot Meta.
+   * `/api/webhooks/whatsapp`: verificación del webhook y recepción de estados de envío, entrega, lectura o error de Meta. Los mensajes entrantes no generan pedidos.
    * `/api/webhooks/billing`: Cobro recurrente de suscripciones SaaS de la plataforma.
 
 ---

@@ -1,10 +1,8 @@
 import crypto from "crypto";
-import { after } from "next/server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { handleIncomingMessage } from "@/lib/whatsapp-bot";
 import { constantTimeEqual } from "@/lib/request-security";
 import { resolveWhatsAppTenant, resolveWhatsAppVerificationToken } from "@/lib/tenant-integrations";
+import { applyWhatsAppDeliveryStatuses } from "@/lib/whatsapp-notifications";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -32,30 +30,20 @@ export async function POST(request: Request) {
 
     const body = JSON.parse(rawBody) as {
       object?: string;
-      entry?: Array<{ changes?: Array<{ value?: { metadata?: { phone_number_id?: string }; messages?: Array<{ id?: string; from?: string; type?: string; [key: string]: unknown }> } }> }>;
+      entry?: Array<{ changes?: Array<{ value?: {
+        metadata?: { phone_number_id?: string };
+        statuses?: Array<{ id?: string; status?: string; errors?: unknown }>;
+      } }> }>;
     };
     if (body.object !== "whatsapp_business_account") return new NextResponse("Not Found", { status: 404 });
 
-    const pending: Array<{ phone: string; message: Record<string, unknown>; tenantId: string }> = [];
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const tenantId = await resolveWhatsAppTenant(change.value?.metadata?.phone_number_id || "");
         if (!tenantId) continue;
-        for (const message of change.value?.messages ?? []) {
-          if (!message.id || !message.from || (message.type !== "text" && message.type !== "interactive")) continue;
-          try {
-            await prisma.webhookEvent.create({ data: { id: message.id, provider: "WHATSAPP" } });
-            pending.push({ phone: message.from, message, tenantId });
-          } catch {
-            // Duplicate delivery: it was already accepted and must not create another order.
-          }
-        }
+        await applyWhatsAppDeliveryStatuses(tenantId, change.value?.statuses ?? []);
       }
     }
-
-    after(async () => {
-      await Promise.allSettled(pending.map(({ phone, message, tenantId }) => handleIncomingMessage(phone, message, tenantId)));
-    });
     return new NextResponse("EVENT_RECEIVED", { status: 200 });
   } catch (error) {
     console.error("Webhook POST Error:", error);

@@ -6,11 +6,33 @@ import { DeliverySlotForm } from "./DeliverySlotForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Clock, Users } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-session";
+import { getTenantContext } from "@/lib/tenant-context";
+import { getTenantIntegration, type WhatsAppCredentials } from "@/lib/tenant-integrations";
 
 export default async function SettingsPage() {
   await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
   const db = await getTenantDb();
-  const config = await db.systemConfig.findFirst();
+  const [config, whatsappCredentials, whatsappNotifications] = await Promise.all([
+    db.systemConfig.findFirst(),
+    getTenantIntegration<WhatsAppCredentials>(tenant.id, "WHATSAPP"),
+    db.whatsAppNotification.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        event: true,
+        status: true,
+        recipient: true,
+        templateName: true,
+        attempts: true,
+        error: true,
+        createdAt: true,
+        sentAt: true,
+        order: { select: { id: true, clientName: true } },
+      },
+    }),
+  ]);
   const messengers = await db.messenger.findMany({
     orderBy: { name: 'asc' }
   });
@@ -21,7 +43,7 @@ export default async function SettingsPage() {
 
   // Ensure default config exists
   const safeConfig = config || await db.systemConfig.create({
-    data: { appName: "nfood", whatsappMessage: "Hola, tu pedido está: {{estado}}", isStoreOpen: true }
+    data: { appName: "nfood", isStoreOpen: true }
   });
 
   return (
@@ -51,9 +73,15 @@ export default async function SettingsPage() {
               mpAccessToken: null,
               metaApiToken: null,
               metaVerifyToken: null,
+              metaPhoneNumberId: whatsappCredentials?.phoneNumberId || null,
+              metaApiVersion: whatsappCredentials?.apiVersion || process.env.META_GRAPH_API_VERSION || "v23.0",
               vapidPrivateKey: null,
             }}
             printNodeApiKeyConfigured={Boolean(process.env.PRINTNODE_API_KEY?.trim())}
+            whatsappIntegrationConfigured={Boolean(whatsappCredentials?.apiToken && whatsappCredentials.phoneNumberId && whatsappCredentials.verifyToken)}
+            metaAppSecretConfigured={Boolean(process.env.META_APP_SECRET?.trim())}
+            whatsappWebhookUrl={process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, "")}/api/webhooks/whatsapp` : ""}
+            whatsappNotifications={whatsappNotifications}
           />
         </TabsContent>
 

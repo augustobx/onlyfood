@@ -173,6 +173,7 @@ export default function CheckoutPage() {
   const [formData, setFormData] = useState({
     clientName: "",
     clientPhone: "",
+    whatsappOptIn: false,
     needsDelivery: false,
     deliveryAddress: "",
     deliverySlotId: "",
@@ -587,6 +588,10 @@ export default function CheckoutPage() {
                   value={formData.clientPhone}
                   onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
                 />
+                <label className={`mt-2 flex cursor-pointer items-start gap-2 rounded-xl border p-2.5 text-xs ${t.switchBg}`}>
+                  <Switch checked={formData.whatsappOptIn} onCheckedChange={(checked) => setFormData({ ...formData, whatsappOptIn: checked })} aria-label="Recibir avisos del pedido por WhatsApp" />
+                  <span className={t.switchLabel}>Quiero recibir por WhatsApp únicamente la confirmación y los cambios operativos de este pedido.</span>
+                </label>
               </div>
             </div>
 

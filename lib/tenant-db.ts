@@ -23,6 +23,7 @@ const TENANT_SCOPED_MODELS = new Set([
   "PushSubscription",
   "MediaAsset",
   "WhatsAppSession",
+  "WhatsAppNotification",
   "TenantSettings",
   "TenantIntegration",
   "PaymentRecord",

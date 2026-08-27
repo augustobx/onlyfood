@@ -62,11 +62,21 @@ model SystemConfig {
   vapidPublicKey  String? // Web Push PubKey
   vapidPrivateKey String? // Web Push PrivKey
 
-  // WhatsApp Bot
-  whatsappBotEnabled Boolean @default(false)
-  metaApiToken       String? @db.Text
-  metaPhoneNumberId  String?
-  metaVerifyToken    String?
+  // Notificaciones transaccionales por WhatsApp
+  whatsappBotEnabled            Boolean @default(false) // Legado, sin uso. Se conserva para migraciones anteriores.
+  whatsappNotificationsEnabled  Boolean @default(false)
+  whatsappNotifyOrderConfirmed  Boolean @default(true)
+  whatsappNotifyOrderPreparing  Boolean @default(true)
+  whatsappNotifyOrderReady      Boolean @default(true)
+  whatsappTemplateLanguage      String  @default("es_AR")
+  whatsappConfirmedTemplate     String  @default("onlyfood_order_confirmed")
+  whatsappPreparingTemplate     String  @default("onlyfood_order_preparing")
+  whatsappReadyPickupTemplate   String  @default("onlyfood_order_ready_pickup")
+  whatsappReadyDeliveryTemplate String  @default("onlyfood_order_ready_delivery")
+  whatsappDefaultCountryCode    String  @default("549")
+  metaApiToken                  String? @db.Text
+  metaPhoneNumberId             String?
+  metaVerifyToken               String?
 
   updatedAt DateTime @updatedAt
 
@@ -343,12 +353,14 @@ model ProductComboItem {
 }
 
 model Order {
-  id                String  @id @default(uuid())
+  id                String    @id @default(uuid())
   trackingTokenHash String?
   tenantId          String
   locationId        String?
   clientName        String
   clientPhone       String
+  whatsappOptIn     Boolean   @default(false)
+  whatsappOptInAt   DateTime?
   needsDelivery     Boolean
   deliveryAddress   String?
   deliveryTime      String?
@@ -381,11 +393,12 @@ model Order {
   tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
-  items           OrderItem[]
-  history         OrderHistory[]
-  deliverySlot    DeliveryTimeSlot? @relation(fields: [deliverySlotId], references: [id], onDelete: SetNull)
-  payments        PaymentRecord[]
-  printDispatches PrintDispatch[]
+  items                 OrderItem[]
+  history               OrderHistory[]
+  deliverySlot          DeliveryTimeSlot?      @relation(fields: [deliverySlotId], references: [id], onDelete: SetNull)
+  payments              PaymentRecord[]
+  printDispatches       PrintDispatch[]
+  whatsappNotifications WhatsAppNotification[]
 
   @@index([tenantId, createdAt])
   @@index([tenantId, trackingTokenHash])
@@ -585,6 +598,31 @@ model WebhookEvent {
   @@index([provider, createdAt])
 }
 
+model WhatsAppNotification {
+  id                String    @id @default(uuid())
+  tenantId          String
+  orderId           String
+  event             String // ORDER_CONFIRMED, ORDER_PREPARING, ORDER_READY_PICKUP, ORDER_READY_DELIVERY
+  status            String    @default("PENDING") // PENDING, PROCESSING, SENT, DELIVERED, READ, FAILED
+  recipient         String
+  templateName      String
+  providerMessageId String?   @unique
+  attempts          Int       @default(0)
+  error             String?   @db.Text
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, event])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, orderId])
+}
+
 model Session {
   id        String   @id @default(uuid())
   tenantId  String
@@ -655,30 +693,31 @@ model Tenant {
   auditLogs    PlatformAuditLog[]
 
   // Relaciones con entidades del negocio
-  systemConfigs     SystemConfig[]
-  categories        Category[]
-  products          Product[]
-  ingredients       Ingredient[]
-  extras            Extra[]
-  orders            Order[]
-  clients           Client[]
-  tiers             CustomerTier[]
-  rewards           PointReward[]
-  redemptions       PointRedemption[]
-  roulettePrizes    RoulettePrize[]
-  rouletteWins      RouletteWin[]
-  deliveryTimeSlots DeliveryTimeSlot[]
-  messengers        Messenger[]
-  mediaAssets       MediaAsset[]
-  pushSubscriptions PushSubscription[]
-  whatsappSessions  WhatsAppSession[]
-  sessions          Session[]
-  paymentRecords    PaymentRecord[]
-  printDispatches   PrintDispatch[]
-  cashSessions      CashSession[]
-  cashMovements     CashMovement[]
-  quantityDiscounts QuantityDiscount[]
-  saasPayments      SaaSPayment[]
+  systemConfigs         SystemConfig[]
+  categories            Category[]
+  products              Product[]
+  ingredients           Ingredient[]
+  extras                Extra[]
+  orders                Order[]
+  clients               Client[]
+  tiers                 CustomerTier[]
+  rewards               PointReward[]
+  redemptions           PointRedemption[]
+  roulettePrizes        RoulettePrize[]
+  rouletteWins          RouletteWin[]
+  deliveryTimeSlots     DeliveryTimeSlot[]
+  messengers            Messenger[]
+  mediaAssets           MediaAsset[]
+  pushSubscriptions     PushSubscription[]
+  whatsappSessions      WhatsAppSession[]
+  whatsappNotifications WhatsAppNotification[]
+  sessions              Session[]
+  paymentRecords        PaymentRecord[]
+  printDispatches       PrintDispatch[]
+  cashSessions          CashSession[]
+  cashMovements         CashMovement[]
+  quantityDiscounts     QuantityDiscount[]
+  saasPayments          SaaSPayment[]
 
   @@index([status])
 }
@@ -726,8 +765,8 @@ model Subscription {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan   Plan   @relation(fields: [planId], references: [id])
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan     Plan          @relation(fields: [planId], references: [id])
   payments SaaSPayment[]
 
   @@index([status])
@@ -932,6 +971,17 @@ model TenantSettings {
 
   vapidPublicKey  String?
   vapidPrivateKey String?
+
+  whatsappNotificationsEnabled  Boolean @default(false)
+  whatsappNotifyOrderConfirmed  Boolean @default(true)
+  whatsappNotifyOrderPreparing  Boolean @default(true)
+  whatsappNotifyOrderReady      Boolean @default(true)
+  whatsappTemplateLanguage      String  @default("es_AR")
+  whatsappConfirmedTemplate     String  @default("onlyfood_order_confirmed")
+  whatsappPreparingTemplate     String  @default("onlyfood_order_preparing")
+  whatsappReadyPickupTemplate   String  @default("onlyfood_order_ready_pickup")
+  whatsappReadyDeliveryTemplate String  @default("onlyfood_order_ready_delivery")
+  whatsappDefaultCountryCode    String  @default("549")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

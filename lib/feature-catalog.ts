@@ -17,7 +17,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   orders: "Pedidos y catálogo",
   loyalty: "Fidelización y puntos",
   roulette: "Ruleta de premios",
-  whatsapp: "Bot de WhatsApp",
+  whatsapp: "Avisos por WhatsApp",
   customDomain: "Dominio personalizado",
   multipleLocations: "Múltiples sucursales",
   printNode: "Impresión automática",

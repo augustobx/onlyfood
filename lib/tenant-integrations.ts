@@ -16,6 +16,14 @@ export interface WhatsAppCredentials {
   apiToken: string;
   phoneNumberId: string;
   verifyToken: string;
+  apiVersion?: string;
+}
+
+export async function setTenantIntegrationActive(tenantId: string, type: IntegrationType, isActive: boolean) {
+  return prisma.tenantIntegration.updateMany({
+    where: { tenantId, type },
+    data: { isActive },
+  });
 }
 
 export interface PrintNodeCredentials {
