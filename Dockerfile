@@ -14,8 +14,10 @@ COPY prisma ./prisma
 RUN npm ci
 
 FROM base AS builder
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 ENV NODE_ENV=production \
-    DATABASE_URL=mysql://build:build@127.0.0.1:3306/build
+    DATABASE_URL=mysql://build:build@127.0.0.1:3306/build \
+    NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN ./node_modules/.bin/prisma generate \

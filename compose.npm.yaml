@@ -41,6 +41,8 @@ services:
     build:
       context: .
       target: runner
+      args:
+        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?Definir NEXT_SERVER_ACTIONS_ENCRYPTION_KEY en .env.docker}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-3007}:3000"
@@ -48,6 +50,7 @@ services:
       DATABASE_URL: mysql://${DB_USER:-onlyfood}:${DB_PASSWORD}@db:3306/${DB_NAME:-onlyfood}
       AUTH_SALT: ${AUTH_SALT:?Definir AUTH_SALT en .env.docker}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-${ENCRYPTION_MASTER_KEY:-}}
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?Definir NEXT_SERVER_ACTIONS_ENCRYPTION_KEY en .env.docker}
       BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
       BASE_URL: ${BASE_URL:?Definir BASE_URL en .env.docker}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
