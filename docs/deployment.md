@@ -84,6 +84,21 @@ docker compose --env-file .env.docker logs --tail=200 database-init app db proxy
 
 7. Verificar `/api/health`, onboarding, SuperAdmin, un tenant, admin, checkout sandbox y recepción firmada de webhooks.
 
+### Servidor con Nginx Proxy Manager
+
+Si el servidor ya publica `80/443` mediante Nginx Proxy Manager, usar `compose.npm.yaml` en lugar de `compose.yaml`. Esta variante no inicia Caddy, no publica MariaDB en el host y expone únicamente la aplicación en `APP_PORT` (3007 por defecto):
+
+```bash
+docker compose -f compose.npm.yaml --env-file .env.docker build
+docker compose -f compose.npm.yaml --env-file .env.docker up -d
+docker compose -f compose.npm.yaml --env-file .env.docker ps -a
+docker compose -f compose.npm.yaml --env-file .env.docker logs --tail=200 database-init db app
+```
+
+En Nginx Proxy Manager, el Proxy Host debe reenviar HTTP al IP del servidor en el puerto configurado, habilitar Websockets y usar un certificado válido para el dominio. Para `onlyfood.nanolabs.online` y los subdominios de tenants se puede usar un certificado wildcard `*.nanolabs.online`; cada dominio personalizado necesita su propio certificado.
+
+Durante una sustitución de plataforma, levantar y validar primero `onlyfood-saas`. El stack anterior se detiene por nombre únicamente después de comprobar healthcheck, acceso HTTPS, autenticación y carga de archivos. No reutilizar sus volúmenes ni ejecutar `down -v`.
+
 ## Rollback
 
 Las migraciones de Prisma no se revierten automáticamente. Ante una falla:
