@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createOrderTrackingToken, isValidOrderTrackingToken } from "@/lib/order-tracking";
 import { hashUserPassword, verifyUserPassword } from "@/lib/user-auth";
 import { generateTenantObjectKey, validateMediaBuffer } from "@/lib/storage";
+import { getPlatformHostname, isPlatformHostname } from "@/lib/platform-host";
 
 describe("security primitives", () => {
   it("uses non-reversible order tracking tokens", () => {
@@ -24,5 +25,12 @@ describe("security primitives", () => {
     expect(validateMediaBuffer("image/svg+xml", Buffer.from("<svg><script/></svg>"))).toMatchObject({ valid: false });
     expect(validateMediaBuffer("image/png", Buffer.from("not a png"))).toMatchObject({ valid: false });
     expect(generateTenantObjectKey("tenant-a", "products", "Burger.png")).toMatch(/^tenants\/tenant-a\/products\//);
+  });
+
+  it("authorizes a dedicated platform host outside the tenant wildcard", () => {
+    expect(getPlatformHostname("https://onlyfood.nanolabs.online")).toBe("onlyfood.nanolabs.online");
+    expect(isPlatformHostname("onlyfood.nanolabs.online", "nanolabs.online", "https://onlyfood.nanolabs.online")).toBe(true);
+    expect(isPlatformHostname("comercio.nanolabs.online", "nanolabs.online", "https://onlyfood.nanolabs.online")).toBe(false);
+    expect(isPlatformHostname("attacker.example", "nanolabs.online", "not-a-url")).toBe(false);
   });
 });
