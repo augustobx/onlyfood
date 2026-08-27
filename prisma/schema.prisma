@@ -678,6 +678,7 @@ model Tenant {
   cashSessions      CashSession[]
   cashMovements     CashMovement[]
   quantityDiscounts QuantityDiscount[]
+  saasPayments      SaaSPayment[]
 
   @@index([status])
 }
@@ -727,8 +728,34 @@ model Subscription {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   plan   Plan   @relation(fields: [planId], references: [id])
+  payments SaaSPayment[]
 
   @@index([status])
+}
+
+model SaaSPayment {
+  id             String    @id @default(uuid())
+  tenantId       String
+  subscriptionId String
+  amount         Float
+  currency       String    @default("ARS")
+  status         String    @default("PENDING") // PENDING, PAID, OVERDUE, REFUNDED, VOID
+  method         String?
+  reference      String?
+  notes          String?
+  dueAt          DateTime?
+  paidAt         DateTime?
+  periodStart    DateTime
+  periodEnd      DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, dueAt])
+  @@index([subscriptionId, createdAt])
+  @@index([status, paidAt])
 }
 
 model Location {

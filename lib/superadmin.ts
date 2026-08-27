@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
+
 import { platformDb } from "@/lib/platform-db";
 import { recordAuditLog } from "@/lib/audit";
 import { FEATURE_KEYS, type FeatureKey } from "@/lib/features";
@@ -50,6 +52,7 @@ export async function getPlatformMetrics() {
     totalUsers,
     subscriptions,
     plans,
+    saasPayments,
   ] = await Promise.all([
     platformDb.tenant.count(),
     platformDb.tenant.count({ where: { status: "ACTIVE" } }),
@@ -64,6 +67,10 @@ export async function getPlatformMetrics() {
       include: { plan: true },
     }),
     platformDb.plan.findMany(),
+    platformDb.saaSPayment.findMany({
+      where: { status: { in: ["PAID", "PENDING", "OVERDUE"] } },
+      select: { amount: true, status: true, paidAt: true },
+    }),
   ]);
 
   const mrr = subscriptions.reduce((sum, sub) => sum + (sub.plan?.priceMonthly || 0), 0);
@@ -74,6 +81,15 @@ export async function getPlatformMetrics() {
     count: subscriptions.filter((s) => s.planId === plan.id).length,
     priceMonthly: plan.priceMonthly,
   }));
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const collectedThisMonth = saasPayments
+    .filter((payment) => payment.status === "PAID" && payment.paidAt && payment.paidAt >= monthStart)
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  const pendingCollection = saasPayments
+    .filter((payment) => payment.status === "PENDING" || payment.status === "OVERDUE")
+    .reduce((sum, payment) => sum + payment.amount, 0);
 
   return {
     totalTenants,
@@ -85,6 +101,9 @@ export async function getPlatformMetrics() {
     totalLocations,
     totalUsers,
     mrr,
+    collectedThisMonth,
+    pendingCollection,
+    overduePayments: saasPayments.filter((payment) => payment.status === "OVERDUE").length,
     planDistribution,
   };
 }
@@ -104,7 +123,12 @@ export async function listAllTenants(search?: string) {
     include: {
       domains: true,
       locations: true,
-      subscription: { include: { plan: true } },
+      subscription: {
+        include: {
+          plan: true,
+          payments: { orderBy: { createdAt: "desc" }, take: 50 },
+        },
+      },
       features: true,
       memberships: { include: { user: { select: { id: true, email: true, name: true, isSuperAdmin: true, createdAt: true } } } },
       _count: { select: { orders: true, locations: true } },
@@ -291,6 +315,145 @@ export async function setTenantFeatureOverride(
     });
   });
   return true;
+}
+
+export interface UpdateTenantUserAccessInput {
+  tenantId: string;
+  userId: string;
+  email: string;
+  name?: string | null;
+  password?: string | null;
+}
+
+export async function updateTenantUserAccess(input: UpdateTenantUserAccessInput) {
+  const membership = await platformDb.tenantMembership.findUnique({
+    where: { tenantId_userId: { tenantId: input.tenantId, userId: input.userId } },
+    include: { user: true },
+  });
+  if (!membership) throw new Error("MEMBERSHIP_NOT_FOUND");
+  if (membership.user.isSuperAdmin) throw new Error("SUPERADMIN_PROTECTED");
+
+  const normalizedEmail = input.email.trim().toLowerCase();
+  const emailOwner = await platformDb.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
+  if (emailOwner && emailOwner.id !== input.userId) throw new Error("EMAIL_ALREADY_EXISTS");
+  if (input.password && input.password.length < 12) throw new Error("PASSWORD_WEAK");
+  const passwordHash = input.password ? await hashUserPassword(input.password) : undefined;
+
+  await platformDb.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: input.userId },
+      data: {
+        email: normalizedEmail,
+        name: input.name?.trim() || null,
+        ...(passwordHash ? { passwordHash } : {}),
+      },
+    });
+    await tx.userSession.deleteMany({ where: { userId: input.userId } });
+    await tx.platformAuditLog.create({
+      data: {
+        tenantId: input.tenantId,
+        userId: input.userId,
+        action: passwordHash ? "TENANT_USER_CREDENTIALS_RESET" : "TENANT_USER_IDENTITY_UPDATED",
+        resource: "User",
+        details: {
+          previousEmail: membership.user.email,
+          newEmail: normalizedEmail,
+          name: input.name?.trim() || null,
+          passwordChanged: Boolean(passwordHash),
+          sessionsRevoked: true,
+        },
+      },
+    });
+  });
+  return true;
+}
+
+export type SaaSPaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "REFUNDED" | "VOID";
+
+export interface CreateSaaSPaymentInput {
+  tenantId: string;
+  amount: number;
+  currency: string;
+  status: SaaSPaymentStatus;
+  method?: string | null;
+  reference?: string | null;
+  notes?: string | null;
+  dueAt?: Date | null;
+  paidAt?: Date | null;
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+async function synchronizeSubscriptionFromPayment(
+  tx: Prisma.TransactionClient,
+  payment: { tenantId: string; subscriptionId: string; status: SaaSPaymentStatus; periodStart: Date; periodEnd: Date },
+) {
+  if (payment.status === "PAID") {
+    await tx.subscription.update({
+      where: { id: payment.subscriptionId },
+      data: { status: "ACTIVE", currentPeriodStart: payment.periodStart, currentPeriodEnd: payment.periodEnd, trialEndsAt: null },
+    });
+    await tx.tenant.update({ where: { id: payment.tenantId }, data: { status: "ACTIVE" } });
+  } else if (payment.status === "OVERDUE") {
+    await tx.subscription.update({ where: { id: payment.subscriptionId }, data: { status: "PAST_DUE" } });
+    await tx.tenant.update({ where: { id: payment.tenantId }, data: { status: "PAST_DUE" } });
+  }
+}
+
+export async function createSaaSPayment(input: CreateSaaSPaymentInput) {
+  const subscription = await platformDb.subscription.findUnique({ where: { tenantId: input.tenantId }, select: { id: true } });
+  if (!subscription) throw new Error("SUBSCRIPTION_NOT_FOUND");
+  if (input.periodEnd <= input.periodStart) throw new Error("INVALID_PERIOD");
+
+  return platformDb.$transaction(async (tx) => {
+    const payment = await tx.saaSPayment.create({
+      data: {
+        tenantId: input.tenantId,
+        subscriptionId: subscription.id,
+        amount: input.amount,
+        currency: input.currency,
+        status: input.status,
+        method: input.method?.trim() || null,
+        reference: input.reference?.trim() || null,
+        notes: input.notes?.trim() || null,
+        dueAt: input.dueAt || null,
+        paidAt: input.status === "PAID" ? input.paidAt || new Date() : input.paidAt || null,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+      },
+    });
+    await synchronizeSubscriptionFromPayment(tx, { ...payment, status: payment.status as SaaSPaymentStatus });
+    await tx.platformAuditLog.create({
+      data: {
+        tenantId: input.tenantId,
+        action: "SAAS_PAYMENT_RECORDED",
+        resource: "SaaSPayment",
+        details: { paymentId: payment.id, amount: payment.amount, currency: payment.currency, status: payment.status, reference: payment.reference },
+      },
+    });
+    return payment;
+  });
+}
+
+export async function updateSaaSPaymentStatus(paymentId: string, status: SaaSPaymentStatus, paidAt?: Date | null) {
+  return platformDb.$transaction(async (tx) => {
+    const existing = await tx.saaSPayment.findUnique({ where: { id: paymentId } });
+    if (!existing) throw new Error("PAYMENT_NOT_FOUND");
+    const payment = await tx.saaSPayment.update({
+      where: { id: paymentId },
+      data: { status, paidAt: status === "PAID" ? paidAt || existing.paidAt || new Date() : paidAt ?? existing.paidAt },
+    });
+    await synchronizeSubscriptionFromPayment(tx, { ...payment, status: payment.status as SaaSPaymentStatus });
+    await tx.platformAuditLog.create({
+      data: {
+        tenantId: payment.tenantId,
+        action: "SAAS_PAYMENT_STATUS_UPDATED",
+        resource: "SaaSPayment",
+        details: { paymentId, previousStatus: existing.status, newStatus: status, paidAt: payment.paidAt?.toISOString() || null },
+      },
+    });
+    return payment;
+  });
 }
 
 export interface ProvisionTenantInput {

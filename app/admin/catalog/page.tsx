@@ -12,6 +12,7 @@ export default async function CatalogPage({ searchParams }: { searchParams?: Pro
     orderBy: { sequence: 'asc' },
     include: {
       products: {
+        orderBy: [{ sequence: 'asc' }, { name: 'asc' }],
         include: {
           ingredients: { include: { ingredient: true } },
           extras: { include: { extra: true } },
@@ -33,6 +34,7 @@ export default async function CatalogPage({ searchParams }: { searchParams?: Pro
 
   const allCombos = await db.product.findMany({
     where: { isCombo: true },
+    orderBy: [{ sequence: 'asc' }, { name: 'asc' }],
     include: { comboItemsConfig: { include: { product: true } } }
   });
 

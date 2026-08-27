@@ -1,16 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Save, Settings2, ShieldCheck, X } from "lucide-react";
+import { CreditCard, KeyRound, Loader2, Save, Settings2, ShieldCheck, UserCog, X } from "lucide-react";
 import {
   createPlanAction,
   updatePlanAction,
   updateTenantFeatureOverrideAction,
   updateTenantSubscriptionAction,
+  updateTenantUserAccessAction,
+  createSaaSPaymentAction,
+  updateSaaSPaymentStatusAction,
 } from "@/app/actions/superadmin";
 import { FEATURE_KEYS, FEATURE_LABELS, type FeatureKey } from "@/lib/feature-catalog";
 
 const SUBSCRIPTION_STATUSES = ["TRIAL", "ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELED"] as const;
+const PAYMENT_STATUSES = ["PENDING", "PAID", "OVERDUE", "REFUNDED", "VOID"] as const;
 type FeatureState = "INHERIT" | "ENABLED" | "DISABLED";
 
 function toDateTimeLocal(value?: string | Date | null) {
@@ -133,6 +137,21 @@ export function TenantControlModal({ tenant, plans, onClose, onSaved }: { tenant
   const [periodEnd, setPeriodEnd] = useState(toDateTimeLocal(subscription?.currentPeriodEnd));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const tenantUsers = (tenant.memberships || []).filter((membership: any) => !membership.user?.isSuperAdmin);
+  const [selectedUserId, setSelectedUserId] = useState(tenantUsers[0]?.userId || tenantUsers[0]?.user?.id || "");
+  const initialUser = tenantUsers.find((membership: any) => (membership.userId || membership.user?.id) === selectedUserId)?.user;
+  const [userEmail, setUserEmail] = useState(initialUser?.email || "");
+  const [userName, setUserName] = useState(initialUser?.name || "");
+  const [newPassword, setNewPassword] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState(String(subscription?.plan?.priceMonthly || ""));
+  const [paymentStatus, setPaymentStatus] = useState<(typeof PAYMENT_STATUSES)[number]>("PAID");
+  const [paymentMethod, setPaymentMethod] = useState("TRANSFERENCIA");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentDueAt, setPaymentDueAt] = useState(toDateTimeLocal(subscription?.currentPeriodEnd));
+  const [paymentPaidAt, setPaymentPaidAt] = useState(toDateTimeLocal(new Date()));
+  const [paymentPeriodStart, setPaymentPeriodStart] = useState(toDateTimeLocal(subscription?.currentPeriodStart));
+  const [paymentPeriodEnd, setPaymentPeriodEnd] = useState(toDateTimeLocal(subscription?.currentPeriodEnd));
   const selectedPlan = plans.find((plan) => plan.id === planId);
   const planFeatures = useMemo(() => new Set(Array.isArray(selectedPlan?.features) ? selectedPlan.features : []), [selectedPlan]);
 
@@ -181,6 +200,60 @@ export function TenantControlModal({ tenant, plans, onClose, onSaved }: { tenant
     onSaved();
   };
 
+  const chooseUser = (userId: string) => {
+    const user = tenantUsers.find((membership: any) => (membership.userId || membership.user?.id) === userId)?.user;
+    setSelectedUserId(userId);
+    setUserEmail(user?.email || "");
+    setUserName(user?.name || "");
+    setNewPassword("");
+    setMessage(null);
+  };
+
+  const saveUserAccess = async () => {
+    setSaving(true);
+    setMessage(null);
+    const result = await updateTenantUserAccessAction({
+      tenantId: tenant.id,
+      userId: selectedUserId,
+      email: userEmail,
+      name: userName || null,
+      password: newPassword || null,
+    });
+    setSaving(false);
+    if (!result.success) return setMessage(result.error || "No se pudo actualizar el usuario.");
+    onSaved();
+  };
+
+  const registerPayment = async () => {
+    setSaving(true);
+    setMessage(null);
+    const result = await createSaaSPaymentAction({
+      tenantId: tenant.id,
+      amount: Number(paymentAmount),
+      currency: "ARS",
+      status: paymentStatus,
+      method: paymentMethod || null,
+      reference: paymentReference || null,
+      notes: paymentNotes || null,
+      dueAt: paymentDueAt ? toIso(paymentDueAt) : null,
+      paidAt: paymentStatus === "PAID" && paymentPaidAt ? toIso(paymentPaidAt) : null,
+      periodStart: toIso(paymentPeriodStart),
+      periodEnd: toIso(paymentPeriodEnd),
+    });
+    setSaving(false);
+    if (!result.success) return setMessage(result.error || "No se pudo registrar el pago.");
+    onSaved();
+  };
+
+  const changePaymentStatus = async (paymentId: string, nextStatus: string) => {
+    setSaving(true);
+    setMessage(null);
+    const result = await updateSaaSPaymentStatusAction({ paymentId, status: nextStatus, paidAt: nextStatus === "PAID" ? new Date().toISOString() : null });
+    setSaving(false);
+    if (!result.success) return setMessage(result.error || "No se pudo actualizar el pago.");
+    onSaved();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
       <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 shadow-2xl">
@@ -198,6 +271,36 @@ export function TenantControlModal({ tenant, plans, onClose, onSaved }: { tenant
               <label className="text-xs font-bold text-slate-400">Inicio del período<input type="datetime-local" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className={`${fieldClass} mt-1`} /></label>
               <label className="text-xs font-bold text-slate-400">Fin del período<input type="datetime-local" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className={`${fieldClass} mt-1`} /></label>
               <div className="flex items-end"><button disabled={saving || !periodStart || !periodEnd} onClick={saveSubscription} className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white hover:bg-orange-600 disabled:opacity-50">{saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}Guardar suscripción</button></div>
+            </div>
+          </section>
+          <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+            <div className="mb-2 flex items-center gap-2"><UserCog className="size-4 text-blue-400" /><h3 className="font-black text-white">Acceso de usuarios del comercio</h3></div>
+            <p className="mb-4 text-xs text-slate-400">Podés cambiar correo, nombre o contraseña. Al guardar se cierran todas las sesiones de ese usuario.</p>
+            {tenantUsers.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs font-bold text-slate-400">Usuario<select value={selectedUserId} onChange={(e) => chooseUser(e.target.value)} className={`${fieldClass} mt-1`}>{tenantUsers.map((membership: any) => <option key={membership.user.id} value={membership.user.id}>{membership.role} — {membership.user.email}</option>)}</select></label>
+              <label className="text-xs font-bold text-slate-400">Correo<input type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <label className="text-xs font-bold text-slate-400">Nombre<input value={userName} onChange={(e) => setUserName(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <label className="text-xs font-bold text-slate-400">Nueva contraseña<input type="password" minLength={12} placeholder="Dejar vacía para conservar" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <div className="sm:col-span-2 lg:col-span-4 flex justify-end"><button disabled={saving || !selectedUserId || !userEmail} onClick={saveUserAccess} className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white hover:bg-blue-700 disabled:opacity-50"><KeyRound className="size-4" />Restablecer acceso</button></div>
+            </div> : <p className="text-sm text-slate-500">Este comercio todavía no tiene usuarios administradores.</p>}
+          </section>
+          <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+            <div className="mb-2 flex items-center gap-2"><CreditCard className="size-4 text-emerald-400" /><h3 className="font-black text-white">Control de pagos SaaS</h3></div>
+            <p className="mb-4 text-xs text-slate-400">Historial independiente de las ventas del comercio. Un pago confirmado activa la suscripción y aplica el período indicado; un vencido la marca como pendiente.</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs font-bold text-slate-400">Importe ARS<input type="number" min="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <label className="text-xs font-bold text-slate-400">Estado<select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as any)} className={`${fieldClass} mt-1`}>{PAYMENT_STATUSES.map((item) => <option key={item}>{item}</option>)}</select></label>
+              <label className="text-xs font-bold text-slate-400">Método<input value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <label className="text-xs font-bold text-slate-400">Referencia<input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <label className="text-xs font-bold text-slate-400">Vencimiento<input type="datetime-local" value={paymentDueAt} onChange={(e) => setPaymentDueAt(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <label className="text-xs font-bold text-slate-400">Fecha de pago<input type="datetime-local" disabled={paymentStatus !== "PAID"} value={paymentPaidAt} onChange={(e) => setPaymentPaidAt(e.target.value)} className={`${fieldClass} mt-1 disabled:opacity-40`} /></label>
+              <label className="text-xs font-bold text-slate-400">Período desde<input type="datetime-local" value={paymentPeriodStart} onChange={(e) => setPaymentPeriodStart(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <label className="text-xs font-bold text-slate-400">Período hasta<input type="datetime-local" value={paymentPeriodEnd} onChange={(e) => setPaymentPeriodEnd(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <label className="text-xs font-bold text-slate-400 sm:col-span-2 lg:col-span-3">Notas<input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} className={`${fieldClass} mt-1`} /></label>
+              <div className="flex items-end"><button disabled={saving || !paymentAmount || !paymentPeriodStart || !paymentPeriodEnd} onClick={registerPayment} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-50"><Save className="size-4" />Registrar pago</button></div>
+            </div>
+            <div className="mt-5 overflow-x-auto rounded-xl border border-slate-800">
+              <table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-slate-900 text-slate-400"><tr><th className="p-3">Creado</th><th className="p-3">Período</th><th className="p-3">Importe</th><th className="p-3">Método / referencia</th><th className="p-3">Estado</th></tr></thead><tbody className="divide-y divide-slate-800">{(subscription?.payments || []).map((payment: any) => <tr key={payment.id} className="text-slate-300"><td className="p-3">{new Date(payment.createdAt).toLocaleDateString("es-AR")}</td><td className="p-3">{new Date(payment.periodStart).toLocaleDateString("es-AR")} — {new Date(payment.periodEnd).toLocaleDateString("es-AR")}</td><td className="p-3 font-black text-white">${payment.amount.toLocaleString("es-AR")} {payment.currency}</td><td className="p-3">{payment.method || "—"}<span className="block text-slate-500">{payment.reference || "Sin referencia"}</span></td><td className="p-3"><select value={payment.status} disabled={saving} onChange={(e) => changePaymentStatus(payment.id, e.target.value)} className={fieldClass}>{PAYMENT_STATUSES.map((item) => <option key={item}>{item}</option>)}</select></td></tr>)}{!(subscription?.payments || []).length && <tr><td colSpan={5} className="p-5 text-center text-slate-500">Todavía no hay pagos registrados.</td></tr>}</tbody></table>
             </div>
           </section>
           <section>

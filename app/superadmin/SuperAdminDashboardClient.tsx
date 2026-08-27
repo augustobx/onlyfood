@@ -233,7 +233,10 @@ export default function SuperAdminDashboardClient({
             </div>
             <div className="text-3xl font-extrabold text-white">${metrics.mrr.toLocaleString("es-AR")}</div>
             <div className="mt-2 text-xs text-slate-400">
-              Facturación recurrente mensual activa
+              Cobrado este mes: <span className="font-semibold text-emerald-400">${(metrics.collectedThisMonth || 0).toLocaleString("es-AR")}</span>
+              <span className="mx-1">•</span>
+              Pendiente: <span className="font-semibold text-amber-400">${(metrics.pendingCollection || 0).toLocaleString("es-AR")}</span>
+              {metrics.overduePayments > 0 && <span className="ml-1 text-rose-400">({metrics.overduePayments} vencido/s)</span>}
             </div>
           </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Tag, Carrot, Sparkles, Layers, Trash2, Pen, PackagePlus } from "lucide-react";
+import { Plus, Tag, Carrot, Sparkles, Layers, Trash2, Pen, PackagePlus, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   addCategory, toggleCategory, deleteCategory,
-  upsertProduct, toggleProduct, toggleProductImage, deleteProduct,
+  upsertProduct, toggleProduct, toggleProductImage, deleteProduct, reorderProducts,
   addIngredient, toggleIngredient, deleteIngredient, restockIngredient,
   upsertExtra, toggleExtra, deleteExtra
 } from "@/app/actions/admin-catalog";
@@ -88,6 +88,18 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
     else { toast.error("Error", { description: res.error }); }
   };
   const handleToggleCategory = async (id: string, current: boolean) => await toggleCategory(id, !current);
+
+  const handleMoveProduct = async (products: any[], productId: string, direction: -1 | 1, categoryId?: string, isCombo = false) => {
+    const currentIndex = products.findIndex((product) => product.id === productId);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= products.length) return;
+    const orderedIds = products.map((product) => product.id);
+    [orderedIds[currentIndex], orderedIds[targetIndex]] = [orderedIds[targetIndex], orderedIds[currentIndex]];
+    const result = await reorderProducts({ categoryId: categoryId || null, isCombo, productIds: orderedIds });
+    if (!result.success) return toast.error("No se pudo ordenar", { description: result.error });
+    toast.success("Orden actualizado");
+    window.location.reload();
+  };
 
   const handleCreateIngredient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -354,7 +366,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
 
         {combos.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {combos.map(combo => (
+            {combos.map((combo, comboIndex) => (
               <Card key={combo.id}>
                 <CardContent className="p-5 flex gap-4">
                   <div className="flex-1">
@@ -378,6 +390,10 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                     </div>
                   </div>
                   <div className="flex flex-col items-center gap-2 justify-start border-l pl-4">
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="icon" className="h-8 w-8" disabled={comboIndex === 0} onClick={() => handleMoveProduct(combos, combo.id, -1, undefined, true)} title="Subir combo"><ArrowUp className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8" disabled={comboIndex === combos.length - 1} onClick={() => handleMoveProduct(combos, combo.id, 1, undefined, true)} title="Bajar combo"><ArrowDown className="h-4 w-4" /></Button>
+                    </div>
                     <span className="text-xs text-muted-foreground text-center font-medium">{combo.isActive ? 'Activo' : 'Pausado'}</span>
                     <Switch checked={combo.isActive} onCheckedChange={() => handleToggleProduct(combo.id, combo.isActive)} />
                     <Button variant="ghost" size="icon" className="text-blue-500 hover:bg-blue-50 mt-2" onClick={() => {
@@ -636,7 +652,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                 <div className="p-8 text-center text-muted-foreground italic">No hay productos en esta categoría.</div>
               ) : (
                 <div className="divide-y relative">
-                  {cat.products.filter((p: any) => !p.isCombo).map((prod: any) => (
+                  {cat.products.filter((p: any) => !p.isCombo).map((prod: any, productIndex: number, categoryProducts: any[]) => (
                     <div key={prod.id} className="p-4 flex gap-4 hover:bg-slate-50 transition-colors">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -668,6 +684,10 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                         )}
                       </div>
                       <div className="flex items-center gap-6 justify-center w-auto pr-4">
+                        <div className="flex flex-col gap-1">
+                          <Button variant="outline" size="icon" className="h-8 w-8" disabled={productIndex === 0} onClick={() => handleMoveProduct(categoryProducts, prod.id, -1, cat.id)} title="Subir producto"><ArrowUp className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8" disabled={productIndex === categoryProducts.length - 1} onClick={() => handleMoveProduct(categoryProducts, prod.id, 1, cat.id)} title="Bajar producto"><ArrowDown className="h-4 w-4" /></Button>
+                        </div>
                         <div className="flex flex-col items-center gap-1">
                           <span className="text-[10px] text-muted-foreground text-center leading-tight uppercase font-bold">Imagen</span>
                           <Switch checked={prod.showImage} onCheckedChange={() => handleToggleImage(prod.id, prod.showImage)} />

@@ -19,6 +19,10 @@ Desde `/superadmin`, una cuenta SuperAdmin puede:
 - asignar cualquier plan a un comercio, incluso uno inactivo;
 - editar estado, inicio y fin del período y fecha de finalización de prueba;
 - forzar cada opción como habilitada o deshabilitada para un comercio, o devolverla a la herencia del plan.
+- cambiar el nombre o correo de cualquier usuario del comercio y restablecer su contraseña;
+- revocar automáticamente las sesiones del usuario al modificar su acceso;
+- registrar pagos SaaS manuales con importe, método, referencia, vencimiento, fecha efectiva, período y notas;
+- consultar el historial de cobros y cambiar un pago entre `PENDING`, `PAID`, `OVERDUE`, `REFUNDED` y `VOID`.
 
 La resolución efectiva de opciones aplica esta precedencia: una excepción `DISABLED` bloquea la opción; una excepción `ENABLED` la concede; sin excepción, se hereda el plan. Cambiar un plan afecta inmediatamente a todos los comercios que lo heredan, pero no elimina sus excepciones individuales. Todas estas operaciones pasan por autorización de SuperAdmin, validación de servidor y auditoría.
 
@@ -35,6 +39,10 @@ No se permite borrar planes desde la interfaz porque podrían tener historial de
 No hay un job interno que cambie automáticamente trials/períodos vencidos: el resolver los bloquea por fecha y los webhooks actualizan estados. Si se desea una gracia de 72 horas, debe implementarse explícitamente antes de documentarla como comportamiento.
 
 ## Billing SaaS
+
+El historial manual utiliza `SaaSPayment` y nunca se mezcla con `PaymentRecord`, que pertenece a las ventas de cada comercio. Confirmar un pago pone la suscripción en `ACTIVE` y aplica el período facturado. Marcarlo `OVERDUE` sincroniza comercio y suscripción a `PAST_DUE`. Los cambios de identidad, contraseña, suscripción y pagos generan eventos en `PlatformAuditLog`; las contraseñas nunca se registran.
+
+El tablero muestra MRR contractual, cobrado en el mes, monto pendiente y cantidad de pagos vencidos. El MRR es una estimación basada en suscripciones activas; el monto cobrado proviene únicamente de pagos `PAID`.
 
 `MercadoPagoSaaSBillingProvider` crea una suscripción real mediante `/preapproval`, con email del pagador, referencia externa del tenant y callback a `/api/webhooks/billing`. La suscripción local queda pendiente hasta recibir confirmación del proveedor; no se activa por crear un link.
 

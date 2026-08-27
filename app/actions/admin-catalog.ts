@@ -140,6 +140,7 @@ export async function upsertProduct(data: {
           ...payload,
           tenantId: tenant.id,
           isActive: true,
+          sequence: productCount,
           categoryId: cleanData.categoryId || null,
           ingredients: { create: cleanData.ingredientsData.map(ing => ({ ingredientId: ing.id, isRemovable: true, quantity: ing.quantity })) },
           extras: { create: cleanData.extraIds.map(id => ({ extraId: id })) },
@@ -181,6 +182,36 @@ export async function toggleProductImage(id: string, showImage: boolean) {
     revalidatePath("/admin/catalog"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al actualizar mostrar imagen" }; }
+}
+
+export async function reorderProducts(input: { categoryId?: string | null; isCombo?: boolean; productIds: string[] }) {
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const parsed = z.object({
+    categoryId: idSchema.nullable().optional(),
+    isCombo: z.boolean().optional().default(false),
+    productIds: z.array(idSchema).max(10_000),
+  }).safeParse(input);
+  if (!parsed.success || new Set(parsed.data.productIds).size !== parsed.data.productIds.length) {
+    return { success: false, error: "El orden de productos no es válido." };
+  }
+  try {
+    const db = await getTenantDb();
+    const where = parsed.data.isCombo
+      ? { isCombo: true }
+      : { isCombo: false, categoryId: parsed.data.categoryId || null };
+    const existing = await db.product.findMany({ where, select: { id: true } });
+    const existingIds = new Set(existing.map((product) => product.id));
+    if (existing.length !== parsed.data.productIds.length || parsed.data.productIds.some((id) => !existingIds.has(id))) {
+      return { success: false, error: "El catálogo cambió. Recargá la página antes de ordenar." };
+    }
+    await db.$transaction(parsed.data.productIds.map((id, sequence) => db.product.update({ where: { id }, data: { sequence } })));
+    revalidatePath("/admin/catalog");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Error al ordenar productos:", error);
+    return { success: false, error: "No se pudo guardar el orden de productos." };
+  }
 }
 
 export async function addIngredient(data: { name: string, categoryIds: string[], purchaseVolume: string, purchasePrice: number, yieldUnits: number }) {

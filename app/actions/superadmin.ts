@@ -15,6 +15,9 @@ import {
   createPlan,
   updateTenantSubscription,
   setTenantFeatureOverride,
+  updateTenantUserAccess,
+  createSaaSPayment,
+  updateSaaSPaymentStatus,
   type ProvisionTenantInput,
 } from "@/lib/superadmin";
 import { FEATURE_KEYS } from "@/lib/features";
@@ -62,6 +65,35 @@ const featureOverrideSchema = z.object({
   tenantId: idSchema,
   featureKey: featureSchema,
   state: z.enum(["INHERIT", "ENABLED", "DISABLED"]),
+});
+
+const tenantUserAccessSchema = z.object({
+  tenantId: idSchema,
+  userId: idSchema,
+  email: z.string().trim().toLowerCase().email().max(254),
+  name: z.string().trim().max(120).nullable().optional(),
+  password: z.string().min(12).max(200).nullable().optional(),
+});
+
+const paymentStatusSchema = z.enum(["PENDING", "PAID", "OVERDUE", "REFUNDED", "VOID"]);
+const saasPaymentSchema = z.object({
+  tenantId: idSchema,
+  amount: z.coerce.number().positive().max(1_000_000_000),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).default("ARS"),
+  status: paymentStatusSchema,
+  method: z.string().trim().max(100).nullable().optional(),
+  reference: z.string().trim().max(200).nullable().optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+  dueAt: subscriptionDateSchema.nullable().optional(),
+  paidAt: subscriptionDateSchema.nullable().optional(),
+  periodStart: subscriptionDateSchema,
+  periodEnd: subscriptionDateSchema,
+});
+
+const paymentStatusUpdateSchema = z.object({
+  paymentId: idSchema,
+  status: paymentStatusSchema,
+  paidAt: subscriptionDateSchema.nullable().optional(),
 });
 
 export async function loginSuperAdminAction(formData: FormData) {
@@ -157,6 +189,55 @@ export async function updateTenantFeatureOverrideAction(input: unknown) {
   } catch (error) {
     console.error("SuperAdmin feature override error:", error);
     return { success: false, error: "No se pudo actualizar la funcionalidad." };
+  }
+}
+
+export async function updateTenantUserAccessAction(input: unknown) {
+  await requireSuperAdmin();
+  const parsed = tenantUserAccessSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: "Revisá el correo y la contraseña (mínimo 12 caracteres)." };
+  try {
+    await updateTenantUserAccess(parsed.data);
+    revalidatePath("/superadmin");
+    return { success: true };
+  } catch (error: any) {
+    console.error("SuperAdmin tenant user update error:", error);
+    const message = error?.message === "EMAIL_ALREADY_EXISTS"
+      ? "Ese correo ya pertenece a otro usuario."
+      : error?.message === "SUPERADMIN_PROTECTED"
+        ? "La cuenta SuperAdmin no se modifica desde un comercio."
+        : error?.message === "MEMBERSHIP_NOT_FOUND"
+          ? "El usuario ya no pertenece a este comercio."
+          : "No se pudo actualizar el acceso del usuario.";
+    return { success: false, error: message };
+  }
+}
+
+export async function createSaaSPaymentAction(input: unknown) {
+  await requireSuperAdmin();
+  const parsed = saasPaymentSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: "Revisá importe, estado y período del pago." };
+  try {
+    await createSaaSPayment(parsed.data);
+    revalidatePath("/superadmin");
+    return { success: true };
+  } catch (error: any) {
+    console.error("SuperAdmin SaaS payment creation error:", error);
+    return { success: false, error: error?.message === "INVALID_PERIOD" ? "El fin del período debe ser posterior al inicio." : "No se pudo registrar el pago." };
+  }
+}
+
+export async function updateSaaSPaymentStatusAction(input: unknown) {
+  await requireSuperAdmin();
+  const parsed = paymentStatusUpdateSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: "El estado del pago no es válido." };
+  try {
+    await updateSaaSPaymentStatus(parsed.data.paymentId, parsed.data.status, parsed.data.paidAt);
+    revalidatePath("/superadmin");
+    return { success: true };
+  } catch (error) {
+    console.error("SuperAdmin SaaS payment status error:", error);
+    return { success: false, error: "No se pudo actualizar el pago." };
   }
 }
 

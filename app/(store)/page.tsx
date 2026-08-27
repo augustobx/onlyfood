@@ -31,6 +31,7 @@ export default async function StorePage() {
     include: {
       products: {
         where: { isActive: true, isCombo: false },
+        orderBy: [{ sequence: 'asc' }, { name: 'asc' }],
         include: {
           ingredients: { include: { ingredient: true } },
           extras: { include: { extra: true } }
@@ -41,7 +42,7 @@ export default async function StorePage() {
 
   const combos = await db.product.findMany({
     where: { isActive: true, isCombo: true },
-    orderBy: { basePrice: 'asc' },
+    orderBy: [{ sequence: 'asc' }, { name: 'asc' }],
     include: {
       comboItemsConfig: { include: { product: { include: { ingredients: { include: { ingredient: true } } } } } }
     }
