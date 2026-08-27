@@ -20,6 +20,7 @@ import {
   BadgePercent,
   WalletCards,
   Dices,
+  BookOpenCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -38,6 +39,7 @@ const routes = [
   { name: "Ruleta de Premios", href: "/admin/games", icon: Dices, feature: "roulette" },
   { name: "Clientes", href: "/admin/users", icon: Users },
   { name: "Puesta en Marcha", href: "/admin/wizard", icon: Sparkles },
+  { name: "Guías", href: "/admin/guides", icon: BookOpenCheck },
   { name: "Configuración", href: "/admin/settings", icon: Settings },
 ];
 

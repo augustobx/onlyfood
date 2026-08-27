@@ -1,6 +1,6 @@
 # NanoLabs OnlyFood SaaS
 
-Plataforma gastronómica multi-tenant construida con Next.js 16, TypeScript, Prisma 7, MariaDB 11.8, Docker Compose y Caddy. Incluye storefront, catálogo ordenable, administración por comercio, caja diaria, promociones automáticas por cantidad, fidelización con canje de puntos, ruleta de premios y SuperAdmin maestro con control de planes, vigencias, accesos y pagos SaaS, además de onboarding, Mercado Pago, WhatsApp, PrintNode y almacenamiento S3/R2.
+Plataforma gastronómica multi-tenant construida con Next.js 16, TypeScript, Prisma 7, MariaDB 11.8, Docker Compose y Caddy. Incluye storefront, catálogo ordenable, administración por comercio, centro de guías autoservicio, caja diaria, promociones automáticas por cantidad, fidelización con canje de puntos, ruleta de premios y SuperAdmin maestro con control de planes, vigencias, accesos y pagos SaaS, además de onboarding, Mercado Pago, WhatsApp, PrintNode y almacenamiento S3/R2.
 
 ## Inicio local con Docker
 
@@ -84,4 +84,4 @@ La guía operativa completa está en [docs/deployment.md](./docs/deployment.md).
 - Webhooks de Mercado Pago y Meta requieren firma válida.
 - SVG está rechazado y los uploads se validan por tamaño, MIME y firma binaria.
 
-Más detalle: [arquitectura](./docs/architecture.md), [multi-tenancy](./docs/multi-tenancy.md), [seguridad](./docs/security.md), [integraciones](./docs/integrations.md), [storage](./docs/storage.md), [suscripciones](./docs/subscriptions.md), [orden del catálogo](./docs/catalog-ordering.md), [caja y promociones](./docs/cash-and-promotions.md), [puntos y ruleta](./docs/rewards-and-roulette.md), [dominios](./docs/tenant-resolution.md) y [backups](./docs/backups.md).
+Más detalle: [arquitectura](./docs/architecture.md), [multi-tenancy](./docs/multi-tenancy.md), [seguridad](./docs/security.md), [integraciones](./docs/integrations.md), [storage](./docs/storage.md), [suscripciones](./docs/subscriptions.md), [centro de guías](./docs/guides.md), [orden del catálogo](./docs/catalog-ordering.md), [caja y promociones](./docs/cash-and-promotions.md), [puntos y ruleta](./docs/rewards-and-roulette.md), [dominios](./docs/tenant-resolution.md) y [backups](./docs/backups.md).

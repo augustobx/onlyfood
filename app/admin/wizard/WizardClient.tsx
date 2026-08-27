@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import {
   Sparkles,
   CheckCircle2,
-  Circle,
   Palette,
   Clock,
   CreditCard,
@@ -13,6 +11,7 @@ import {
   ArrowRight,
   ExternalLink,
   Store,
+  BookOpenCheck,
 } from "lucide-react";
 
 interface WizardProps {
@@ -134,6 +133,12 @@ export default function WizardClient({ tenant, config, productsCount }: WizardPr
             </div>
           );
         })}
+      </div>
+
+      {/* Direct Link to Storefront */}
+      <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 sm:flex sm:items-center sm:justify-between">
+        <div><h4 className="flex items-center gap-2 text-sm font-black text-orange-950"><BookOpenCheck className="size-5" />¿Necesitás aprender algún módulo?</h4><p className="mt-1 text-xs text-orange-900/70">El Centro de Guías explica paso a paso pedidos, caja, catálogo, promociones, clientes, puntos, ruleta e integraciones.</p></div>
+        <Link href="/admin/guides" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-black text-white sm:mt-0">Ver todas las guías <ArrowRight className="size-4" /></Link>
       </div>
 
       {/* Direct Link to Storefront */}

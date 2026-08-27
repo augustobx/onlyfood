@@ -3,6 +3,8 @@ import { createOrderTrackingToken, isValidOrderTrackingToken } from "@/lib/order
 import { hashUserPassword, verifyUserPassword } from "@/lib/user-auth";
 import { generateTenantObjectKey, validateMediaBuffer } from "@/lib/storage";
 import { getPlatformHostname, isPlatformHostname } from "@/lib/platform-host";
+import { ADMIN_GUIDES } from "@/lib/admin-guides";
+import { FEATURE_KEYS } from "@/lib/feature-catalog";
 
 describe("security primitives", () => {
   it("uses non-reversible order tracking tokens", () => {
@@ -32,5 +34,16 @@ describe("security primitives", () => {
     expect(isPlatformHostname("onlyfood.nanolabs.online", "nanolabs.online", "https://onlyfood.nanolabs.online")).toBe(true);
     expect(isPlatformHostname("comercio.nanolabs.online", "nanolabs.online", "https://onlyfood.nanolabs.online")).toBe(false);
     expect(isPlatformHostname("attacker.example", "nanolabs.online", "not-a-url")).toBe(false);
+  });
+
+  it("keeps the self-service guide catalog complete and internally valid", () => {
+    expect(ADMIN_GUIDES.length).toBeGreaterThanOrEqual(18);
+    expect(new Set(ADMIN_GUIDES.map((guide) => guide.id)).size).toBe(ADMIN_GUIDES.length);
+    for (const guide of ADMIN_GUIDES) {
+      expect(guide.href.startsWith("/admin/")).toBe(true);
+      expect(guide.steps.length).toBeGreaterThanOrEqual(4);
+      expect(guide.tips.length).toBeGreaterThanOrEqual(2);
+      if (guide.feature) expect(FEATURE_KEYS).toContain(guide.feature);
+    }
   });
 });
