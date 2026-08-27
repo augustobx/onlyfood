@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 import { constantTimeEqual } from "@/lib/request-security";
 
 const scryptAsync = promisify(crypto.scrypt);
-const LEGACY_SALT = process.env.AUTH_SALT || "onlyfood-secret-salt-12345";
 const SESSION_NAME = "onlyfood_client_session";
 
 export async function hashPassword(password: string): Promise<string> {
@@ -25,7 +24,9 @@ export async function verifyPassword(password: string, stored: string): Promise<
     return { valid: actual.length === expected.length && crypto.timingSafeEqual(actual, expected), legacy: false };
   }
 
-  const legacyHash = crypto.createHmac("sha256", LEGACY_SALT).update(password).digest("hex");
+  const legacySalt = process.env.AUTH_SALT;
+  if (!legacySalt) return { valid: false, legacy: true };
+  const legacyHash = crypto.createHmac("sha256", legacySalt).update(password).digest("hex");
   return { valid: constantTimeEqual(stored, legacyHash), legacy: true };
 }
 
@@ -38,6 +39,7 @@ export async function createSession(clientId: string, tenantId?: string) {
       resolvedTenantId = tenant.id;
     } catch {}
   }
+  if (!resolvedTenantId) throw new Error("TENANT_CONTEXT_REQUIRED");
 
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -84,7 +86,7 @@ export async function getLoggedClient(expectedTenantId?: string) {
   }
 
   // Validar aislamiento de tenant estricto
-  if (targetTenantId && session.client.tenantId && session.client.tenantId !== targetTenantId) {
+  if (targetTenantId && (session.tenantId !== targetTenantId || session.client.tenantId !== targetTenantId)) {
     return null;
   }
 

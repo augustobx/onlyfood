@@ -1,31 +1,31 @@
-# Integraciones por Comercio (Mercado Pago, WhatsApp, PrintNode)
+# Integraciones por comercio
 
-## 1. Mercado Pago
+Las credenciales se guardan cifradas en `TenantIntegration`. El panel nunca vuelve a mostrar secretos existentes; solo indica si la integración está configurada.
 
-Cada comercio configura sus propias credenciales de Mercado Pago:
-* `accessToken`: Token de producción del comercio.
-* `publicKey`: Clave pública para Checkout Pro y Bricks.
-* `webhookSecret`: Clave para validar firmas de webhooks entrantes.
+## Mercado Pago de la tienda
 
-Los fondos van **100% directos a la cuenta de Mercado Pago del comercio**.
+Cada tenant usa su propio `accessToken` y, opcionalmente, `publicKey` y `webhookSecret`. El backend recalcula precios desde MariaDB, crea la preferencia con las credenciales del comercio y agrega `?tenant={tenantId}` al webhook. Los retornos apuntan al hostname del comercio y llevan el token privado de seguimiento cuando el comprador es anónimo.
 
-```ts
-import { getTenantIntegration, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
+Webhook: `/api/webhooks/mercadopago?tenant={tenantId}`. Requiere firma válida. El secreto se toma de la integración cifrada o de `MP_WEBHOOK_SECRET`. La conciliación exige tenant, orden exacta, monto esperado y estado autoritativo consultado al proveedor.
 
-const creds = await getTenantIntegration<MercadoPagoCredentials>(tenantId, "MERCADO_PAGO");
-// Usar creds.accessToken para inicializar la SDK de Mercado Pago
-```
+## Billing NanoLabs
 
----
+Usa `PLATFORM_MP_ACCESS_TOKEN` y `PLATFORM_MP_WEBHOOK_SECRET`. Nunca usar estas credenciales para cobrar pedidos de restaurantes. Endpoint: `/api/webhooks/billing`.
 
-## 2. WhatsApp Meta Cloud API
+## WhatsApp Meta Cloud API
 
-* Cada comercio conecta su `phoneNumberId` y `apiToken` de Meta Graph API.
-* El bot procesa pedidos de forma aislada mediante `WhatsAppSession` con clave compuesta `(tenantId, phone)`.
+Disponible cuando la feature `whatsapp` está activa. Cada integración necesita `phoneNumberId`, `apiToken` y `verifyToken`; `externalAccountId` guarda el `phone_number_id` indexado para resolver el tenant exacto.
 
----
+- GET `/api/webhooks/whatsapp`: valida el verify token contra las integraciones cifradas.
+- POST: exige `X-Hub-Signature-256` con `META_APP_SECRET` y resuelve por `metadata.phone_number_id`.
+- Las sesiones usan `(tenantId, phone)`.
 
-## 3. PrintNode (Impresión Térmica)
+Configurar Meta para enviar metadata con phone number ID. Un número no registrado produce rechazo; nunca se elige un tenant por defecto.
 
-* Despacho automático de comandas y tickets a impresoras de cocina y mostrador (58mm y 80mm).
-* Identificadores de impresora (`printNodeCounterPrinterId`, `printNodeKitchenPrinterId`) configurados por comercio y sucursal.
+## PrintNode
+
+Disponible con la feature `printNode`. API key por tenant, o `PRINTNODE_API_KEY` como fallback controlado. Antes de enviar se valida que orden, ubicación, configuración e impresora pertenezcan al mismo tenant. Los trabajos RAW ESC/POS se registran en `PrintDispatch` para idempotencia y auditoría.
+
+## WebPush
+
+Las claves VAPID son de infraestructura (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`), no de `SystemConfig`. Una suscripción a pedido exige ser el cliente autenticado o presentar el token de tracking. Las notificaciones anónimas no incluyen un deep link sin token.

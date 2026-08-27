@@ -582,7 +582,7 @@ export function SettingsForm({ initialConfig, printNodeApiKeyConfigured }: { ini
                         <div className="space-y-2">
                           <MediaPickerInput
                             label="Imagen del Splash"
-                            placeholder="/splash.png o seleccioná de la galería"
+                            placeholder="Seleccioná una imagen de la galería"
                             value={cfg.splashUrl || ''}
                             onChange={url => updateField('splashUrl', url)}
                           />

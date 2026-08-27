@@ -6,31 +6,13 @@ import { revalidatePath } from "next/cache";
 import { getTenantDb } from "@/lib/tenant-db";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireAdmin } from "@/lib/admin-session";
-
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/svg+xml",
-  "image/avif"
-]);
-
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
-
-function sanitizeFileName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9._-]/g, "");
-}
+import { objectStorage } from "@/lib/storage";
 
 /**
  * Sube uno o varios archivos a /public/uploads y los registra en la BD bajo el Tenant actual.
  */
 export async function uploadMedia(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER"]);
 
   try {
     const tenant = await getTenantContext();
@@ -51,49 +33,25 @@ export async function uploadMedia(formData: FormData) {
       return { success: false, error: "No se seleccionó ningún archivo válido para subir." };
     }
 
-    const tenantUploadsDir = path.join(process.cwd(), "public", "uploads", tenant.id);
-    if (!fs.existsSync(tenantUploadsDir)) {
-      fs.mkdirSync(tenantUploadsDir, { recursive: true });
-    }
-
     const savedAssets = [];
 
     for (const file of files) {
-      if (!ALLOWED_MIME_TYPES.has(file.type.toLowerCase())) {
-        return {
-          success: false,
-          error: `Formato de archivo no admitido (${file.name}). Se admiten JPG, PNG, WEBP, GIF, SVG y AVIF.`
-        };
-      }
-
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        return {
-          success: false,
-          error: `El archivo ${file.name} supera el límite de 10 MB permitido.`
-        };
-      }
-
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
-
-      const timestamp = Date.now();
-      const randomSuffix = Math.random().toString(36).substring(2, 7);
-      const safeName = sanitizeFileName(file.name);
-      const extension = path.extname(safeName) || ".jpg";
-      const baseName = path.basename(safeName, extension);
-      const filename = `${timestamp}_${randomSuffix}_${baseName}${extension}`;
-
-      const filePath = path.join(tenantUploadsDir, filename);
-      await fs.promises.writeFile(filePath, buffer);
-
-      const url = `/uploads/${tenant.id}/${filename}`;
+      const uploaded = await objectStorage.upload({
+        tenantId: tenant.id,
+        folder: "general",
+        fileName: file.name,
+        mimeType: file.type.toLowerCase(),
+        buffer,
+      });
       const asset = await db.mediaAsset.create({
         data: {
           name: file.name,
-          filename,
-          url,
-          sizeBytes: file.size,
-          mimeType: file.type || "image/jpeg",
+          filename: uploaded.objectKey,
+          url: uploaded.url,
+          sizeBytes: uploaded.sizeBytes,
+          mimeType: uploaded.mimeType,
           tenantId: tenant.id,
         }
       });
@@ -189,7 +147,7 @@ export async function getMediaAssets(search?: string) {
  * Elimina un recurso multimedia de la BD y del disco.
  */
 export async function deleteMediaAsset(id: string) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER"]);
 
   try {
     const tenant = await getTenantContext();
@@ -199,13 +157,17 @@ export async function deleteMediaAsset(id: string) {
       return { success: false, error: "El archivo no existe o ya fue eliminado." };
     }
 
-    // Eliminar de disco
-    const filePath = path.join(process.cwd(), "public", "uploads", tenant.id, asset.filename);
-    if (fs.existsSync(filePath)) {
+    if (asset.filename.startsWith(`tenants/${tenant.id}/`)) {
+      await objectStorage.delete(tenant.id, asset.filename);
+    } else {
+      // Compatibilidad con archivos locales creados antes del object storage.
+      const filePath = path.join(process.cwd(), "public", "uploads", tenant.id, path.basename(asset.filename));
+      if (fs.existsSync(filePath)) {
       try {
         await fs.promises.unlink(filePath);
       } catch (err) {
         console.warn("No se pudo borrar el archivo físico:", filePath, err);
+      }
       }
     }
 

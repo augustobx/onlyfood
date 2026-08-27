@@ -7,10 +7,12 @@ self.addEventListener("push", (event) => {
   const title = data.title || "nfood";
   const options = {
     body: data.body || "Tu pedido tiene novedades.",
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/icon-192x192.png",
     data: { url: typeof data.url === "string" && data.url.startsWith("/") ? data.url : "/" },
   };
+  if (typeof data.icon === "string" && data.icon) {
+    options.icon = data.icon;
+    options.badge = data.icon;
+  }
   event.waitUntil(self.registration.showNotification(title, options));
 });
 

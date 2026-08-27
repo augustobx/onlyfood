@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
 import { notFound } from "next/navigation";
 import { PrintTicketClient } from "./PrintTicketClient";
 import { requireAdmin } from "@/lib/admin-session";
@@ -12,11 +12,12 @@ export default async function PrintTicketPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "STAFF", "KITCHEN", "CASHIER"]);
+  const db = await getTenantDb();
   // Esperamos a que los parámetros se resuelvan antes de usarlos
   const { id } = await params;
 
-  const order = await prisma.order.findUnique({
+  const order = await db.order.findUnique({
     where: { id },
     include: {
       items: {
@@ -29,7 +30,7 @@ export default async function PrintTicketPage({
     }
   });
 
-  const config = await prisma.systemConfig.findFirst();
+  const config = await db.systemConfig.findFirst();
 
   if (!order) return notFound();
 

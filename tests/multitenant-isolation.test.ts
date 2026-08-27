@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { createTenantDb } from "@/lib/tenant-db";
+import { saveTenantIntegration, getTenantIntegration } from "@/lib/tenant-integrations";
+import { objectStorage } from "@/lib/storage";
 
-describe("FASE 3 & 15: Multi-Tenant Cross-Isolation & Security (Beats vs Roma)", () => {
+describe("FASE 3, 6 & 15: Multi-Tenant Cross-Isolation & Security (Beats vs Roma)", () => {
   let tenantBeatsId: string;
   let tenantRomaId: string;
 
@@ -41,6 +43,7 @@ describe("FASE 3 & 15: Multi-Tenant Cross-Isolation & Security (Beats vs Roma)",
     // Create Product in Beats
     const prodBeats = await dbBeats.product.create({
       data: {
+        tenantId: tenantBeatsId,
         name: "Doble Cuarto Beats",
         basePrice: 12000,
         categoryId: catBeats.id,
@@ -51,6 +54,7 @@ describe("FASE 3 & 15: Multi-Tenant Cross-Isolation & Security (Beats vs Roma)",
     // Create Product in Roma
     const prodRoma = await dbRoma.product.create({
       data: {
+        tenantId: tenantRomaId,
         name: "Muzzarella Roma Gigante",
         basePrice: 15000,
         categoryId: catRoma.id,
@@ -134,7 +138,7 @@ describe("FASE 3 & 15: Multi-Tenant Cross-Isolation & Security (Beats vs Roma)",
     expect(romaLookup?.points).toBe(50);
   });
 
-  it("should isolate orders and prevents cross-tenant status tampering", async () => {
+  it("should isolate orders and prevent cross-tenant status tampering", async () => {
     const dbBeats = createTenantDb(tenantBeatsId);
     const dbRoma = createTenantDb(tenantRomaId);
 
@@ -175,5 +179,78 @@ describe("FASE 3 & 15: Multi-Tenant Cross-Isolation & Security (Beats vs Roma)",
     // Verify Beats order status remained NEW
     const beatsOrderCheck = await dbBeats.order.findUnique({ where: { id: orderBeats.id } });
     expect(beatsOrderCheck?.status).toBe("NEW");
+  });
+
+  it("should isolate encrypted tenant integrations and media assets", async () => {
+    // 1. Save MP integration for Beats
+    await saveTenantIntegration(tenantBeatsId, "MERCADO_PAGO", {
+      accessToken: "APP_USR-beats-token-12345",
+      publicKey: "APP_USR-beats-pubkey-12345",
+    });
+
+    // 2. Save MP integration for Roma
+    await saveTenantIntegration(tenantRomaId, "MERCADO_PAGO", {
+      accessToken: "APP_USR-roma-token-67890",
+      publicKey: "APP_USR-roma-pubkey-67890",
+    });
+
+    // 3. Retrieve per tenant and verify zero cross-contamination
+    const beatsCreds = await getTenantIntegration<{ accessToken: string }>(tenantBeatsId, "MERCADO_PAGO");
+    const romaCreds = await getTenantIntegration<{ accessToken: string }>(tenantRomaId, "MERCADO_PAGO");
+
+    expect(beatsCreds?.accessToken).toBe("APP_USR-beats-token-12345");
+    expect(romaCreds?.accessToken).toBe("APP_USR-roma-token-67890");
+
+    // 4. Verify storage key ownership validation
+    const beatsKey = `tenants/${tenantBeatsId}/products/burger.webp`;
+    const romaKey = `tenants/${tenantRomaId}/products/pizza.webp`;
+
+    expect(objectStorage.isKeyOwnedByTenant(tenantBeatsId, beatsKey)).toBe(true);
+    expect(objectStorage.isKeyOwnedByTenant(tenantBeatsId, romaKey)).toBe(false);
+  });
+
+  it("should isolate settings, roulette prizes and locations per tenant", async () => {
+    const dbBeats = createTenantDb(tenantBeatsId);
+    const dbRoma = createTenantDb(tenantRomaId);
+
+    // 1. Roulette Prizes
+    const prizeBeats = await dbBeats.roulettePrize.create({
+      data: { name: "Burger Gratis Beats", probability: 0.1, type: "PERCENT", value: 100 },
+    });
+    const prizeRoma = await dbRoma.roulettePrize.create({
+      data: { name: "Pizza Gratis Roma", probability: 0.05, type: "PERCENT", value: 100 },
+    });
+
+    const beatsPrizes = await dbBeats.roulettePrize.findMany();
+    expect(beatsPrizes.some((p) => p.name === "Burger Gratis Beats")).toBe(true);
+    expect(beatsPrizes.some((p) => p.name === "Pizza Gratis Roma")).toBe(false);
+
+    // 2. Locations
+    const beatsLocs = await dbBeats.location.findMany();
+    const romaLocs = await dbRoma.location.findMany();
+    expect(beatsLocs.every((l) => l.tenantId === tenantBeatsId)).toBe(true);
+    expect(romaLocs.every((l) => l.tenantId === tenantRomaId)).toBe(true);
+
+    // 3. SystemConfig
+    const existingBeats = await dbBeats.systemConfig.findFirst();
+    if (existingBeats) {
+      await dbBeats.systemConfig.updateMany({ data: { appName: "Beats Burgers" } });
+    } else {
+      await dbBeats.systemConfig.create({ data: { appName: "Beats Burgers" } });
+    }
+
+    const existingRoma = await dbRoma.systemConfig.findFirst();
+    if (existingRoma) {
+      await dbRoma.systemConfig.updateMany({ data: { appName: "Roma Pizza" } });
+    } else {
+      await dbRoma.systemConfig.create({ data: { appName: "Roma Pizza" } });
+    }
+
+    const beatsConfig = await dbBeats.systemConfig.findFirst();
+    const romaConfig = await dbRoma.systemConfig.findFirst();
+    expect(beatsConfig?.tenantId).toBe(tenantBeatsId);
+    expect(romaConfig?.tenantId).toBe(tenantRomaId);
+    expect(beatsConfig?.appName).toBe("Beats Burgers");
+    expect(romaConfig?.appName).toBe("Roma Pizza");
   });
 });

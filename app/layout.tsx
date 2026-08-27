@@ -18,12 +18,6 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "OnlyFood Online",
   description: "Plataforma de pedidos online, delivery y fidelización.",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "OnlyFood",
-  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

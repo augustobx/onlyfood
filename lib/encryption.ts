@@ -11,7 +11,8 @@ const AUTH_TAG_LENGTH = 16;
  * Utiliza ENCRYPTION_MASTER_KEY o deriva una clave criptográfica a partir de AUTH_SALT.
  */
 function getMasterKey(): Buffer {
-  const envKey = process.env.ENCRYPTION_MASTER_KEY || process.env.AUTH_SALT || "nanolabs-multitenant-saas-master-key-2026-secure";
+  const envKey = process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_MASTER_KEY || process.env.AUTH_SALT;
+  if (!envKey || envKey.length < 32) throw new Error("ENCRYPTION_ERROR: Configurá una clave maestra de al menos 32 caracteres.");
   return crypto.createHash("sha256").update(envKey).digest();
 }
 

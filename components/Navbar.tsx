@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShoppingCart, Menu, Home, UserRound, Sparkles } from "lucide-react";
+import { ShoppingCart, Menu, Home, UserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -38,9 +38,11 @@ export function Navbar({ config }: { config?: any }) {
         <nav className="nexo-nav sticky top-0 z-50 w-full">
           <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 md:px-8">
             <Link href="/" className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-white shadow-lg" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})` }}>
-                {config?.logoUrl ? <img src={config.logoUrl} alt={appName} className="h-full w-full object-cover" /> : <Sparkles className="h-5 w-5" />}
-              </span>
+              {config?.logoUrl && (
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-white shadow-lg" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})` }}>
+                  <img src={config.logoUrl} alt={appName} className="h-full w-full object-cover" />
+                </span>
+              )}
               <span className="min-w-0">
                 <span className="block truncate text-lg font-black tracking-[-0.04em] text-slate-950">{appName}</span>
                 <span className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] ${config?.isStoreOpen === false ? "text-rose-600" : "text-emerald-600"}`}><i className={`h-1.5 w-1.5 rounded-full ${config?.isStoreOpen === false ? "bg-rose-500" : "bg-emerald-500"}`} /> {config?.isStoreOpen === false ? "Cerrado ahora" : "Abierto ahora"}</span>
@@ -95,7 +97,8 @@ export function Navbar({ config }: { config?: any }) {
             <SheetContent side="left" className="w-[85vw] max-w-sm flex flex-col p-6">
               <SheetHeader className="text-left mb-4">
                 <SheetTitle className="text-2xl font-black flex items-center gap-2" style={{ color: primaryColor }}>
-                  {config?.logoUrl ? <img src={config.logoUrl} className="h-8 object-contain" alt="logo" /> : <>🍔 {appName}</>}
+                  {config?.logoUrl && <img src={config.logoUrl} className="h-8 object-contain" alt={`Logo de ${appName}`} />}
+                  <span>{appName}</span>
                 </SheetTitle>
               </SheetHeader>
               <div className="flex flex-col gap-3 mt-4 flex-1">

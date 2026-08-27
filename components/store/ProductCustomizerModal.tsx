@@ -90,7 +90,7 @@ export function ProductCustomizerModal({
       setSecondHalf(null);
       setComboRemovedIngredients({});
     }
-  }, [product?.id, isOpen]);
+  }, [product, isOpen]);
 
   if (!product) return null;
 

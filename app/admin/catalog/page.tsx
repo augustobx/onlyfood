@@ -1,13 +1,14 @@
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
 import { CatalogClient } from "./CatalogClient";
 import { requireAdmin } from "@/lib/admin-session";
 
 export default async function CatalogPage({ searchParams }: { searchParams?: Promise<{ tab?: string, restock?: string }> }) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const db = await getTenantDb();
   const params = await searchParams;
   const requestedTab = params?.tab;
   const initialTab = ["products", "combos", "ingredients", "extras"].includes(requestedTab || "") ? requestedTab! : undefined;
-  const categories = await prisma.category.findMany({
+  const categories = await db.category.findMany({
     orderBy: { sequence: 'asc' },
     include: {
       products: {
@@ -20,17 +21,17 @@ export default async function CatalogPage({ searchParams }: { searchParams?: Pro
     }
   });
 
-  const allExtras = await prisma.extra.findMany({
+  const allExtras = await db.extra.findMany({
     orderBy: { name: 'asc' }
   });
 
-  const allIngredients = await prisma.ingredient.findMany({
+  const allIngredients = await db.ingredient.findMany({
     orderBy: { name: 'asc' },
     include: { categories: true }
   });
   const initialRestockId = allIngredients.some((ingredient) => ingredient.id === params?.restock) ? params?.restock : undefined;
 
-  const allCombos = await prisma.product.findMany({
+  const allCombos = await db.product.findMany({
     where: { isCombo: true },
     include: { comboItemsConfig: { include: { product: true } } }
   });

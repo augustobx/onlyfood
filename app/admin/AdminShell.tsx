@@ -17,6 +17,9 @@ import {
   Image as ImageIcon,
   CalendarDays,
   Sparkles,
+  BadgePercent,
+  WalletCards,
+  Dices,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -26,21 +29,24 @@ const routes = [
   { name: "Pedidos Hoy", href: "/admin/live", icon: LayoutDashboard },
   { name: "Agenda / Calendario", href: "/admin/calendar", icon: CalendarDays },
   { name: "Historial", href: "/admin/history", icon: History },
+  { name: "Caja diaria", href: "/admin/cash", icon: WalletCards, feature: "cashRegister" },
   { name: "Catálogo", href: "/admin/catalog", icon: ShoppingBag },
+  { name: "Promociones", href: "/admin/promotions", icon: BadgePercent, feature: "quantityDiscounts" },
   { name: "Galería de Medios", href: "/admin/media", icon: ImageIcon },
   { name: "Métricas", href: "/admin/metricas", icon: TrendingUp },
-  { name: "Canje de Puntos", href: "/admin/rewards", icon: Gift },
+  { name: "Canje de Puntos", href: "/admin/rewards", icon: Gift, feature: "loyalty" },
+  { name: "Ruleta de Premios", href: "/admin/games", icon: Dices, feature: "roulette" },
   { name: "Clientes", href: "/admin/users", icon: Users },
   { name: "Puesta en Marcha", href: "/admin/wizard", icon: Sparkles },
   { name: "Configuración", href: "/admin/settings", icon: Settings },
 ];
 
-function NavigationLinks({ compact = false }: { compact?: boolean }) {
+function NavigationLinks({ compact = false, enabledFeatures = [] }: { compact?: boolean; enabledFeatures?: string[] }) {
   const pathname = usePathname();
 
   return (
     <div className="space-y-1">
-      {routes.map((route) => {
+      {routes.filter((route) => !route.feature || enabledFeatures.includes(route.feature)).map((route) => {
         const active = pathname === route.href || pathname.startsWith(`${route.href}/`);
         return (
           <Link
@@ -59,7 +65,7 @@ function NavigationLinks({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({ children, enabledFeatures = [] }: { children: React.ReactNode; enabledFeatures?: string[] }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -99,7 +105,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </button>
 
         <nav className="flex flex-1 flex-col p-3">
-          <NavigationLinks compact={collapsed} />
+          <NavigationLinks compact={collapsed} enabledFeatures={enabledFeatures} />
           <div className="mt-auto border-t border-slate-800 pt-3">
             <LogoutButton collapsed={collapsed} />
           </div>
@@ -116,7 +122,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <SheetContent side="left" className="w-72 border-none bg-slate-900 p-0 text-white" showCloseButton={false}>
               <div className="flex h-16 items-center border-b border-slate-800 px-4 text-xl font-black">OnlyFood Admin</div>
               <nav className="flex flex-1 flex-col p-4">
-                <NavigationLinks />
+                <NavigationLinks enabledFeatures={enabledFeatures} />
                 <div className="mt-auto border-t border-slate-800 pt-4"><LogoutButton /></div>
               </nav>
             </SheetContent>

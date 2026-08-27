@@ -5,10 +5,12 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { getLoggedClient } from "@/lib/auth";
 import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
+import { requireTenantFeature } from "@/lib/features";
 
 export async function spinRoulette() {
   try {
     const tenant = await getTenantContext();
+    await requireTenantFeature(tenant.id, "roulette");
     const client = await getLoggedClient(tenant.id);
     if (!client) return { success: false, error: "Necesitás iniciar sesión." } as const;
     const ip = await getRequestIp();

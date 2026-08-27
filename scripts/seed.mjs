@@ -1,7 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
-const connectionString = process.env.DATABASE_URL || "mysql://beatsburgers:3a54738cd3c3f44951c4c2903eadd3727dec41d91af62ea063679471ab531f0e@127.0.0.1:3306/beatsburgers";
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
+if (process.env.ALLOW_LEGACY_DESTRUCTIVE_SEED !== "true") {
+  throw new Error("Legacy seed disabled. Use scripts/seed-saas.mjs for the multi-tenant application.");
+}
+const connectionString = process.env.DATABASE_URL;
 
 const dbUrl = new URL(connectionString);
 const dbHost = dbUrl.hostname === "localhost" ? "127.0.0.1" : dbUrl.hostname;

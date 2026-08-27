@@ -15,7 +15,6 @@ import {
   UserRound, 
   MessageCircle, 
   Phone, 
-  Sparkles, 
   Share2, 
   AlertCircle,
   Truck,
@@ -38,7 +37,7 @@ interface TrackOrderClientProps {
   relatedOrders?: any[];
   config: any;
   deliveryCost: number;
-  searchParams?: { status?: string; payment_id?: string };
+  searchParams?: { status?: string; payment_id?: string; token?: string };
 }
 
 function getThemeStyles(theme: string) {
@@ -340,13 +339,11 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
           {/* Center: Branding & Order tag */}
           <div className="flex items-center gap-2 min-w-0 text-center">
             <Link href="/" className="flex items-center gap-2 min-w-0">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-600 text-white shadow-xs overflow-hidden">
-                {config?.logoUrl ? (
+              {config?.logoUrl && (
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-600 text-white shadow-xs overflow-hidden">
                   <img src={config.logoUrl} alt={appName} className="h-full w-full object-cover" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-              </span>
+                </span>
+              )}
               <span className={`text-sm sm:text-base font-black truncate leading-none ${theme === "CLEAN_BOUTIQUE" ? "font-serif" : ""}`}>
                 {appName}
               </span>
@@ -398,7 +395,10 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
                     key={ord.id}
                     type="button"
                     onClick={() => {
-                      if (!isSelected) router.push(`/track/${ord.id}`);
+                      if (!isSelected) {
+                        const tokenQuery = searchParams?.token ? `?token=${encodeURIComponent(searchParams.token)}` : "";
+                        router.push(`/track/${ord.id}${tokenQuery}`);
+                      }
                     }}
                     className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-2xs ${
                       isSelected
@@ -556,7 +556,7 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
 
         {/* ═══ PUSH NOTIFICATIONS PROMPT ═══ */}
         {order.status !== "DELIVERED" && order.status !== "CANCELLED" && (
-          <PushPrompt orderId={order.id} clientId={order.clientId || undefined} theme={theme} />
+          <PushPrompt orderId={order.id} clientId={order.clientId || undefined} trackingToken={searchParams?.token} theme={theme} />
         )}
 
         {/* ═══ MESSENGER INFO CARD (Delivery in progress) ═══ */}

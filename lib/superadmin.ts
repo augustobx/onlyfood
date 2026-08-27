@@ -1,21 +1,20 @@
 import "server-only";
 
-import { cookies } from "next/headers";
 import { platformDb } from "@/lib/platform-db";
 import { recordAuditLog } from "@/lib/audit";
-import { PLANS, PLAN_FEATURES, type PlanCode } from "@/lib/features";
-import crypto from "crypto";
-
-const SUPERADMIN_COOKIE = "onlyfood_superadmin_session";
+import { FEATURE_KEYS, type FeatureKey } from "@/lib/features";
+import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
+import {
+  createUserSession,
+  deleteUserSession,
+  getLoggedUser,
+  hashUserPassword,
+  verifyUserPassword,
+} from "@/lib/user-auth";
 
 export async function checkIsSuperAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SUPERADMIN_COOKIE)?.value;
-  if (!token) return false;
-
-  const expectedSecret = process.env.SUPERADMIN_KEY || process.env.ADMIN_PASSWORD || "OnlyFood2026!";
-  const expectedToken = crypto.createHmac("sha256", expectedSecret).update("superadmin-session").digest("hex");
-  return token === expectedToken;
+  const user = await getLoggedUser();
+  return Boolean(user?.isSuperAdmin);
 }
 
 export async function requireSuperAdmin() {
@@ -25,26 +24,18 @@ export async function requireSuperAdmin() {
   }
 }
 
-export async function loginSuperAdmin(password: string): Promise<boolean> {
-  const expectedSecret = process.env.SUPERADMIN_KEY || process.env.ADMIN_PASSWORD || "OnlyFood2026!";
-  if (password === expectedSecret) {
-    const token = crypto.createHmac("sha256", expectedSecret).update("superadmin-session").digest("hex");
-    const cookieStore = await cookies();
-    cookieStore.set(SUPERADMIN_COOKIE, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: "/superadmin",
-    });
-    return true;
-  }
-  return false;
+export async function loginSuperAdmin(email: string, password: string): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const ip = await getRequestIp();
+  if (!(await consumeRateLimit("superadmin-login", `${ip}:${normalizedEmail}`, 5, 15 * 60 * 1000))) return false;
+  const user = await platformDb.user.findUnique({ where: { email: normalizedEmail } });
+  if (!user?.isSuperAdmin || !(await verifyUserPassword(password, user.passwordHash))) return false;
+  await createUserSession(user.id);
+  return true;
 }
 
 export async function logoutSuperAdmin() {
-  const cookieStore = await cookies();
-  cookieStore.delete(SUPERADMIN_COOKIE);
+  await deleteUserSession();
 }
 
 export async function getPlatformMetrics() {
@@ -114,18 +105,199 @@ export async function listAllTenants(search?: string) {
       domains: true,
       locations: true,
       subscription: { include: { plan: true } },
-      memberships: { include: { user: true } },
+      features: true,
+      memberships: { include: { user: { select: { id: true, email: true, name: true, isSuperAdmin: true, createdAt: true } } } },
       _count: { select: { orders: true, locations: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 }
 
+export async function listAllPlans() {
+  return platformDb.plan.findMany({
+    include: { _count: { select: { subscriptions: true } } },
+    orderBy: [{ priceMonthly: "asc" }, { name: "asc" }],
+  });
+}
+
+export interface UpdatePlanInput {
+  id: string;
+  name: string;
+  priceMonthly: number;
+  maxLocations: number;
+  maxProducts: number;
+  features: FeatureKey[];
+  isActive: boolean;
+}
+
+export interface CreatePlanInput extends Omit<UpdatePlanInput, "id"> {
+  code: string;
+}
+
+export async function createPlan(input: CreatePlanInput) {
+  const code = input.code.trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9_-]{1,29}$/.test(code)) throw new Error("PLAN_CODE_INVALID");
+  const featureSet = new Set(FEATURE_KEYS);
+  if (input.features.some((feature) => !featureSet.has(feature))) {
+    throw new Error("INVALID_FEATURE");
+  }
+  const existing = await platformDb.plan.findUnique({ where: { code } });
+  if (existing) throw new Error("PLAN_CODE_EXISTS");
+  const plan = await platformDb.plan.create({
+    data: {
+      code,
+      name: input.name.trim(),
+      priceMonthly: input.priceMonthly,
+      maxLocations: input.maxLocations,
+      maxProducts: input.maxProducts,
+      features: [...new Set(input.features)],
+      isActive: input.isActive,
+    },
+  });
+  await recordAuditLog({
+    action: "PLAN_CREATED",
+    resource: "Plan",
+    details: { planId: plan.id, code, name: plan.name },
+  });
+  return true;
+}
+
+export async function updatePlan(input: UpdatePlanInput) {
+  const featureSet = new Set(FEATURE_KEYS);
+  if (input.features.some((feature) => !featureSet.has(feature))) {
+    throw new Error("INVALID_FEATURE");
+  }
+  const previous = await platformDb.plan.findUnique({ where: { id: input.id } });
+  if (!previous) throw new Error("PLAN_NOT_FOUND");
+  const updated = await platformDb.plan.update({
+    where: { id: input.id },
+    data: {
+      name: input.name.trim(),
+      priceMonthly: input.priceMonthly,
+      maxLocations: input.maxLocations,
+      maxProducts: input.maxProducts,
+      features: [...new Set(input.features)],
+      isActive: input.isActive,
+    },
+  });
+  await recordAuditLog({
+    action: "PLAN_UPDATED",
+    resource: "Plan",
+    details: {
+      planId: input.id,
+      code: updated.code,
+      before: {
+        name: previous.name,
+        priceMonthly: previous.priceMonthly,
+        maxLocations: previous.maxLocations,
+        maxProducts: previous.maxProducts,
+        features: previous.features,
+        isActive: previous.isActive,
+      },
+      after: input,
+    },
+  });
+  return true;
+}
+
+export interface UpdateSubscriptionInput {
+  tenantId: string;
+  planId: string;
+  status: "TRIAL" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELED";
+  trialEndsAt: Date | null;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+}
+
+export async function updateTenantSubscription(input: UpdateSubscriptionInput) {
+  const [tenant, plan] = await Promise.all([
+    platformDb.tenant.findUnique({ where: { id: input.tenantId }, select: { id: true } }),
+    platformDb.plan.findUnique({ where: { id: input.planId }, select: { id: true, code: true } }),
+  ]);
+  if (!tenant) throw new Error("TENANT_NOT_FOUND");
+  if (!plan) throw new Error("PLAN_NOT_FOUND");
+  if (input.currentPeriodEnd <= input.currentPeriodStart) throw new Error("INVALID_PERIOD");
+  if (input.status === "TRIAL" && !input.trialEndsAt) {
+    throw new Error("INVALID_TRIAL_END");
+  }
+
+  await platformDb.$transaction(async (tx) => {
+    await tx.subscription.upsert({
+      where: { tenantId: input.tenantId },
+      update: {
+        planId: input.planId,
+        status: input.status,
+        trialEndsAt: input.status === "TRIAL" ? input.trialEndsAt : null,
+        currentPeriodStart: input.currentPeriodStart,
+        currentPeriodEnd: input.currentPeriodEnd,
+      },
+      create: {
+        tenantId: input.tenantId,
+        planId: input.planId,
+        status: input.status,
+        trialEndsAt: input.status === "TRIAL" ? input.trialEndsAt : null,
+        currentPeriodStart: input.currentPeriodStart,
+        currentPeriodEnd: input.currentPeriodEnd,
+      },
+    });
+    await tx.tenant.update({ where: { id: input.tenantId }, data: { status: input.status } });
+    await tx.platformAuditLog.create({
+      data: {
+        tenantId: input.tenantId,
+        action: "SUBSCRIPTION_MANUALLY_UPDATED",
+        resource: "Subscription",
+        details: {
+          planCode: plan.code,
+          status: input.status,
+          trialEndsAt: input.trialEndsAt?.toISOString() || null,
+          currentPeriodStart: input.currentPeriodStart.toISOString(),
+          currentPeriodEnd: input.currentPeriodEnd.toISOString(),
+        },
+      },
+    });
+  });
+  return true;
+}
+
+export async function setTenantFeatureOverride(
+  tenantId: string,
+  featureKey: FeatureKey,
+  state: "INHERIT" | "ENABLED" | "DISABLED",
+) {
+  const [tenant, featureValid] = await Promise.all([
+    platformDb.tenant.findUnique({ where: { id: tenantId }, select: { id: true } }),
+    Promise.resolve(FEATURE_KEYS.includes(featureKey)),
+  ]);
+  if (!tenant) throw new Error("TENANT_NOT_FOUND");
+  if (!featureValid) throw new Error("INVALID_FEATURE");
+
+  await platformDb.$transaction(async (tx) => {
+    if (state === "INHERIT") {
+      await tx.tenantFeature.deleteMany({ where: { tenantId, featureKey } });
+    } else {
+      await tx.tenantFeature.upsert({
+        where: { tenantId_featureKey: { tenantId, featureKey } },
+        update: { isEnabled: state === "ENABLED" },
+        create: { tenantId, featureKey, isEnabled: state === "ENABLED" },
+      });
+    }
+    await tx.platformAuditLog.create({
+      data: {
+        tenantId,
+        action: "TENANT_FEATURE_OVERRIDE_UPDATED",
+        resource: "TenantFeature",
+        details: { featureKey, state },
+      },
+    });
+  });
+  return true;
+}
+
 export interface ProvisionTenantInput {
   name: string;
   slug: string;
   customDomain?: string;
-  planCode: PlanCode;
+  planCode: string;
   ownerEmail: string;
   ownerName: string;
   ownerPassword?: string;
@@ -143,6 +315,14 @@ export async function provisionNewTenant(input: ProvisionTenantInput) {
 
   const plan = await platformDb.plan.findUnique({ where: { code: input.planCode } });
   if (!plan) throw new Error("PLAN_NOT_FOUND");
+  const planFeatures = Array.isArray(plan.features) ? plan.features.filter((feature): feature is string => typeof feature === "string") : [];
+  if (!input.ownerPassword || input.ownerPassword.length < 12) throw new Error("OWNER_PASSWORD_WEAK");
+  const normalizedOwnerEmail = input.ownerEmail.toLowerCase().trim();
+  const existingOwner = await platformDb.user.findUnique({ where: { email: normalizedOwnerEmail } });
+  if (existingOwner && !(await verifyUserPassword(input.ownerPassword, existingOwner.passwordHash))) {
+    throw new Error("OWNER_EMAIL_EXISTS");
+  }
+  const ownerPasswordHash = await hashUserPassword(input.ownerPassword);
 
   return platformDb.$transaction(async (tx) => {
     // 1. Create Tenant
@@ -150,31 +330,31 @@ export async function provisionNewTenant(input: ProvisionTenantInput) {
       data: {
         slug: cleanSlug,
         name: input.name.trim(),
-        status: "ACTIVE",
+        status: "TRIAL",
       },
     });
 
     // 2. Create Primary Location
-    const location = await tx.location.create({
+    await tx.location.create({
       data: {
         tenantId: tenant.id,
         name: input.locationName || "Sucursal Principal",
         code: "main",
         address: input.locationAddress || null,
         phone: input.locationPhone || null,
-        isPrimary: true,
+        isMain: true,
         isActive: true,
       },
     });
 
     // 3. Create Subdomain & optional custom domain
-    const rootDomain = process.env.ROOT_DOMAIN || "producto.nanolabs.app";
+    const rootDomain = process.env.BASE_DOMAIN || process.env.ROOT_DOMAIN || "producto.nanolabs.app";
     await tx.tenantDomain.create({
       data: {
         tenantId: tenant.id,
         hostname: `${cleanSlug}.${rootDomain}`,
         isPrimary: !input.customDomain,
-        verified: true,
+        verifiedAt: new Date(),
       },
     });
 
@@ -184,7 +364,7 @@ export async function provisionNewTenant(input: ProvisionTenantInput) {
           tenantId: tenant.id,
           hostname: input.customDomain.toLowerCase().trim(),
           isPrimary: true,
-          verified: false,
+          isCustom: true,
         },
       });
     }
@@ -194,9 +374,10 @@ export async function provisionNewTenant(input: ProvisionTenantInput) {
       data: {
         tenantId: tenant.id,
         planId: plan.id,
-        status: "ACTIVE",
+        status: "TRIAL",
+        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        currentPeriodEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -223,41 +404,48 @@ export async function provisionNewTenant(input: ProvisionTenantInput) {
         paymentMp: true,
         globalDiscount: 0,
         deliveryCost: 0,
+        isPointsCatalogActive: planFeatures.includes("loyalty"),
+        isRouletteActive: planFeatures.includes("roulette"),
+        rouletteCost: 100,
       },
     });
 
-    // Seed features for plan
-    const featureKeys = PLAN_FEATURES[input.planCode] || [];
-    for (const key of featureKeys) {
-      await tx.tenantFeature.create({
-        data: {
-          tenantId: tenant.id,
-          featureKey: key,
-          isEnabled: true,
-        },
+    if (planFeatures.includes("loyalty")) {
+      await tx.pointReward.createMany({
+        data: [
+          { tenantId: tenant.id, name: "10% de descuento", description: "Canjeable en tu próximo pedido.", pointsCost: 250, type: "PERCENT", value: 10, badgeText: "POPULAR", sequence: 1 },
+          { tenantId: tenant.id, name: "$1.000 de descuento", description: "Descuento directo en tu próximo pedido.", pointsCost: 400, type: "AMOUNT", value: 1000, badgeText: "AHORRO", sequence: 2 },
+        ],
+      });
+    }
+
+    if (planFeatures.includes("roulette")) {
+      await tx.roulettePrize.createMany({
+        data: [
+          { tenantId: tenant.id, name: "5% OFF", probability: 50, type: "PERCENT", value: 5, bgColor: "#7c3aed", textColor: "#ffffff" },
+          { tenantId: tenant.id, name: "$500 OFF", probability: 30, type: "AMOUNT", value: 500, bgColor: "#ea580c", textColor: "#ffffff" },
+          { tenantId: tenant.id, name: "10% OFF", probability: 20, type: "PERCENT", value: 10, bgColor: "#db2777", textColor: "#ffffff" },
+        ],
       });
     }
 
     // 6. Create Owner User if email provided
     if (input.ownerEmail) {
-      const passwordHash = crypto
-        .createHash("sha256")
-        .update(input.ownerPassword || "OnlyFood2026!")
-        .digest("hex");
-
       const user = await tx.user.upsert({
-        where: { email: input.ownerEmail.toLowerCase().trim() },
+        where: { email: normalizedOwnerEmail },
         update: {},
         create: {
-          email: input.ownerEmail.toLowerCase().trim(),
+          email: normalizedOwnerEmail,
           name: input.ownerName || input.name,
-          passwordHash,
-          isPlatformAdmin: false,
+          passwordHash: ownerPasswordHash,
+          isSuperAdmin: false,
         },
       });
 
-      await tx.tenantMembership.create({
-        data: {
+      await tx.tenantMembership.upsert({
+        where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } },
+        update: { role: "OWNER" },
+        create: {
           tenantId: tenant.id,
           userId: user.id,
           role: "OWNER",
@@ -266,14 +454,16 @@ export async function provisionNewTenant(input: ProvisionTenantInput) {
     }
 
     // 7. Audit log
-    await recordAuditLog({
-      tenantId: tenant.id,
-      action: "TENANT_PROVISIONED",
-      resource: "Tenant",
-      details: {
+    await tx.platformAuditLog.create({
+      data: {
+        tenantId: tenant.id,
+        action: "TENANT_PROVISIONED",
+        resource: "Tenant",
+        details: {
         slug: cleanSlug,
         plan: input.planCode,
         name: input.name,
+        },
       },
     });
 
@@ -282,9 +472,10 @@ export async function provisionNewTenant(input: ProvisionTenantInput) {
 }
 
 export async function setTenantStatus(tenantId: string, status: "TRIAL" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELED") {
-  const updated = await platformDb.tenant.update({
-    where: { id: tenantId },
-    data: { status },
+  const updated = await platformDb.$transaction(async (tx) => {
+    const tenant = await tx.tenant.update({ where: { id: tenantId }, data: { status } });
+    await tx.subscription.updateMany({ where: { tenantId }, data: { status } });
+    return tenant;
   });
 
   await recordAuditLog({
@@ -297,7 +488,7 @@ export async function setTenantStatus(tenantId: string, status: "TRIAL" | "ACTIV
   return updated;
 }
 
-export async function setTenantPlan(tenantId: string, planCode: PlanCode) {
+export async function setTenantPlan(tenantId: string, planCode: string) {
   const plan = await platformDb.plan.findUnique({ where: { code: planCode } });
   if (!plan) throw new Error("PLAN_NOT_FOUND");
 
@@ -315,18 +506,8 @@ export async function setTenantPlan(tenantId: string, planCode: PlanCode) {
       },
     });
 
-    // 2. Sync features for new plan
+    // 2. El cambio de plan restablece excepciones individuales.
     await tx.tenantFeature.deleteMany({ where: { tenantId } });
-    const featureKeys = PLAN_FEATURES[planCode] || [];
-    for (const key of featureKeys) {
-      await tx.tenantFeature.create({
-        data: {
-          tenantId,
-          featureKey: key,
-          isEnabled: true,
-        },
-      });
-    }
 
     await recordAuditLog({
       tenantId,

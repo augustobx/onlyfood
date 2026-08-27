@@ -535,6 +535,13 @@ export function OrderDetailModal({
                     </span>
                   </div>
 
+                  {order.quantityDiscountAmount > 0 && (
+                    <div className="flex justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-2 font-bold text-emerald-700">
+                      <span>Promoción por cantidad:</span>
+                      <span>-${order.quantityDiscountAmount.toLocaleString("es-AR")}</span>
+                    </div>
+                  )}
+
                   {isDelivery && (
                     <div className="flex justify-between text-slate-600">
                       <span>Costo de Envío:</span>

@@ -5,25 +5,25 @@ import { prisma } from '@/lib/prisma';
 dotenv.config();
 
 beforeAll(async () => {
-  try {
+  if (process.env.RUN_DB_TESTS !== "true") return;
     // 1. Seed SaaS Plans: STARTER, PRO, BUSINESS
     const starterPlan = await prisma.plan.upsert({
       where: { code: 'STARTER' },
       update: {
         name: 'Plan Starter',
-        priceMonthly: 8000,
+        priceMonthly: 25000,
         maxLocations: 1,
         maxProducts: 50,
-        features: ['customDomain'],
+        features: ['orders', 'cashRegister', 'quantityDiscounts'],
         isActive: true,
       },
       create: {
         code: 'STARTER',
         name: 'Plan Starter',
-        priceMonthly: 8000,
+        priceMonthly: 25000,
         maxLocations: 1,
         maxProducts: 50,
-        features: ['customDomain'],
+        features: ['orders', 'cashRegister', 'quantityDiscounts'],
         isActive: true,
       },
     });
@@ -32,19 +32,19 @@ beforeAll(async () => {
       where: { code: 'PRO' },
       update: {
         name: 'Plan Profesional',
-        priceMonthly: 15000,
+        priceMonthly: 45000,
         maxLocations: 3,
-        maxProducts: 500,
-        features: ['loyalty', 'roulette', 'whatsapp', 'customDomain', 'printNode'],
+        maxProducts: 300,
+        features: ['orders', 'loyalty', 'roulette', 'printNode', 'cashRegister', 'quantityDiscounts'],
         isActive: true,
       },
       create: {
         code: 'PRO',
         name: 'Plan Profesional',
-        priceMonthly: 15000,
+        priceMonthly: 45000,
         maxLocations: 3,
-        maxProducts: 500,
-        features: ['loyalty', 'roulette', 'whatsapp', 'customDomain', 'printNode'],
+        maxProducts: 300,
+        features: ['orders', 'loyalty', 'roulette', 'printNode', 'cashRegister', 'quantityDiscounts'],
         isActive: true,
       },
     });
@@ -53,19 +53,19 @@ beforeAll(async () => {
       where: { code: 'BUSINESS' },
       update: {
         name: 'Plan Business',
-        priceMonthly: 25000,
+        priceMonthly: 85000,
         maxLocations: 10,
         maxProducts: 2000,
-        features: ['loyalty', 'roulette', 'whatsapp', 'customDomain', 'printNode', 'multiLocation', 'analytics'],
+        features: ['orders', 'loyalty', 'roulette', 'whatsapp', 'customDomain', 'multipleLocations', 'printNode', 'advancedReports', 'cashRegister', 'quantityDiscounts'],
         isActive: true,
       },
       create: {
         code: 'BUSINESS',
         name: 'Plan Business',
-        priceMonthly: 25000,
+        priceMonthly: 85000,
         maxLocations: 10,
         maxProducts: 2000,
-        features: ['loyalty', 'roulette', 'whatsapp', 'customDomain', 'printNode', 'multiLocation', 'analytics'],
+        features: ['orders', 'loyalty', 'roulette', 'whatsapp', 'customDomain', 'multipleLocations', 'printNode', 'advancedReports', 'cashRegister', 'quantityDiscounts'],
         isActive: true,
       },
     });
@@ -73,7 +73,7 @@ beforeAll(async () => {
     // 2. Ensure Tenant A (beats)
     const tenantBeats = await prisma.tenant.upsert({
       where: { slug: 'beats' },
-      update: {},
+      update: { name: 'BeatsBurgers', status: 'ACTIVE' },
       create: {
         slug: 'beats',
         name: 'BeatsBurgers',
@@ -110,6 +110,22 @@ beforeAll(async () => {
             storeTheme: 'ORIGINAL',
           },
         },
+      },
+    });
+    await prisma.subscription.upsert({
+      where: { tenantId: tenantBeats.id },
+      update: {
+        planId: proPlan.id,
+        status: 'ACTIVE',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+      create: {
+        tenantId: tenantBeats.id,
+        planId: proPlan.id,
+        status: 'ACTIVE',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -154,6 +170,22 @@ beforeAll(async () => {
         },
       },
     });
+    await prisma.subscription.upsert({
+      where: { tenantId: tenantRoma.id },
+      update: {
+        planId: proPlan.id,
+        status: 'ACTIVE',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+      create: {
+        tenantId: tenantRoma.id,
+        planId: proPlan.id,
+        status: 'ACTIVE',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
 
     // Ensure initial categories for tenants if not exist
     await prisma.category.upsert({
@@ -177,7 +209,4 @@ beforeAll(async () => {
         sequence: 1,
       },
     }).catch(() => {});
-  } catch (err) {
-    // ignore if DB is offline during unit mock tests
-  }
 });

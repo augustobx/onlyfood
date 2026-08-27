@@ -5,6 +5,7 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { getLoggedClient } from "@/lib/auth";
 import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
+import { isValidOrderTrackingToken } from "@/lib/order-tracking";
 
 const schema = z.object({
   subscription: z.object({
@@ -13,6 +14,7 @@ const schema = z.object({
   }),
   orderId: z.string().uuid().optional().nullable(),
   clientId: z.string().uuid().optional().nullable(),
+  trackingToken: z.string().min(32).max(200).optional().nullable(),
 }).strict();
 
 export async function POST(req: Request) {
@@ -30,8 +32,10 @@ export async function POST(req: Request) {
 
     if (parsed.data.clientId && parsed.data.clientId !== currentClient?.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (orderId) {
-      const order = await db.order.findUnique({ where: { id: orderId }, select: { clientId: true, clientPhone: true } });
-      if (!order || (order.clientId && order.clientId !== currentClient?.id)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const order = await db.order.findUnique({ where: { id: orderId }, select: { clientId: true, trackingTokenHash: true } });
+      const ownsOrder = Boolean(currentClient && order?.clientId === currentClient.id);
+      const hasTrackingToken = Boolean(order && isValidOrderTrackingToken(parsed.data.trackingToken || undefined, order.trackingTokenHash));
+      if (!order || (!ownsOrder && !hasTrackingToken)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const endpointHash = crypto.createHash("sha256").update(subscription.endpoint).digest("hex");
     const existingSub = await db.pushSubscription.findFirst({ where: { endpointHash } });

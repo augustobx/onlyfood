@@ -13,7 +13,6 @@ import {
   Gift,
   ChevronRight,
   UserRound,
-  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,9 +69,11 @@ export function UrbanDarkStorefront({
       <nav className="sticky top-0 z-50 w-full bg-[#080a0f]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3.5 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5 min-w-0">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-600/25">
-              {config?.logoUrl ? <img src={config.logoUrl} alt={appName} className="h-full w-full object-cover rounded-xl" /> : <Sparkles className="h-4 w-4" />}
-            </span>
+            {config?.logoUrl && (
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-600/25">
+                <img src={config.logoUrl} alt={appName} className="h-full w-full object-cover rounded-xl" />
+              </span>
+            )}
             <div className="min-w-0">
               <span className="block text-sm font-black tracking-tight text-white truncate leading-none">{appName}</span>
               <span className={`text-[9px] font-bold uppercase tracking-wider ${config?.isStoreOpen !== false ? "text-emerald-400" : "text-rose-400"}`}>

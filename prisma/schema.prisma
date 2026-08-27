@@ -9,7 +9,7 @@ datasource db {
 
 model SystemConfig {
   id              String  @id @default(uuid())
-  tenantId        String? @unique
+  tenantId        String  @unique
   appName         String  @default("BeatsBurgers")
   logoUrl         String?
   splashUrl       String?
@@ -20,30 +20,30 @@ model SystemConfig {
   whatsappMessage String  @default("Hola, tu pedido está en estado: {{estado}}. Gracias por elegirnos!")
   isStoreOpen     Boolean @default(true)
   closedMessage   String  @default("Lo sentimos, actualmente nuestro local se encuentra cerrado.")
-  
-  primaryColor    String  @default("#f97316") // orange-500
-  secondaryColor  String  @default("#9333ea") // purple-600
-  storeTheme      String  @default("ORIGINAL") // ORIGINAL, NEXO
-  
-  splashEnabled   Boolean @default(false)
-  splashDuration  Int     @default(3) // seconds
-  
+
+  primaryColor   String @default("#f97316") // orange-500
+  secondaryColor String @default("#9333ea") // purple-600
+  storeTheme     String @default("ORIGINAL") // ORIGINAL, NEXO
+
+  splashEnabled  Boolean @default(false)
+  splashDuration Int     @default(3) // seconds
+
   welcomeBalloonEnabled  Boolean @default(false)
   welcomeBalloonText     String  @default("¡Te damos la bienvenida a BeatsBurgers!")
   welcomeBalloonDuration Int     @default(5) // seconds
-  
-  deliveryCost    Float   @default(0)
-  globalDiscount  Float   @default(0) // percentage 0-100
-  
-  paymentCash     Boolean @default(true)
-  paymentMp       Boolean @default(true)
-  autoPrintTickets Boolean @default(true)
-  printingMode     String  @default("BROWSER") // BROWSER, PRINTNODE
+
+  deliveryCost   Float @default(0)
+  globalDiscount Float @default(0) // percentage 0-100
+
+  paymentCash               Boolean @default(true)
+  paymentMp                 Boolean @default(true)
+  autoPrintTickets          Boolean @default(true)
+  printingMode              String  @default("BROWSER") // BROWSER, PRINTNODE
   printNodeCounterPrinterId Int?
   printNodeKitchenPrinterId Int?
 
-  isRouletteActive Boolean @default(false)
-  rouletteCost     Int     @default(100)
+  isRouletteActive      Boolean @default(false)
+  rouletteCost          Int     @default(100)
   isPointsCatalogActive Boolean @default(true)
 
   // Pedidos Anticipados, Programados y Horarios
@@ -56,11 +56,11 @@ model SystemConfig {
   businessHours          String? @db.Text
   autoScheduleEnabled    Boolean @default(false)
 
-  mpAccessToken    String?
-  mpPublicKey      String?
+  mpAccessToken String?
+  mpPublicKey   String?
 
-  vapidPublicKey   String? // Web Push PubKey
-  vapidPrivateKey  String? // Web Push PrivKey
+  vapidPublicKey  String? // Web Push PubKey
+  vapidPrivateKey String? // Web Push PrivKey
 
   // WhatsApp Bot
   whatsappBotEnabled Boolean @default(false)
@@ -68,29 +68,29 @@ model SystemConfig {
   metaPhoneNumberId  String?
   metaVerifyToken    String?
 
-  updatedAt       DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   // Configuracion de Impresoras
-  printerCounterName String?  @default("")
-  printerCounterSize String?  @default("80mm")
-  printerKitchenName String?  @default("")
-  printerKitchenSize String?  @default("80mm")
+  printerCounterName String? @default("")
+  printerCounterSize String? @default("80mm")
+  printerKitchenName String? @default("")
+  printerKitchenSize String? @default("80mm")
 
-  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model PushSubscription {
-  id              String   @id @default(uuid())
-  tenantId        String?
-  endpoint        String   @db.Text
-  endpointHash    String
-  p256dh          String   @db.Text
-  auth            String   @db.Text
-  orderId         String?  // The order this subscription tracks
-  clientId        String?  // The registered client (optional)
-  createdAt       DateTime @default(now())
+  id           String   @id @default(uuid())
+  tenantId     String
+  endpoint     String   @db.Text
+  endpointHash String
+  p256dh       String   @db.Text
+  auth         String   @db.Text
+  orderId      String? // The order this subscription tracks
+  clientId     String? // The registered client (optional)
+  createdAt    DateTime @default(now())
 
-  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, endpointHash])
   @@index([orderId])
@@ -98,37 +98,37 @@ model PushSubscription {
 }
 
 model RoulettePrize {
-  id              String  @id @default(uuid())
-  tenantId        String?
-  name            String
-  probability     Float
-  
-  type            String  // PRODUCT, PERCENT, AMOUNT
-  value           Float?  
-  productId       String? 
-  
-  bgColor         String  @default("#f97316")
-  textColor       String  @default("#ffffff")
-  
-  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  product         Product? @relation(fields: [productId], references: [id])
-  wins            RouletteWin[]
+  id          String @id @default(uuid())
+  tenantId    String
+  name        String
+  probability Float
+
+  type      String // PRODUCT, PERCENT, AMOUNT
+  value     Float?
+  productId String?
+
+  bgColor   String @default("#f97316")
+  textColor String @default("#ffffff")
+
+  tenant  Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product?      @relation(fields: [productId], references: [id])
+  wins    RouletteWin[]
 
   @@index([tenantId])
 }
 
 model RouletteWin {
-  id        String   @id @default(uuid())
-  tenantId  String?
+  id        String    @id @default(uuid())
+  tenantId  String
   clientId  String
   prizeId   String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   expiresAt DateTime
   claimedAt DateTime?
 
-  tenant    Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  prize     RoulettePrize @relation(fields: [prizeId], references: [id], onDelete: Restrict)
+  tenant Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  prize  RoulettePrize @relation(fields: [prizeId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, clientId, claimedAt, expiresAt])
   @@index([clientId, claimedAt, expiresAt])
@@ -136,89 +136,89 @@ model RouletteWin {
 
 model PointReward {
   id          String   @id @default(uuid())
-  tenantId    String?
+  tenantId    String
   name        String
   description String?
   pointsCost  Int      @default(100)
-  type        String   // PRODUCT, PERCENT, AMOUNT, COMBO, PROMO
-  value       Float?   // Descuento % o $
+  type        String // PRODUCT, PERCENT, AMOUNT, COMBO, PROMO
+  value       Float? // Descuento % o $
   productId   String?
   imageUrl    String?
-  badgeText   String?  // e.g. "HOT", "PROMO", "POPULAR"
-  minTierId   String?  // Exclusivo para nivel mínimo de cliente
+  badgeText   String? // e.g. "HOT", "PROMO", "POPULAR"
+  minTierId   String? // Exclusivo para nivel mínimo de cliente
   isActive    Boolean  @default(true)
   sequence    Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant      Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  product     Product?      @relation(fields: [productId], references: [id])
-  minTier     CustomerTier? @relation(fields: [minTierId], references: [id], onDelete: SetNull)
+  tenant      Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product     Product?          @relation(fields: [productId], references: [id])
+  minTier     CustomerTier?     @relation(fields: [minTierId], references: [id], onDelete: SetNull)
   redemptions PointRedemption[]
 
   @@index([tenantId, isActive, sequence])
 }
 
 model PointRedemption {
-  id          String   @id @default(uuid())
-  tenantId    String?
+  id          String    @id @default(uuid())
+  tenantId    String
   clientId    String
   rewardId    String
   pointsSpent Int
-  status      String   @default("AVAILABLE") // AVAILABLE, USED, CANCELLED
+  status      String    @default("AVAILABLE") // AVAILABLE, USED, CANCELLED
   usedOrderId String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   expiresAt   DateTime?
   usedAt      DateTime?
 
-  tenant      Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  reward      PointReward @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  tenant Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  reward PointReward @relation(fields: [rewardId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, clientId, status])
   @@index([clientId, status])
 }
 
 model DeliveryTimeSlot {
-  id        String   @id @default(uuid())
-  tenantId  String?
+  id         String  @id @default(uuid())
+  tenantId   String
   locationId String?
-  time      String   // e.g. "21:00"
-  capacity  Int      // Total initial cupos
-  available Int      // Current real-time available cupos
-  isActive  Boolean  @default(true)
-  sequence  Int      @default(0) // Chronological sorting
+  time       String // e.g. "21:00"
+  capacity   Int // Total initial cupos
+  available  Int // Current real-time available cupos
+  isActive   Boolean @default(true)
+  sequence   Int     @default(0) // Chronological sorting
 
-  tenant    Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  location  Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  orders    Order[]
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  orders   Order[]
 
   @@index([tenantId, locationId, isActive])
 }
 
 model Messenger {
-  id        String  @id @default(uuid())
-  tenantId  String?
+  id         String  @id @default(uuid())
+  tenantId   String
   locationId String?
-  name      String
-  phone     String
-  isActive  Boolean @default(true)
+  name       String
+  phone      String
+  isActive   Boolean @default(true)
 
-  tenant    Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  location  Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  orders    Order[]
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  orders   Order[]
 
   @@index([tenantId, locationId, isActive])
 }
 
 model Category {
-  id       String    @id @default(uuid())
-  tenantId String?
+  id       String  @id @default(uuid())
+  tenantId String
   name     String
-  isActive Boolean   @default(true)
-  sequence Int       @default(0)
+  isActive Boolean @default(true)
+  sequence Int     @default(0)
 
-  tenant      Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products    Product[]
   ingredients IngredientCategory[]
 
@@ -226,60 +226,61 @@ model Category {
 }
 
 model Product {
-  suggestedCost Float @default(0)
-  id          String       @id @default(uuid())
-  tenantId    String?
-  name        String
-  categoryId  String?
-  basePrice   Float
-  description String?
-  imageUrl    String?
-  showImage   Boolean      @default(true)
-  isActive    Boolean      @default(true)
-  isCombo     Boolean      @default(false)
-  
-  allowHalf    Boolean      @default(false)
-  onlyHalf     Boolean      @default(false)
+  suggestedCost Float   @default(0)
+  id            String  @id @default(uuid())
+  tenantId      String
+  name          String
+  categoryId    String?
+  basePrice     Float
+  description   String?
+  imageUrl      String?
+  showImage     Boolean @default(true)
+  isActive      Boolean @default(true)
+  isCombo       Boolean @default(false)
+
+  allowHalf              Boolean @default(false)
+  onlyHalf               Boolean @default(false)
   allowRemoveIngredients Boolean @default(true)
-  availableDays String?     @default("")
-  sequence    Int          @default(0)
-  
-  points       Int          @default(0)
-  
-  tenant      Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  availableDays          String? @default("")
+  sequence               Int     @default(0)
+
+  points Int @default(0)
+
+  tenant      Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category    Category?           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   ingredients ProductIngredient[]
   extras      ProductExtra[]
   orderItems  OrderItem[]
-  
-  orderItemsAsSecondHalf OrderItem[] @relation("SecondHalf")
-  comboItemsConfig   ProductComboItem[] @relation("ComboToItems")
-  partOfCombosConfig ProductComboItem[] @relation("ItemToCombo")
+
+  orderItemsAsSecondHalf OrderItem[]        @relation("SecondHalf")
+  comboItemsConfig       ProductComboItem[] @relation("ComboToItems")
+  partOfCombosConfig     ProductComboItem[] @relation("ItemToCombo")
 
   orderItemsAsComboItem OrderItemComboItem[]
   roulettePrizes        RoulettePrize[]
   pointRewards          PointReward[]
+  quantityDiscounts     QuantityDiscountProduct[]
 
   @@index([tenantId, categoryId, isActive])
   @@index([tenantId, sequence])
 }
 
 model Ingredient {
-  id              String  @id @default(uuid())
-  tenantId        String?
-  name            String
-  isActive        Boolean @default(true)
+  id       String  @id @default(uuid())
+  tenantId String
+  name     String
+  isActive Boolean @default(true)
 
-  purchaseVolume   String?
-  purchasePrice    Float    @default(0)
-  yieldUnits       Float    @default(1)
-  costPerUnit      Float    @default(0)
-  stock            Float    @default(0)
-  
-  tenant          Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  categories      IngredientCategory[]
-  products        ProductIngredient[]
-  removedInOrders OrderItemRemovedIngredient[]
+  purchaseVolume String?
+  purchasePrice  Float   @default(0)
+  yieldUnits     Float   @default(1)
+  costPerUnit    Float   @default(0)
+  stock          Float   @default(0)
+
+  tenant               Tenant?                           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categories           IngredientCategory[]
+  products             ProductIngredient[]
+  removedInOrders      OrderItemRemovedIngredient[]
   comboRemovedInOrders OrderItemComboRemovedIngredient[]
 
   @@index([tenantId, isActive])
@@ -299,25 +300,25 @@ model ProductIngredient {
   ingredientId String
   isRemovable  Boolean @default(true)
   quantity     Float   @default(1)
-  
-  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
 
   @@id([productId, ingredientId])
 }
 
 model Extra {
-  id            String         @id @default(uuid())
-  tenantId      String?
+  id            String  @id @default(uuid())
+  tenantId      String
   name          String
   price         Float
-  groupName     String         @default("Extras") // e.g. "Guarnición / Papas", "Agregados", "Salsas"
-  selectionType String         @default("MULTIPLE") // "SINGLE" (solo 1), "MULTIPLE" (varios)
-  isActive      Boolean        @default(true)
+  groupName     String  @default("Extras") // e.g. "Guarnición / Papas", "Agregados", "Salsas"
+  selectionType String  @default("MULTIPLE") // "SINGLE" (solo 1), "MULTIPLE" (varios)
+  isActive      Boolean @default(true)
 
-  tenant        Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  products      ProductExtra[]
-  orderExtras   OrderItemExtra[]
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products    ProductExtra[]
+  orderExtras OrderItemExtra[]
 
   @@index([tenantId, isActive])
 }
@@ -332,58 +333,62 @@ model ProductExtra {
 }
 
 model ProductComboItem {
-  id        String  @id @default(uuid())
+  id        String @id @default(uuid())
   comboId   String
   productId String
-  quantity  Int     @default(1)
-  
-  combo     Product @relation("ComboToItems", fields: [comboId], references: [id], onDelete: Cascade)
-  product   Product @relation("ItemToCombo", fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int    @default(1)
+
+  combo   Product @relation("ComboToItems", fields: [comboId], references: [id], onDelete: Cascade)
+  product Product @relation("ItemToCombo", fields: [productId], references: [id], onDelete: Restrict)
 }
 
 model Order {
-  id               String   @id @default(uuid())
-  tenantId         String?
-  locationId       String?
-  clientName       String
-  clientPhone      String
-  needsDelivery    Boolean
-  deliveryAddress  String?
-  deliveryTime     String?
-  deliverySlotId   String?
+  id                String  @id @default(uuid())
+  trackingTokenHash String?
+  tenantId          String
+  locationId        String?
+  clientName        String
+  clientPhone       String
+  needsDelivery     Boolean
+  deliveryAddress   String?
+  deliveryTime      String?
+  deliverySlotId    String?
 
   // Pedidos Inmediatos vs Programados/Encargo
-  orderType        String   @default("IMMEDIATE") // IMMEDIATE, SCHEDULED_TOMORROW, CUSTOM_DATE
-  scheduledDate    DateTime?
-  scheduledTime    String?
+  orderType     String    @default("IMMEDIATE") // IMMEDIATE, SCHEDULED_TOMORROW, CUSTOM_DATE
+  scheduledDate DateTime?
+  scheduledTime String?
 
-  status           String   @default("NEW") // NEW, IN_PROCESS, FINISHED, DELIVERED, CANCELLED
-  paymentMethod    String   // CASH, MP, ADMIN
-  paymentStatus    String   @default("PENDING") // PENDING, PAID, FAILED
-  mpPreferenceId   String?
-  total            Float
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  status                 String   @default("NEW") // NEW, IN_PROCESS, FINISHED, DELIVERED, CANCELLED
+  paymentMethod          String // CASH, MP, ADMIN
+  paymentStatus          String   @default("PENDING") // PENDING, PAID, FAILED
+  mpPreferenceId         String?
+  total                  Float
+  quantityDiscountAmount Float    @default(0)
+  discountDetails        Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  messengerId      String?
-  messenger        Messenger? @relation(fields: [messengerId], references: [id])
+  messengerId String?
+  messenger   Messenger? @relation(fields: [messengerId], references: [id])
 
-  clientId         String?
-  client           Client?    @relation(fields: [clientId], references: [id])
-  earnedPoints     Int        @default(0)
-  pointsAwarded    Boolean    @default(false)
-  stockCommitted   Boolean    @default(false)
+  clientId       String?
+  client         Client? @relation(fields: [clientId], references: [id])
+  earnedPoints   Int     @default(0)
+  pointsAwarded  Boolean @default(false)
+  stockCommitted Boolean @default(false)
 
-  tenant           Tenant?    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  location         Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
-  items            OrderItem[]
-  history          OrderHistory[]
-  deliverySlot     DeliveryTimeSlot? @relation(fields: [deliverySlotId], references: [id], onDelete: SetNull)
-  payments         PaymentRecord[]
-  printDispatches  PrintDispatch[]
+  items           OrderItem[]
+  history         OrderHistory[]
+  deliverySlot    DeliveryTimeSlot? @relation(fields: [deliverySlotId], references: [id], onDelete: SetNull)
+  payments        PaymentRecord[]
+  printDispatches PrintDispatch[]
 
   @@index([tenantId, createdAt])
+  @@index([tenantId, trackingTokenHash])
   @@index([tenantId, status, createdAt])
   @@index([tenantId, locationId, createdAt])
   @@index([tenantId, clientId])
@@ -395,9 +400,9 @@ model Order {
 
 model PrintDispatch {
   id             String   @id @default(uuid())
-  tenantId       String?
+  tenantId       String
   orderId        String
-  kind           String   // KITCHEN, COUNTER
+  kind           String // KITCHEN, COUNTER
   status         String   @default("PENDING") // PENDING, PROCESSING, SENT, FAILED
   printNodeJobId Int?
   attempts       Int      @default(0)
@@ -405,8 +410,8 @@ model PrintDispatch {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  tenant         Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@unique([orderId, kind])
   @@index([tenantId, status])
@@ -415,40 +420,40 @@ model PrintDispatch {
 
 model PaymentRecord {
   id                String   @id @default(uuid())
-  tenantId          String?
+  tenantId          String
   providerPaymentId String   @unique
   orderId           String
   status            String
-  amount             Float
-  currency           String
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  amount            Float
+  currency          String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  tenant            Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, orderId])
   @@index([orderId])
 }
 
 model OrderItem {
-  id              String   @id @default(uuid())
-  orderId         String
-  productId       String
-  quantity        Int
-  unitPrice       Float
-  subtotal        Float
-  notes           String?
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  unitPrice Float
+  subtotal  Float
+  notes     String?
 
-  isHalfAndHalf        Boolean @default(false)
-  secondHalfProductId  String?
-  secondHalfProduct    Product? @relation("SecondHalf", fields: [secondHalfProductId], references: [id], onDelete: Restrict)
+  isHalfAndHalf       Boolean  @default(false)
+  secondHalfProductId String?
+  secondHalfProduct   Product? @relation("SecondHalf", fields: [secondHalfProductId], references: [id], onDelete: Restrict)
 
-  order                 Order                        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product               Product                      @relation(fields: [productId], references: [id], onDelete: Restrict)
-  removedIngredients    OrderItemRemovedIngredient[]
-  addedExtras           OrderItemExtra[]
-  comboItems            OrderItemComboItem[]
+  order              Order                        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product            Product                      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  removedIngredients OrderItemRemovedIngredient[]
+  addedExtras        OrderItemExtra[]
+  comboItems         OrderItemComboItem[]
 }
 
 model OrderItemComboItem {
@@ -456,9 +461,9 @@ model OrderItemComboItem {
   orderItemId String
   productId   String
   quantity    Int    @default(1)
-  
-  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   removedIngredients OrderItemComboRemovedIngredient[]
 }
@@ -466,9 +471,9 @@ model OrderItemComboItem {
 model OrderItemComboRemovedIngredient {
   comboItemId  String
   ingredientId String
-  
-  comboItem    OrderItemComboItem @relation(fields: [comboItemId], references: [id], onDelete: Cascade)
-  ingredient   Ingredient         @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  comboItem  OrderItemComboItem @relation(fields: [comboItemId], references: [id], onDelete: Cascade)
+  ingredient Ingredient         @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
 
   @@id([comboItemId, ingredientId])
 }
@@ -477,8 +482,8 @@ model OrderItemRemovedIngredient {
   orderItemId  String
   ingredientId String
 
-  orderItem    OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  ingredient   Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  orderItem  OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
 
   @@id([orderItemId, ingredientId])
 }
@@ -488,8 +493,8 @@ model OrderItemExtra {
   extraId     String
   price       Float
 
-  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  extra       Extra     @relation(fields: [extraId], references: [id], onDelete: Restrict)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  extra     Extra     @relation(fields: [extraId], references: [id], onDelete: Restrict)
 
   @@id([orderItemId, extraId])
 }
@@ -499,54 +504,54 @@ model OrderHistory {
   orderId   String
   status    String
   createdAt DateTime @default(now())
-  
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model CustomerTier {
-  id               String        @id @default(uuid())
-  tenantId         String?
-  name             String        // e.g. "Beaters Select", "Beaters Gold", "Beater Club"
-  badgeText        String        // e.g. "SELECT", "GOLD", "VIP"
-  minOrdersCount   Int           @default(0) // Mínimo pedidos completados
-  minPoints        Int           @default(0) // Mínimo puntos
-  minSpent         Float         @default(0) // Mínimo dinero total gastado
-  discountPercent  Float         @default(0) // Descuento extra % automático
-  pointsMultiplier Float         @default(1.0) // Multiplicador de puntos al comprar
-  color            String        @default("#f97316") // Hex color
-  bgGradient       String        @default("from-amber-500 to-yellow-600")
-  iconName         String        @default("Crown") // Crown, Flame, Star, Sparkles, Trophy, Zap
+  id               String   @id @default(uuid())
+  tenantId         String
+  name             String // e.g. "Beaters Select", "Beaters Gold", "Beater Club"
+  badgeText        String // e.g. "SELECT", "GOLD", "VIP"
+  minOrdersCount   Int      @default(0) // Mínimo pedidos completados
+  minPoints        Int      @default(0) // Mínimo puntos
+  minSpent         Float    @default(0) // Mínimo dinero total gastado
+  discountPercent  Float    @default(0) // Descuento extra % automático
+  pointsMultiplier Float    @default(1.0) // Multiplicador de puntos al comprar
+  color            String   @default("#f97316") // Hex color
+  bgGradient       String   @default("from-amber-500 to-yellow-600")
+  iconName         String   @default("Crown") // Crown, Flame, Star, Sparkles, Trophy, Zap
   description      String?
-  sequence         Int           @default(0)
-  isActive         Boolean       @default(true)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  sequence         Int      @default(0)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  tenant           Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  rewards          PointReward[]
-  clients          Client[]
+  tenant  Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rewards PointReward[]
+  clients Client[]
 
   @@index([tenantId, sequence])
 }
 
 model Client {
-  id        String   @id @default(uuid())
-  tenantId  String?
-  phone     String
-  phoneLoginKey String? @db.VarChar(6)
-  password  String
+  id                    String   @id @default(uuid())
+  tenantId              String
+  phone                 String
+  phoneLoginKey         String?  @db.VarChar(6)
+  password              String
   passwordSetupRequired Boolean  @default(false)
-  name      String?
-  points    Int      @default(0)
-  customTierId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  tenant    Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customTier CustomerTier? @relation(fields: [customTierId], references: [id], onDelete: SetNull)
-  orders    Order[]
-  sessions  Session[]
-  rouletteWins RouletteWin[]
+  name                  String?
+  points                Int      @default(0)
+  customTierId          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant           Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customTier       CustomerTier?     @relation(fields: [customTierId], references: [id], onDelete: SetNull)
+  orders           Order[]
+  sessions         Session[]
+  rouletteWins     RouletteWin[]
   pointRedemptions PointRedemption[]
 
   @@unique([tenantId, phone])
@@ -582,29 +587,29 @@ model WebhookEvent {
 
 model Session {
   id        String   @id @default(uuid())
-  tenantId  String?
+  tenantId  String
   clientId  String
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
 }
 
 model WhatsAppSession {
-  id           String   @id @default(uuid())
-  tenantId     String?
-  phone        String
-  state        String
-  cart         Json?
-  tempData     Json?
-  updatedAt    DateTime @updatedAt
-  createdAt    DateTime @default(now())
+  id        String   @id @default(uuid())
+  tenantId  String
+  phone     String
+  state     String
+  cart      Json?
+  tempData  Json?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 
-  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, phone])
   @@index([tenantId])
@@ -612,7 +617,7 @@ model WhatsAppSession {
 
 model MediaAsset {
   id        String   @id @default(uuid())
-  tenantId  String?
+  tenantId  String
   name      String
   filename  String
   url       String
@@ -621,7 +626,7 @@ model MediaAsset {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, filename])
   @@index([tenantId, createdAt])
@@ -633,58 +638,61 @@ model MediaAsset {
 // ==========================================
 
 model Tenant {
-  id          String   @id @default(uuid())
-  slug        String   @unique // ej: "beats", "roma"
-  name        String   // ej: "BeatsBurgers"
-  status      String   @default("ACTIVE") // ACTIVE, SUSPENDED, TRIAL, CANCELLED
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  slug      String   @unique // ej: "beats", "roma"
+  name      String // ej: "BeatsBurgers"
+  status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, TRIAL, CANCELLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  domains       TenantDomain[]
-  subscription  Subscription?
-  locations     Location[]
-  memberships   TenantMembership[]
-  features      TenantFeature[]
-  settings      TenantSettings?
-  integrations  TenantIntegration[]
-  auditLogs     PlatformAuditLog[]
+  domains      TenantDomain[]
+  subscription Subscription?
+  locations    Location[]
+  memberships  TenantMembership[]
+  features     TenantFeature[]
+  settings     TenantSettings?
+  integrations TenantIntegration[]
+  auditLogs    PlatformAuditLog[]
 
   // Relaciones con entidades del negocio
-  systemConfigs       SystemConfig[]
-  categories          Category[]
-  products            Product[]
-  ingredients         Ingredient[]
-  extras              Extra[]
-  orders              Order[]
-  clients             Client[]
-  tiers               CustomerTier[]
-  rewards             PointReward[]
-  redemptions         PointRedemption[]
-  roulettePrizes      RoulettePrize[]
-  rouletteWins        RouletteWin[]
-  deliveryTimeSlots   DeliveryTimeSlot[]
-  messengers          Messenger[]
-  mediaAssets         MediaAsset[]
-  pushSubscriptions   PushSubscription[]
-  whatsappSessions    WhatsAppSession[]
-  sessions            Session[]
-  paymentRecords      PaymentRecord[]
-  printDispatches     PrintDispatch[]
+  systemConfigs     SystemConfig[]
+  categories        Category[]
+  products          Product[]
+  ingredients       Ingredient[]
+  extras            Extra[]
+  orders            Order[]
+  clients           Client[]
+  tiers             CustomerTier[]
+  rewards           PointReward[]
+  redemptions       PointRedemption[]
+  roulettePrizes    RoulettePrize[]
+  rouletteWins      RouletteWin[]
+  deliveryTimeSlots DeliveryTimeSlot[]
+  messengers        Messenger[]
+  mediaAssets       MediaAsset[]
+  pushSubscriptions PushSubscription[]
+  whatsappSessions  WhatsAppSession[]
+  sessions          Session[]
+  paymentRecords    PaymentRecord[]
+  printDispatches   PrintDispatch[]
+  cashSessions      CashSession[]
+  cashMovements     CashMovement[]
+  quantityDiscounts QuantityDiscount[]
 
   @@index([status])
 }
 
 model TenantDomain {
-  id          String    @id @default(uuid())
-  tenantId    String
-  hostname    String    @unique // ej: "beats.producto.nanolabs.app" o "pedidos.beatsburgers.com"
-  isPrimary   Boolean   @default(false)
-  isCustom    Boolean   @default(false)
-  verifiedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String    @id @default(uuid())
+  tenantId   String
+  hostname   String    @unique // ej: "beats.producto.nanolabs.app" o "pedidos.beatsburgers.com"
+  isPrimary  Boolean   @default(false)
+  isCustom   Boolean   @default(false)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
 }
@@ -696,7 +704,7 @@ model Plan {
   priceMonthly Float    @default(0)
   maxLocations Int      @default(1)
   maxProducts  Int      @default(100)
-  features     Json     // Lista o mapa de features
+  features     Json // Lista o mapa de features
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -705,53 +713,139 @@ model Plan {
 }
 
 model Subscription {
-  id                 String    @id @default(uuid())
-  tenantId           String    @unique
-  planId             String
-  status             String    @default("ACTIVE") // TRIAL, ACTIVE, PAST_DUE, SUSPENDED, CANCELED
-  trialEndsAt        DateTime?
-  currentPeriodStart DateTime  @default(now())
-  currentPeriodEnd   DateTime
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                     String    @id @default(uuid())
+  tenantId               String    @unique
+  planId                 String
+  status                 String    @default("ACTIVE") // TRIAL, ACTIVE, PAST_DUE, SUSPENDED, CANCELED
+  provider               String?
+  providerSubscriptionId String?   @unique
+  trialEndsAt            DateTime?
+  currentPeriodStart     DateTime  @default(now())
+  currentPeriodEnd       DateTime
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan               Plan      @relation(fields: [planId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
 
   @@index([status])
 }
 
 model Location {
-  id          String   @id @default(uuid())
-  tenantId    String
-  name        String   @default("Principal")
-  code        String   @default("main")
-  address     String?
-  phone       String?
-  isMain      Boolean  @default(true)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String   @default("Principal")
+  code      String   @default("main")
+  address   String?
+  phone     String?
+  isMain    Boolean  @default(true)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  orders      Order[]
-  slots       DeliveryTimeSlot[]
-  messengers  Messenger[]
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders       Order[]
+  slots        DeliveryTimeSlot[]
+  messengers   Messenger[]
+  cashSessions CashSession[]
 
   @@unique([tenantId, code])
   @@index([tenantId, isActive])
 }
 
-model TenantFeature {
-  id          String   @id @default(uuid())
-  tenantId    String
-  featureKey  String   // "whatsapp", "loyalty", "roulette", "customDomain", "printNode"
-  isEnabled   Boolean  @default(true)
-  config      Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model CashSession {
+  id              String    @id @default(uuid())
+  tenantId        String
+  locationId      String
+  businessDate    DateTime  @db.Date
+  status          String    @default("OPEN") // OPEN, CLOSED
+  openingBalance  Float     @default(0)
+  expectedBalance Float?
+  closingBalance  Float?
+  difference      Float?
+  openingNotes    String?   @db.Text
+  closingNotes    String?   @db.Text
+  openedByUserId  String?
+  openedByName    String?
+  closedByUserId  String?
+  closedByName    String?
+  openedAt        DateTime  @default(now())
+  closedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location  Location       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  movements CashMovement[]
+
+  @@unique([tenantId, locationId, businessDate])
+  @@index([tenantId, businessDate])
+  @@index([tenantId, status])
+}
+
+model CashMovement {
+  id              String   @id @default(uuid())
+  tenantId        String
+  cashSessionId   String
+  type            String // INCOME, EXPENSE
+  category        String
+  description     String   @db.Text
+  amount          Float
+  occurredAt      DateTime @default(now())
+  createdByUserId String?
+  createdByName   String?
+  createdAt       DateTime @default(now())
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cashSession CashSession @relation(fields: [cashSessionId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, cashSessionId])
+}
+
+model QuantityDiscount {
+  id          String    @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?   @db.Text
+  minQuantity Int
+  type        String // PERCENT, FINAL_PRICE
+  value       Float
+  priority    Int       @default(0)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant   Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products QuantityDiscountProduct[]
+
+  @@index([tenantId, isActive, startsAt, endsAt])
+  @@index([tenantId, priority])
+}
+
+model QuantityDiscountProduct {
+  quantityDiscountId String
+  productId          String
+
+  quantityDiscount QuantityDiscount @relation(fields: [quantityDiscountId], references: [id], onDelete: Cascade)
+  product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([quantityDiscountId, productId])
+  @@index([productId])
+}
+
+model TenantFeature {
+  id         String   @id @default(uuid())
+  tenantId   String
+  featureKey String // "whatsapp", "loyalty", "roulette", "customDomain", "printNode"
+  isEnabled  Boolean  @default(true)
+  config     Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, featureKey])
   @@index([tenantId])
@@ -770,34 +864,34 @@ model TenantSettings {
   whatsappMessage String  @default("Hola, tu pedido está en estado: {{estado}}. Gracias por elegirnos!")
   isStoreOpen     Boolean @default(true)
   closedMessage   String  @default("Lo sentimos, actualmente nuestro local se encuentra cerrado.")
-  
-  primaryColor    String  @default("#f97316")
-  secondaryColor  String  @default("#9333ea")
-  storeTheme      String  @default("ORIGINAL")
-  
-  splashEnabled   Boolean @default(false)
-  splashDuration  Int     @default(3)
-  
+
+  primaryColor   String @default("#f97316")
+  secondaryColor String @default("#9333ea")
+  storeTheme     String @default("ORIGINAL")
+
+  splashEnabled  Boolean @default(false)
+  splashDuration Int     @default(3)
+
   welcomeBalloonEnabled  Boolean @default(false)
   welcomeBalloonText     String  @default("¡Te damos la bienvenida!")
   welcomeBalloonDuration Int     @default(5)
-  
-  deliveryCost    Float   @default(0)
-  globalDiscount  Float   @default(0)
-  
-  paymentCash     Boolean @default(true)
-  paymentMp       Boolean @default(true)
-  autoPrintTickets Boolean @default(true)
-  printingMode     String  @default("BROWSER")
+
+  deliveryCost   Float @default(0)
+  globalDiscount Float @default(0)
+
+  paymentCash               Boolean @default(true)
+  paymentMp                 Boolean @default(true)
+  autoPrintTickets          Boolean @default(true)
+  printingMode              String  @default("BROWSER")
   printNodeCounterPrinterId Int?
   printNodeKitchenPrinterId Int?
-  printerCounterName String?  @default("")
-  printerCounterSize String?  @default("80mm")
-  printerKitchenName String?  @default("")
-  printerKitchenSize String?  @default("80mm")
+  printerCounterName        String? @default("")
+  printerCounterSize        String? @default("80mm")
+  printerKitchenName        String? @default("")
+  printerKitchenSize        String? @default("80mm")
 
-  isRouletteActive Boolean @default(false)
-  rouletteCost     Int     @default(100)
+  isRouletteActive      Boolean @default(false)
+  rouletteCost          Int     @default(100)
   isPointsCatalogActive Boolean @default(true)
 
   allowImmediateOrders   Boolean @default(true)
@@ -809,44 +903,46 @@ model TenantSettings {
   businessHours          String? @db.Text
   autoScheduleEnabled    Boolean @default(false)
 
-  vapidPublicKey   String?
-  vapidPrivateKey  String?
+  vapidPublicKey  String?
+  vapidPrivateKey String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model TenantIntegration {
-  id               String   @id @default(uuid())
-  tenantId         String
-  type             String   // "MERCADO_PAGO", "WHATSAPP", "PRINTNODE"
-  encryptedPayload String   @db.Text
-  iv               String
-  authTag          String
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(uuid())
+  tenantId          String
+  type              String // "MERCADO_PAGO", "WHATSAPP", "PRINTNODE"
+  externalAccountId String?
+  encryptedPayload  String   @db.Text
+  iv                String
+  authTag           String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, type])
+  @@index([type, externalAccountId])
   @@index([tenantId])
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String
-  name          String?
-  isSuperAdmin  Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  memberships   TenantMembership[]
-  sessions      UserSession[]
-  auditLogs     PlatformAuditLog[]
+  memberships TenantMembership[]
+  sessions    UserSession[]
+  auditLogs   PlatformAuditLog[]
 }
 
 model TenantMembership {
@@ -858,8 +954,8 @@ model TenantMembership {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, userId])
   @@index([userId])
@@ -872,7 +968,7 @@ model UserSession {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
 }
@@ -887,8 +983,8 @@ model PlatformAuditLog {
   ipAddress String?
   createdAt DateTime @default(now())
 
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
   @@index([userId, createdAt])

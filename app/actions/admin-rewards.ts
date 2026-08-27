@@ -4,6 +4,13 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getTenantDb } from "@/lib/tenant-db";
 import { requireAdmin } from "@/lib/admin-session";
+import { requireTenantFeature } from "@/lib/features";
+
+async function requireLoyaltyAdmin() {
+  const { tenant } = await requireAdmin(["OWNER", "MANAGER"]);
+  await requireTenantFeature(tenant.id, "loyalty");
+  return tenant;
+}
 
 const rewardSchema = z.object({
   id: z.string().optional(),
@@ -38,7 +45,7 @@ const tierSchema = z.object({
 });
 
 export async function fetchAdminRewards() {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   const db = await getTenantDb();
   const [rewards, products, tiers, config] = await Promise.all([
     db.pointReward.findMany({
@@ -71,7 +78,7 @@ export async function fetchAdminRewards() {
 }
 
 export async function savePointReward(input: unknown) {
-  await requireAdmin();
+  const tenant = await requireLoyaltyAdmin();
   const parsed = rewardSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message || "Datos inválidos." };
@@ -89,7 +96,7 @@ export async function savePointReward(input: unknown) {
           description: data.description || null,
           pointsCost: data.pointsCost,
           type: data.type,
-          value: data.type === "PERCENT" || data.type === "AMOUNT" ? data.value : null,
+          value: data.type === "PERCENT" || data.type === "AMOUNT" || data.type === "PROMO" ? data.value : null,
           productId: data.type === "PRODUCT" || data.type === "COMBO" ? data.productId : null,
           imageUrl: data.imageUrl || null,
           badgeText: data.badgeText || null,
@@ -101,11 +108,12 @@ export async function savePointReward(input: unknown) {
     } else {
       await db.pointReward.create({
         data: {
+          tenantId: tenant.id,
           name: data.name,
           description: data.description || null,
           pointsCost: data.pointsCost,
           type: data.type,
-          value: data.type === "PERCENT" || data.type === "AMOUNT" ? data.value : null,
+          value: data.type === "PERCENT" || data.type === "AMOUNT" || data.type === "PROMO" ? data.value : null,
           productId: data.type === "PRODUCT" || data.type === "COMBO" ? data.productId : null,
           imageUrl: data.imageUrl || null,
           badgeText: data.badgeText || null,
@@ -128,7 +136,7 @@ export async function savePointReward(input: unknown) {
 }
 
 export async function togglePointReward(id: string, isActive: boolean) {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   try {
     const db = await getTenantDb();
     await db.pointReward.update({
@@ -145,7 +153,7 @@ export async function togglePointReward(id: string, isActive: boolean) {
 }
 
 export async function deletePointReward(id: string) {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   try {
     const db = await getTenantDb();
     await db.pointReward.delete({
@@ -161,7 +169,7 @@ export async function deletePointReward(id: string) {
 }
 
 export async function togglePointsCatalog(isActive: boolean) {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   try {
     const db = await getTenantDb();
     const config = await db.systemConfig.findFirst({ select: { id: true } });
@@ -185,7 +193,7 @@ export async function togglePointsCatalog(isActive: boolean) {
 // ═══════════════════════════════════════════════════════════════
 
 export async function fetchAdminTiers() {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   const db = await getTenantDb();
   const tiers = await db.customerTier.findMany({
     orderBy: [{ sequence: "asc" }, { minSpent: "asc" }],
@@ -197,7 +205,7 @@ export async function fetchAdminTiers() {
 }
 
 export async function saveCustomerTier(input: unknown) {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   const parsed = tierSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message || "Datos del nivel inválidos." };
@@ -258,7 +266,7 @@ export async function saveCustomerTier(input: unknown) {
 }
 
 export async function deleteCustomerTier(id: string) {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   try {
     const db = await getTenantDb();
     await db.$transaction(async (tx) => {
@@ -285,7 +293,7 @@ export async function deleteCustomerTier(id: string) {
 }
 
 export async function fetchCustomerRanking() {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   try {
     const db = await getTenantDb();
     const [clients, tiers] = await Promise.all([
@@ -367,7 +375,7 @@ export async function fetchCustomerRanking() {
 }
 
 export async function adminAssignRewardToClient(clientId: string, rewardId: string) {
-  await requireAdmin();
+  const tenant = await requireLoyaltyAdmin();
   try {
     const db = await getTenantDb();
     const result = await db.$transaction(async (tx) => {
@@ -381,13 +389,16 @@ export async function adminAssignRewardToClient(clientId: string, rewardId: stri
         throw new Error("INSUFFICIENT_POINTS");
       }
 
-      const updatedClient = await tx.client.update({
-        where: { id: clientId },
+      const charged = await tx.client.updateMany({
+        where: { id: clientId, points: { gte: reward.pointsCost } },
         data: { points: { decrement: reward.pointsCost } },
       });
+      if (charged.count !== 1) throw new Error("INSUFFICIENT_POINTS");
+      const updatedClient = await tx.client.findUniqueOrThrow({ where: { id: clientId } });
 
       const redemption = await tx.pointRedemption.create({
         data: {
+          tenantId: tenant.id,
           clientId,
           rewardId,
           pointsSpent: reward.pointsCost,
@@ -421,7 +432,7 @@ export async function adminAssignRewardToClient(clientId: string, rewardId: stri
 }
 
 export async function adminAdjustClientPoints(clientId: string, deltaPoints: number) {
-  await requireAdmin();
+  await requireLoyaltyAdmin();
   try {
     const db = await getTenantDb();
     const client = await db.client.findUnique({ where: { id: clientId } });

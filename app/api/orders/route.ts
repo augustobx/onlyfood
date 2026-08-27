@@ -6,7 +6,7 @@ import { calculateOrderRequirements, getInventoryIssues } from "@/lib/inventory"
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
     const db = await getTenantDb();
     const orders = await db.order.findMany({
       where: {

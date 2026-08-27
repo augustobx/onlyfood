@@ -1,10 +1,14 @@
-import { prisma } from "@/lib/prisma";
+import { createTenantDb } from "@/lib/tenant-db";
+import { getTenantContext } from "@/lib/tenant-context";
 import { StorefrontClient } from "./StorefrontClient";
 import { getLoggedClient } from "@/lib/auth";
 import { calculateOrderRequirements } from "@/lib/inventory";
+import { publicConfigSelect } from "@/lib/public-config";
 
 export default async function StorePage() {
-  const config = await prisma.systemConfig.findFirst();
+  const tenant = await getTenantContext();
+  const db = createTenantDb(tenant.id);
+  const config = await db.systemConfig.findFirst({ select: publicConfigSelect });
   const loggedClient = await getLoggedClient();
   
   const allowsFutureOrders = Boolean(config?.allowScheduledTomorrow || config?.allowAdvanceOrders);
@@ -21,7 +25,7 @@ export default async function StorePage() {
     );
   }
 
-  const categories = await prisma.category.findMany({
+  const categories = await db.category.findMany({
     where: { isActive: true },
     orderBy: { sequence: 'asc' },
     include: {
@@ -35,7 +39,7 @@ export default async function StorePage() {
     }
   });
 
-  const combos = await prisma.product.findMany({
+  const combos = await db.product.findMany({
     where: { isActive: true, isCombo: true },
     orderBy: { basePrice: 'asc' },
     include: {
@@ -45,7 +49,7 @@ export default async function StorePage() {
 
   // Los pedidos antiguos que todavía no pudieron reservar inventario también
   // reducen la disponibilidad pública para no vender esas unidades dos veces.
-  const legacyPendingOrders = await prisma.order.findMany({
+  const legacyPendingOrders = await db.order.findMany({
     where: { status: "NEW", stockCommitted: false },
     include: {
       items: {
@@ -79,15 +83,15 @@ export default async function StorePage() {
   }
 
   const [prizes, tiers, dbClient] = await Promise.all([
-    prisma.roulettePrize.findMany({
+    tenant.features.has("roulette") ? db.roulettePrize.findMany({
       include: { product: true },
-    }),
-    prisma.customerTier.findMany({
+    }) : [],
+    tenant.features.has("loyalty") ? db.customerTier.findMany({
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { minSpent: "asc" }],
-    }),
+    }) : [],
     loggedClient
-      ? prisma.client.findUnique({
+      ? db.client.findUnique({
           where: { id: loggedClient.id },
           include: {
             orders: {
@@ -156,7 +160,8 @@ export default async function StorePage() {
       loggedClient={safeClient}
       config={config}
       prizes={prizes}
-      tiers={tiers}
+      loyaltyEnabled={tenant.features.has("loyalty")}
+      rouletteEnabled={tenant.features.has("roulette")}
     />
   );
 }

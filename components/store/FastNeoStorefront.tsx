@@ -11,7 +11,6 @@ import {
   Gift,
   User,
   Utensils,
-  Sparkles,
   UserRound,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -67,9 +66,11 @@ export function FastNeoStorefront({
       <header className="bg-white sticky top-0 z-50 px-3.5 pt-2.5 pb-2 shadow-sm border-b border-slate-100">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-orange-600 flex items-center justify-center text-white shrink-0 shadow-sm">
-              {config?.logoUrl ? <img src={config.logoUrl} alt={appName} className="h-full w-full object-cover rounded-xl" /> : <Sparkles className="h-4 w-4" />}
-            </div>
+            {config?.logoUrl && (
+              <div className="w-9 h-9 rounded-xl bg-orange-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                <img src={config.logoUrl} alt={appName} className="h-full w-full object-cover rounded-xl" />
+              </div>
+            )}
             <div className="min-w-0">
               <h1 className="text-sm font-black text-slate-900 truncate tracking-tight leading-none">
                 {appName}

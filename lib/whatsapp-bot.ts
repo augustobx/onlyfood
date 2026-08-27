@@ -5,6 +5,9 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 import { after } from "next/server";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
 import { dispatchOrderPrint } from "@/lib/printnode";
+import { createOrderTrackingToken } from "@/lib/order-tracking";
+import { hasTenantFeature } from "@/lib/features";
+import { calculateBestQuantityDiscount } from "@/lib/quantity-discounts";
 
 export class WhatsAppBot {
   private config: any;
@@ -98,18 +101,16 @@ export class WhatsAppBot {
 export async function handleIncomingMessage(phone: string, message: any, tenantIdHint?: string) {
   let resolvedTenantId = tenantIdHint;
 
-  // Si no se proporcionó tenantIdHint, buscar si existe sesión previa con tenantId
+  // Internal callers may resume a session. Public webhooks always pass the
+  // tenant resolved from Meta's phone_number_id.
   if (!resolvedTenantId) {
     const existingSession = await prisma.whatsAppSession.findFirst({ where: { phone } });
-    if (existingSession?.tenantId) {
-      resolvedTenantId = existingSession.tenantId;
-    } else {
-      const defaultTenant = await prisma.tenant.findFirst({ where: { status: "ACTIVE" } });
-      resolvedTenantId = defaultTenant?.id;
-    }
+    resolvedTenantId = existingSession?.tenantId || undefined;
   }
 
   if (!resolvedTenantId) return;
+  if (!(await hasTenantFeature(resolvedTenantId, "whatsapp"))) return;
+  const quantityDiscountsEnabled = await hasTenantFeature(resolvedTenantId, "quantityDiscounts");
 
   const db = createTenantDb(resolvedTenantId);
   const waCreds = await getTenantIntegration<WhatsAppCredentials>(resolvedTenantId, "WHATSAPP");
@@ -387,7 +388,7 @@ export async function handleIncomingMessage(phone: string, message: any, tenantI
         if (!selectedSlot) return bot.sendText(phone, "Ese horario ya no está disponible. Escribí 'menu' para comenzar nuevamente.");
         const paymentButtons = [];
         if (config.paymentCash) paymentButtons.push({ id: "pay_cash", title: "Efectivo" });
-        const mpKey = (await getTenantIntegration<MercadoPagoCredentials>(resolvedTenantId, "MERCADO_PAGO"))?.accessToken || config.mpAccessToken;
+        const mpKey = (await getTenantIntegration<MercadoPagoCredentials>(resolvedTenantId, "MERCADO_PAGO"))?.accessToken;
         if (config.paymentMp && mpKey) paymentButtons.push({ id: "pay_mp", title: "MercadoPago" });
         if (!paymentButtons.length) return bot.sendText(phone, "No hay medios de pago disponibles.");
         await bot.sendButtons(phone, `Horario: ${selectedSlot.time} hs. ¿Cómo vas a pagar?`, paymentButtons);
@@ -400,21 +401,30 @@ export async function handleIncomingMessage(phone: string, message: any, tenantI
           return;
         }
 
-        const resolvedMpKey = (await getTenantIntegration<MercadoPagoCredentials>(resolvedTenantId, "MERCADO_PAGO"))?.accessToken || config.mpAccessToken;
+        const resolvedMpKey = (await getTenantIntegration<MercadoPagoCredentials>(resolvedTenantId, "MERCADO_PAGO"))?.accessToken;
         if ((payloadId === "pay_cash" && !config.paymentCash) || (payloadId === "pay_mp" && (!config.paymentMp || !resolvedMpKey))) {
           return bot.sendText(phone, "Ese medio de pago ya no está disponible.");
         }
         const paymentMethod = payloadId === "pay_cash" ? "CASH" : "MP";
-        const currentProducts = await db.product.findMany({
-          where: { id: { in: cart.map(item => item.productId) }, isActive: true },
-          select: {
-            id: true,
-            basePrice: true,
-            isCombo: true,
-            ingredients: { include: { ingredient: true } },
-            comboItemsConfig: { include: { product: { include: { ingredients: { include: { ingredient: true } } } } } },
-          },
-        });
+        const now = new Date();
+        const [currentProducts, activeQuantityDiscounts, primaryLocation] = await Promise.all([
+          db.product.findMany({
+            where: { id: { in: cart.map(item => item.productId) }, isActive: true },
+            select: {
+              id: true,
+              basePrice: true,
+              isCombo: true,
+              ingredients: { include: { ingredient: true } },
+              comboItemsConfig: { include: { product: { include: { ingredients: { include: { ingredient: true } } } } } },
+            },
+          }),
+          quantityDiscountsEnabled ? db.quantityDiscount.findMany({
+            where: { isActive: true, AND: [{ OR: [{ startsAt: null }, { startsAt: { lte: now } }] }, { OR: [{ endsAt: null }, { endsAt: { gte: now } }] }] },
+            include: { products: { select: { productId: true } } },
+            orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+          }) : Promise.resolve([]),
+          db.location.findFirst({ where: { isActive: true }, orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { id: true } }),
+        ]);
         const priceMap = new Map(currentProducts.map(product => [product.id, product.basePrice]));
         if (priceMap.size !== new Set(cart.map(item => item.productId)).size) return bot.sendText(phone, "Uno de los productos ya no está disponible. Escribí 'menu' para comenzar nuevamente.");
         const productMap = new Map(currentProducts.map(product => [product.id, product]));
@@ -440,10 +450,15 @@ export async function handleIncomingMessage(phone: string, message: any, tenantI
         }
         const stockRequirements = [...stockMap.values()];
         const subtotal = cart.reduce((acc, item) => acc + (priceMap.get(item.productId) || 0) * item.quantity, 0);
-        const discounted = subtotal * (1 - Math.min(100, Math.max(0, config.globalDiscount)) / 100);
+        const quantityDiscount = calculateBestQuantityDiscount(
+          cart.map((item) => ({ productId: item.productId, quantity: item.quantity, unitPrice: priceMap.get(item.productId) || 0 })),
+          activeQuantityDiscounts.map((rule) => ({ id: rule.id, name: rule.name, minQuantity: rule.minQuantity, type: rule.type, value: rule.value, priority: rule.priority, productIds: rule.products.map((product) => product.productId) })),
+        );
+        const discounted = (subtotal - (quantityDiscount?.amount || 0)) * (1 - Math.min(100, Math.max(0, config.globalDiscount)) / 100);
         const totalAmount = Math.round((discounted + (tempData.needsDelivery ? Math.max(0, config.deliveryCost) : 0)) * 100) / 100;
 
         // CREATE ORDER IN DB (Aislada en tenantDb)
+        const tracking = createOrderTrackingToken();
         const order = await db.$transaction(async (tx) => {
           const reserved = await tx.deliveryTimeSlot.updateMany({ where: { id: tempData.deliverySlotId, isActive: true, available: { gt: 0 } }, data: { available: { decrement: 1 } } });
           if (reserved.count !== 1) throw new Error("SLOT_UNAVAILABLE");
@@ -483,6 +498,7 @@ export async function handleIncomingMessage(phone: string, message: any, tenantI
             }
           }
           return tx.order.create({ data: {
+            trackingTokenHash: tracking.tokenHash,
             clientName: "Cliente WhatsApp",
             clientPhone: phone,
             needsDelivery: tempData.needsDelivery,
@@ -491,10 +507,13 @@ export async function handleIncomingMessage(phone: string, message: any, tenantI
             deliveryTime: tempData.deliveryTime,
             paymentMethod,
             total: totalAmount,
+            quantityDiscountAmount: quantityDiscount?.amount || 0,
+            discountDetails: quantityDiscount || undefined,
             status: "NEW",
             paymentStatus: "PENDING",
             stockCommitted: true,
             tenantId: resolvedTenantId,
+            locationId: primaryLocation?.id || null,
             items: {
               create: cart.map(item => ({
                 productId: item.productId,
@@ -520,6 +539,11 @@ export async function handleIncomingMessage(phone: string, message: any, tenantI
           let mpInitPoint = "";
           if (resolvedMpKey) {
             try {
+              const primaryDomain = await prisma.tenantDomain.findFirst({
+                where: { tenantId: resolvedTenantId, isPrimary: true, OR: [{ isCustom: false }, { verifiedAt: { not: null } }] },
+                select: { hostname: true },
+              });
+              const customerBaseUrl = primaryDomain ? `https://${primaryDomain.hostname}` : process.env.BASE_URL;
               const mpClient = new MercadoPagoConfig({ accessToken: resolvedMpKey });
               const preference = new Preference(mpClient);
               const result = await preference.create({
@@ -528,13 +552,13 @@ export async function handleIncomingMessage(phone: string, message: any, tenantI
                     { id: order.id, title: `Pedido ${config.appName || "OnlyFood"}`, quantity: 1, unit_price: Number(totalAmount) }
                   ],
                   external_reference: order.id,
-                  notification_url: process.env.BASE_URL ? `${process.env.BASE_URL}/api/webhooks/mercadopago` : undefined,
-                  back_urls: process.env.BASE_URL ? {
-                    success: `${process.env.BASE_URL}/track/${order.id}?status=approved`,
-                    failure: `${process.env.BASE_URL}/track/${order.id}?status=failure`,
-                    pending: `${process.env.BASE_URL}/track/${order.id}?status=pending`,
+                  notification_url: process.env.BASE_URL ? `${process.env.BASE_URL}/api/webhooks/mercadopago?tenant=${encodeURIComponent(resolvedTenantId)}` : undefined,
+                  back_urls: customerBaseUrl ? {
+                    success: `${customerBaseUrl}/track/${order.id}?status=approved&token=${tracking.token}`,
+                    failure: `${customerBaseUrl}/track/${order.id}?status=failure&token=${tracking.token}`,
+                    pending: `${customerBaseUrl}/track/${order.id}?status=pending&token=${tracking.token}`,
                   } : undefined,
-                  auto_return: process.env.BASE_URL ? "approved" : undefined
+                  auto_return: customerBaseUrl ? "approved" : undefined
                 }
               });
               if (result.init_point) {

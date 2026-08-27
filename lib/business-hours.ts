@@ -68,7 +68,7 @@ export function isCurrentlyInBusinessHours(
     const isWithin = (openStr: string, closeStr: string) => {
       if (!openStr || !closeStr) return false;
       const openMin = parseMinutes(openStr);
-      let closeMin = parseMinutes(closeStr);
+      const closeMin = parseMinutes(closeStr);
       // Si cierra después de medianoche (ej: 01:00)
       if (closeMin < openMin) {
         return currentTimeMinutes >= openMin || currentTimeMinutes <= closeMin;

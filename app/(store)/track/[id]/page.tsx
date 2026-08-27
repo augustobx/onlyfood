@@ -1,16 +1,21 @@
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
+import { getLoggedClient } from "@/lib/auth";
+import { isValidOrderTrackingToken } from "@/lib/order-tracking";
+import { publicConfigSelect } from "@/lib/public-config";
 import { notFound } from "next/navigation";
 import { TrackOrderClient } from "./TrackOrderClient";
 
 export default async function TrackOrderPage(props: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ status?: string; payment_id?: string }>;
+  searchParams?: Promise<{ status?: string; payment_id?: string; token?: string }>;
 }) {
   const { id } = await props.params;
   const searchParams = await props.searchParams;
+  const db = await getTenantDb();
+  const loggedClient = await getLoggedClient();
 
   const [order, config] = await Promise.all([
-    prisma.order.findUnique({
+    db.order.findUnique({
       where: { id },
       include: {
         items: {
@@ -23,19 +28,22 @@ export default async function TrackOrderPage(props: {
         messenger: true,
       },
     }),
-    prisma.systemConfig.findFirst(),
+    db.systemConfig.findFirst({ select: publicConfigSelect }),
   ]);
 
   if (!order) return notFound();
+  const ownsOrder = Boolean(loggedClient && order.clientId === loggedClient.id);
+  if (!ownsOrder && !isValidOrderTrackingToken(searchParams?.token, order.trackingTokenHash)) return notFound();
 
   // Find related active or scheduled orders (e.g. from the same weekly bowl plan or client)
   let relatedOrders: any[] = [];
   try {
-    relatedOrders = await prisma.order.findMany({
+    relatedOrders = await db.order.findMany({
       where: {
         AND: [
           { id: { not: order.id } },
           { status: { not: "CANCELLED" } },
+          ...(ownsOrder ? [] : [{ trackingTokenHash: order.trackingTokenHash }]),
           {
             OR: [
               ...(order.mpPreferenceId ? [{ mpPreferenceId: order.mpPreferenceId }] : []),
@@ -74,9 +82,11 @@ export default async function TrackOrderPage(props: {
     ? config?.deliveryCost || 0
     : 0;
 
+  const { trackingTokenHash: _trackingTokenHash, ...safeOrder } = order;
+
   return (
     <TrackOrderClient
-      order={order}
+      order={safeOrder}
       relatedOrders={relatedOrders}
       config={config}
       deliveryCost={deliveryCost}

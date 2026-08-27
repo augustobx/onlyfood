@@ -9,6 +9,8 @@ RUN apt-get update \
 
 FROM base AS dependencies
 COPY package.json package-lock.json ./
+COPY prisma.config.ts ./
+COPY prisma ./prisma
 RUN npm ci
 
 FROM base AS builder
@@ -25,7 +27,8 @@ ENV NODE_ENV=production
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json prisma.config.ts ./
 COPY prisma ./prisma
-CMD ["./node_modules/.bin/prisma", "migrate", "deploy"]
+COPY scripts ./scripts
+CMD ["sh", "-c", "./node_modules/.bin/prisma generate && ./node_modules/.bin/prisma migrate deploy && node scripts/seed-saas.mjs"]
 
 FROM base AS runner
 WORKDIR /app

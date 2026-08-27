@@ -10,6 +10,15 @@ export async function getRequestIp(): Promise<string> {
   return forwarded || requestHeaders.get("x-real-ip") || "unknown";
 }
 
+export async function getRequestOrigin(): Promise<string> {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host") || requestHeaders.get("x-forwarded-host");
+  if (!host || !/^[a-z0-9.-]+(?::\d{1,5})?$/i.test(host)) throw new Error("INVALID_HOST");
+  const forwardedProto = requestHeaders.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = process.env.NODE_ENV === "production" ? "https" : forwardedProto === "https" ? "https" : "http";
+  return `${protocol}://${host}`;
+}
+
 export async function consumeRateLimit(
   namespace: string,
   identifier: string,
@@ -50,4 +59,3 @@ export function constantTimeEqual(left: string, right: string): boolean {
   const rightDigest = crypto.createHash("sha256").update(right).digest();
   return crypto.timingSafeEqual(leftDigest, rightDigest);
 }
-

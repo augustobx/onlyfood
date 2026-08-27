@@ -2,20 +2,22 @@
 
 import { useState } from "react";
 import { loginSuperAdminAction } from "@/lib/../app/actions/superadmin";
-import { Shield, KeyRound, Lock, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Shield, KeyRound, Lock, ArrowRight, Loader2, Sparkles, Mail } from "lucide-react";
 
 export default function SuperAdminLoginClient() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) return;
+    if (!email || !password) return;
     setLoading(true);
     setError(null);
 
     const formData = new FormData();
+    formData.append("email", email);
     formData.append("password", password);
     const res = await loginSuperAdminAction(formData);
 
@@ -56,13 +58,31 @@ export default function SuperAdminLoginClient() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wider">
-              Clave Maestra de Plataforma
+              Correo de plataforma
+            </label>
+            <div className="relative">
+              <Mail className="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@nanolabs.app"
+                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wider">
+              Contraseña
             </label>
             <div className="relative">
               <KeyRound className="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="password"
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
@@ -73,7 +93,7 @@ export default function SuperAdminLoginClient() {
 
           <button
             type="submit"
-            disabled={loading || !password}
+            disabled={loading || !email || !password}
             className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-medium py-3 rounded-xl shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed group text-sm"
           >
             {loading ? (

@@ -2,8 +2,19 @@ import { Navbar } from "@/components/Navbar";
 import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
+import { publicConfigSelect } from "@/lib/public-config";
+import type { Metadata } from "next";
+import { buildTenantMetadata } from "@/lib/tenant-branding";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await getTenantContext();
+  const branding = await createTenantDb(tenant.id).systemConfig.findFirst({
+    select: { appName: true, logoUrl: true },
+  });
+  return buildTenantMetadata(tenant, undefined, branding);
+}
 
 export default async function StoreLayout({
   children,
@@ -33,7 +44,7 @@ export default async function StoreLayout({
   }
 
   const db = createTenantDb(tenant.id);
-  const config = await db.systemConfig.findFirst();
+  const config = await db.systemConfig.findFirst({ select: publicConfigSelect });
   
   const primary = config?.primaryColor || '#f97316';
   const secondary = config?.secondaryColor || '#9333ea';

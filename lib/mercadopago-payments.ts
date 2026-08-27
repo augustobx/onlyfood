@@ -17,22 +17,15 @@ export async function reconcileMercadoPagoPayment(paymentId: string, expectedOrd
 
   // 1. Resolve order to know which tenant this belongs to
   let order = expectedOrderId ? await prisma.order.findUnique({ where: { id: expectedOrderId } }) : null;
+  if (order?.tenantId && tenantIdHint && order.tenantId !== tenantIdHint) throw new Error("PAYMENT_TENANT_MISMATCH");
   const tenantId = order?.tenantId || tenantIdHint;
+  if (!tenantId) throw new Error("PAYMENT_TENANT_REQUIRED");
 
   // 2. Fetch tenant credentials
   let accessToken: string | undefined;
   if (tenantId) {
     const creds = await getTenantIntegration<MercadoPagoCredentials>(tenantId, "MERCADO_PAGO");
     accessToken = creds?.accessToken;
-    if (!accessToken) {
-      const config = await prisma.systemConfig.findUnique({ where: { tenantId } });
-      accessToken = config?.mpAccessToken || undefined;
-    }
-  }
-
-  if (!accessToken) {
-    const globalConfig = await prisma.systemConfig.findFirst({ select: { mpAccessToken: true } });
-    accessToken = globalConfig?.mpAccessToken || undefined;
   }
 
   if (!accessToken) throw new Error("MP_NOT_CONFIGURED");
@@ -43,28 +36,32 @@ export async function reconcileMercadoPagoPayment(paymentId: string, expectedOrd
   if (paymentInfo.transaction_amount === undefined || !paymentInfo.currency_id) throw new Error("PAYMENT_INCOMPLETE");
 
   if (!order || order.id !== orderId) {
-    order = await prisma.order.findUnique({ where: { id: orderId } });
+    order = await prisma.order.findFirst({ where: { id: orderId, tenantId } });
   }
 
-  if (!order || order.paymentMethod !== "MP") throw new Error("ORDER_NOT_FOUND");
-  const finalTenantId = order.tenantId || tenantId;
+  if (!order || order.tenantId !== tenantId || order.paymentMethod !== "MP") throw new Error("ORDER_NOT_FOUND");
+  const finalTenantId = tenantId;
   const amount = Number(paymentInfo.transaction_amount);
-  if (Math.abs(amount - order.total) > 0.01 || paymentInfo.currency_id !== "ARS") throw new Error("PAYMENT_AMOUNT_MISMATCH");
+  const relatedOrders = order.mpPreferenceId
+    ? await prisma.order.findMany({ where: { tenantId, mpPreferenceId: order.mpPreferenceId }, select: { total: true } })
+    : [{ total: order.total }];
+  const expectedAmount = relatedOrders.reduce((sum, item) => sum + item.total, 0);
+  if (Math.abs(amount - expectedAmount) > 0.01 || paymentInfo.currency_id !== "ARS") throw new Error("PAYMENT_AMOUNT_MISMATCH");
 
   const paymentStatus = localPaymentStatus(paymentInfo.status);
-  const db = finalTenantId ? createTenantDb(finalTenantId) : prisma;
+  const db = createTenantDb(finalTenantId);
 
-  const transitionedToPaid = await db.$transaction(async (tx) => {
+  const transitionedToPaid = await (db as any).$transaction(async (tx: any) => {
     await tx.paymentRecord.upsert({
       where: { providerPaymentId: paymentId },
       create: { providerPaymentId: paymentId, orderId, status: paymentStatus, amount, currency: paymentInfo.currency_id!, tenantId: finalTenantId },
       update: { status: paymentStatus, amount, currency: paymentInfo.currency_id! },
     });
 
-    if (paymentStatus === "REFUNDED" && order.clientId && order.pointsEarned) {
-      const reversed = await tx.order.updateMany({ where: { id: orderId, pointsEarned: { gt: 0 } }, data: { pointsEarned: 0 } });
+    if (paymentStatus === "REFUNDED" && order.clientId && order.earnedPoints) {
+      const reversed = await tx.order.updateMany({ where: { id: orderId, earnedPoints: { gt: 0 } }, data: { earnedPoints: 0 } });
       if (reversed.count === 1) {
-        await tx.$executeRaw`UPDATE \`Client\` SET points = GREATEST(0, points - ${order.pointsEarned}) WHERE id = ${order.clientId}`;
+        await tx.$executeRaw`UPDATE \`Client\` SET points = GREATEST(0, points - ${order.earnedPoints}) WHERE id = ${order.clientId}`;
       }
     }
 
@@ -90,22 +87,14 @@ export async function reconcileMercadoPagoPayment(paymentId: string, expectedOrd
 }
 
 export async function findAndReconcileMercadoPagoOrder(orderId: string, tenantId?: string) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!tenantId) throw new Error("PAYMENT_TENANT_REQUIRED");
+  const order = await prisma.order.findFirst({ where: { id: orderId, tenantId } });
   const resolvedTenantId = order?.tenantId || tenantId;
 
   let accessToken: string | undefined;
   if (resolvedTenantId) {
     const creds = await getTenantIntegration<MercadoPagoCredentials>(resolvedTenantId, "MERCADO_PAGO");
     accessToken = creds?.accessToken;
-    if (!accessToken) {
-      const config = await prisma.systemConfig.findUnique({ where: { tenantId: resolvedTenantId } });
-      accessToken = config?.mpAccessToken || undefined;
-    }
-  }
-
-  if (!accessToken) {
-    const globalConfig = await prisma.systemConfig.findFirst({ select: { mpAccessToken: true } });
-    accessToken = globalConfig?.mpAccessToken || undefined;
   }
 
   if (!accessToken) throw new Error("MP_NOT_CONFIGURED");

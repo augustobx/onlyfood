@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { defineConfig, env } from "@prisma/config";
+import { defineConfig } from "@prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -7,6 +7,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"), // <-- Cambio clave usando env()
+    url: process.env.DATABASE_URL || "mysql://build:build@127.0.0.1:3306/build",
   },
 });

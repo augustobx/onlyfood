@@ -2,7 +2,7 @@
 
 ## 1. Visión General
 
-NanoLabs OnlyFood es una plataforma SaaS Multi-Tenant diseñada para operar cientos de comercios gastronómicos desde una **única aplicación desplegada** y una **única base de datos lógica**, garantizando aislamiento estricto de datos mediante `tenantId`, resolución dinámica de comercios por hostname/subdominio y soporte para múltiples sucursales (`Location`).
+NanoLabs OnlyFood es una plataforma SaaS Multi-Tenant diseñada para operar cientos de comercios gastronómicos desde una **única aplicación desplegada** y una **única base de datos lógica**, garantizando aislamiento estricto de datos mediante `tenantId`, resolución dinámica de comercios por hostname/subdominio, onboarding autoservicio y soporte para múltiples sucursales (`Location`).
 
 ```
                     ┌───────────────────────────────┐
@@ -24,26 +24,49 @@ NanoLabs OnlyFood es una plataforma SaaS Multi-Tenant diseñada para operar cien
                             │               │
             ┌───────────────▼──┐         ┌──▼────────────────┐
             │     tenantDb     │         │    platformDb     │
-            │  (Tenant Guard)  │         │  (Super Admin)    │
+            │  (createTenantDb)│         │  (SuperAdmin Ops) │
             └───────┬──────────┘         └──┬────────────────┘
                     │                       │
                     └──────────────┬────────┘
                                    ▼
                     ┌───────────────────────────────┐
                     │     MariaDB 11.8 Database     │
-                    │  (Scoped by tenantId/location)│
+                    │   onlyfood-db-1 (Healthy)     │
                     └───────────────────────────────┘
 ```
 
 ---
 
-## 2. Niveles de Aislamiento
+## 2. Niveles de Aislamiento y Seguridad
 
-1. **Aislamiento a Nivel de Datos:**
-   * Todas las entidades de negocio poseen una columna `tenantId` con clave foránea a `Tenant.id`.
-   * Los accesos de lectura, creación, modificación y borrado se realizan mediante `createTenantDb(tenantId)`, que inyecta automáticamente filtros de tenant y previene accesos cruzados (IDOR).
-2. **Aislamiento a Nivel de Clientes (Storefront):**
+1. **Aislamiento de Datos (`createTenantDb`):**
+   * Todas las entidades de negocio poseen una columna `tenantId` obligatoria con clave foránea a `Tenant.id`; `PlatformAuditLog` es la excepción porque también registra eventos globales.
+   * Los accesos de lectura, creación, modificación y borrado se realizan mediante `createTenantDb(tenantId)` (`getTenantDb()`), que inyecta automáticamente filtros de tenant y previene accesos cruzados (IDOR).
+2. **Aislamiento de Clientes (Storefront):**
    * Los clientes se identifican por `(tenantId, phone)`. Un mismo número de teléfono puede comprar en diferentes comercios manteniendo cuentas, puntos y pedidos completamente independientes.
-3. **Aislamiento a Nivel de Usuarios y Staff:**
+3. **Aislamiento de Usuarios y Staff:**
    * El modelo `User` se vincula a comercios mediante `TenantMembership` con roles (`OWNER`, `MANAGER`, `KITCHEN`, `CASHIER`, `DELIVERY`, `STAFF`).
-   * Los Super Administradores de NanoLabs tienen la bandera `isSuperAdmin = true` para la gestión global de la plataforma mediante `platformDb`.
+   * Los administradores de plataforma operan exclusivamente vía `platformDb` y sesión autenticada en `/superadmin`.
+4. **Aislamiento de Almacenamiento:**
+   * Archivos y fotos particionados por claves `tenants/{tenantId}/...` en almacenamiento local o Cloudflare R2 / S3.
+
+---
+
+## 3. Módulos y Portales del Ecosistema
+
+1. **Tienda Online Pública (`/`):** Menú digital interactivo, armado de hamburguesas/pizzas, cupones, fidelización y checkout online. Resuelve dinámicamente la identidad y colores del comercio.
+2. **Panel de Control del Comerciante (`/admin`):** Gestión en vivo de comandas, cocina, catálogo, fotos, repartidores, configuración y guía de puesta en marcha (`/admin/wizard`).
+3. **Plataforma Central SuperAdmin (`/superadmin`):** Monitoreo global de MRR, estados de suscripción, provisionamiento manual de comercios y auditoría de accesos.
+4. **Portal de Onboarding Público (`/onboarding`):** Registro autoservicio en 3 pasos con siembra automática de catálogo según rubro comercial.
+5. **Webhooks y APIs de Integración (`/api/webhooks/*`):**
+   * `/api/webhooks/mercadopago`: Cobro de pedidos de clientes.
+   * `/api/webhooks/whatsapp`: Recepción de mensajes del bot Meta.
+   * `/api/webhooks/billing`: Cobro recurrente de suscripciones SaaS de la plataforma.
+
+---
+
+## 4. Identidad visual por comercio
+
+`SystemConfig.logoUrl` es la única fuente de identidad gráfica del comercio. Cuando existe, se utiliza en la navegación, seguimiento, pestaña del navegador, instalación PWA, previews sociales, notificaciones push y tickets. Cuando está vacío no se publica ni se dibuja un logo alternativo: se conserva únicamente el nombre textual del comercio.
+
+El manifiesto y los metadatos se resuelven en cada request según el hostname del tenant. No deben agregarse `favicon.ico`, `apple-icon.png`, manifiestos estáticos ni imágenes de marca genéricas en `app/` o `public/`, porque las convenciones de archivos de Next.js tienen prioridad sobre los metadatos dinámicos.

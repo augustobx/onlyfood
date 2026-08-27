@@ -1,13 +1,14 @@
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
 import { MetricsClient } from "./MetricsClient";
 import { requireAdmin } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
 export default async function MetricsPage() {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const db = await getTenantDb();
   const [orders, products, ingredients] = await Promise.all([
-     prisma.order.findMany({
+     db.order.findMany({
        where: { status: { not: 'CANCELLED' } },
        include: {
          items: {
@@ -26,7 +27,7 @@ export default async function MetricsPage() {
        },
        orderBy: { createdAt: 'asc' }
      }),
-     prisma.product.findMany({
+     db.product.findMany({
        where: { isActive: true },
        include: {
          ingredients: true,
@@ -42,7 +43,7 @@ export default async function MetricsPage() {
        },
        orderBy: { name: 'asc' }
      }),
-     prisma.ingredient.findMany({
+     db.ingredient.findMany({
        orderBy: { name: 'asc' }
      })
   ]);

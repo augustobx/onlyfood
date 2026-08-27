@@ -1,13 +1,14 @@
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
 import { HistoryClient } from "./HistoryClient";
 import { requireAdmin } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminHistoryPage() {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "STAFF", "CASHIER"]);
+  const db = await getTenantDb();
 
-  const orders = await prisma.order.findMany({
+  const orders = await db.order.findMany({
     orderBy: { createdAt: "desc" },
     include: {
       items: {

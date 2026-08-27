@@ -3,15 +3,15 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingBag, ChevronDown, Plus, Minus, Search, Layers, Star, User, ReceiptText, Info, Gift, BellRing, Calendar } from "lucide-react";
+import { ShoppingBag, ChevronDown, Search, Layers, Star, User, ReceiptText, Gift, Calendar, Dices } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
 import { PointsCatalogModal } from "@/components/PointsCatalogModal";
+import { RouletteModal } from "@/components/RouletteModal";
 import { UrbanDarkStorefront } from "@/components/store/UrbanDarkStorefront";
 import { FastNeoStorefront } from "@/components/store/FastNeoStorefront";
 import { CleanBoutiqueStorefront } from "@/components/store/CleanBoutiqueStorefront";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
@@ -376,7 +376,7 @@ function ExpandableProductCard({ product, categoryProducts = [] }: { product: an
   );
 }
 
-export function StorefrontClient({ categories, combos, loggedClient, config, prizes = [], tiers = [] }: { categories: any[], combos: any[], loggedClient?: any, config?: any, prizes?: any[], tiers?: any[] }) {
+export function StorefrontClient({ categories, combos, loggedClient, config, prizes = [], loyaltyEnabled = false, rouletteEnabled = false }: { categories: any[], combos: any[], loggedClient?: any, config?: any, prizes?: any[], loyaltyEnabled?: boolean, rouletteEnabled?: boolean }) {
   const isNexo = config?.storeTheme === "NEXO";
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -503,7 +503,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
     }
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center text-white p-4 text-center transition-opacity duration-500" style={{ backgroundColor: config?.primaryColor || '#f97316', ...themeVars }}>
-        {config?.splashUrl || config?.logoUrl ? <img src={config.splashUrl || config.logoUrl} alt={config.appName || "Logo del local"} className="w-32 h-32 object-contain animate-pulse mb-6" /> : <div className="text-6xl mb-6 animate-bounce">🍕</div>}
+        {(config?.splashUrl || config?.logoUrl) && <Image unoptimized width={128} height={128} src={config.splashUrl || config.logoUrl} alt={config.appName || "Logo del local"} className="mb-6 h-32 w-32 animate-pulse object-contain" />}
         <h1 className="text-4xl font-black">{config?.appName || 'nfood'}</h1>
         <div className="mt-8 w-24 h-1.5 bg-white/30 rounded-full overflow-hidden">
           <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: config.splashDuration || 3 }} className="h-full bg-white rounded-full"></motion.div>
@@ -600,10 +600,36 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
       </AnimatePresence>
 
       <PointsCatalogModal
-        isOpen={isPointsModalOpen}
+        isOpen={loyaltyEnabled && isPointsModalOpen}
         onClose={() => setIsPointsModalOpen(false)}
         loggedClient={loggedClient ? { ...loggedClient, points: currentPoints } : null}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+        onPointsUpdate={setCurrentPoints}
+      />
+
+      {rouletteEnabled && config?.isRouletteActive && prizes.length > 0 && !showSplash && (
+        <button
+          type="button"
+          aria-label="Abrir ruleta de premios"
+          onClick={() => loggedClient ? setIsRouletteOpen(true) : setIsAuthModalOpen(true)}
+          className="fixed bottom-[110px] left-4 z-[90] flex h-14 items-center gap-2 rounded-full border-2 border-violet-200 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-orange-500 px-4 font-black text-white shadow-[0_12px_35px_rgba(124,58,237,.45)] transition hover:scale-105 hover:brightness-110 active:scale-95 sm:left-6 sm:h-16"
+        >
+          <Dices className="size-6" />
+          <span className="text-left leading-tight">
+            <span className="block text-[10px] uppercase tracking-wider text-violet-100">Premios</span>
+            <span className="block text-xs sm:text-sm">Girar ruleta</span>
+          </span>
+        </button>
+      )}
+
+      <RouletteModal
+        isOpen={rouletteEnabled && config?.isRouletteActive === true && isRouletteOpen}
+        onClose={() => setIsRouletteOpen(false)}
+        prizes={prizes}
+        onWin={handleRouletteWin}
+        cost={config?.rouletteCost || 0}
+        clientId={loggedClient?.id}
+        currentPoints={currentPoints}
         onPointsUpdate={setCurrentPoints}
       />
 
@@ -868,7 +894,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
       </AnimatePresence>
 
       {/* Botón Flotante de Canje de Puntos */}
-      {config?.isPointsCatalogActive !== false && !showSplash && (
+      {loyaltyEnabled && config?.isPointsCatalogActive !== false && !showSplash && (
         <div className="fixed bottom-[110px] right-4 z-[90] sm:right-6">
           <motion.div
             animate={{ y: [0, -6, 0] }}

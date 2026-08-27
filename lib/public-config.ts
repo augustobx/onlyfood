@@ -12,6 +12,7 @@ export const publicConfigSelect = {
   splashVideoUrl: true,
   backgroundUrl: true,
   backgroundBlur: true,
+  whatsappMessage: true,
   isStoreOpen: true,
   closedMessage: true,
   primaryColor: true,
@@ -42,13 +43,10 @@ export const publicConfigSelect = {
   autoScheduleEnabled: true,
 } as const;
 
-export async function getPublicConfig(tenantId?: string) {
-  if (tenantId) {
-    const config = await prisma.systemConfig.findFirst({
-      where: { tenantId },
-      select: publicConfigSelect,
-    });
-    if (config) return config;
-  }
-  return prisma.systemConfig.findFirst({ select: publicConfigSelect });
+export async function getPublicConfig(tenantId: string) {
+  if (!tenantId) throw new Error("TENANT_REQUIRED");
+  return prisma.systemConfig.findFirst({
+    where: { tenantId },
+    select: publicConfigSelect,
+  });
 }

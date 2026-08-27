@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
 import { SettingsForm } from "./SettingsForm";
 import { MessengerForm } from "./MessengerForm";
 import { DeliverySlotForm } from "./DeliverySlotForm";
@@ -8,18 +8,19 @@ import { Settings, Clock, Users } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-session";
 
 export default async function SettingsPage() {
-  await requireAdmin();
-  const config = await prisma.systemConfig.findFirst();
-  const messengers = await prisma.messenger.findMany({
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const db = await getTenantDb();
+  const config = await db.systemConfig.findFirst();
+  const messengers = await db.messenger.findMany({
     orderBy: { name: 'asc' }
   });
   
-  const slots = await prisma.deliveryTimeSlot.findMany({
+  const slots = await db.deliveryTimeSlot.findMany({
     orderBy: { time: 'asc' }
   });
 
   // Ensure default config exists
-  const safeConfig = config || await prisma.systemConfig.create({
+  const safeConfig = config || await db.systemConfig.create({
     data: { appName: "nfood", whatsappMessage: "Hola, tu pedido está: {{estado}}", isStoreOpen: true }
   });
 
@@ -44,7 +45,16 @@ export default async function SettingsPage() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
-          <SettingsForm initialConfig={safeConfig} printNodeApiKeyConfigured={Boolean(process.env.PRINTNODE_API_KEY?.trim())} />
+          <SettingsForm
+            initialConfig={{
+              ...safeConfig,
+              mpAccessToken: null,
+              metaApiToken: null,
+              metaVerifyToken: null,
+              vapidPrivateKey: null,
+            }}
+            printNodeApiKeyConfigured={Boolean(process.env.PRINTNODE_API_KEY?.trim())}
+          />
         </TabsContent>
 
         <TabsContent value="slots" className="space-y-6">

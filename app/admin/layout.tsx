@@ -3,6 +3,17 @@ import { isAdminAuthenticated } from "@/lib/admin-session";
 import { AdminShell } from "./AdminShell";
 import { getTenantContext } from "@/lib/tenant-context";
 import { ShieldAlert } from "lucide-react";
+import type { Metadata } from "next";
+import { buildTenantMetadata } from "@/lib/tenant-branding";
+import { createTenantDb } from "@/lib/tenant-db";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await getTenantContext();
+  const branding = await createTenantDb(tenant.id).systemConfig.findFirst({
+    select: { appName: true, logoUrl: true },
+  });
+  return buildTenantMetadata(tenant, "Administración", branding);
+}
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const isAdmin = await isAdminAuthenticated();
@@ -33,5 +44,5 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return <AdminShell enabledFeatures={[...tenant.features]}>{children}</AdminShell>;
 }

@@ -28,12 +28,13 @@ describe('FASE 3: Tenant Context & Hostname Resolution', () => {
     // Register custom domain
     await prisma.tenantDomain.upsert({
       where: { hostname: 'pedidos.beatsburgers.com' },
-      update: {},
+      update: { verifiedAt: new Date() },
       create: {
         tenantId: tenant.id,
         hostname: 'pedidos.beatsburgers.com',
         isCustom: true,
         isPrimary: false,
+        verifiedAt: new Date(),
       },
     });
 

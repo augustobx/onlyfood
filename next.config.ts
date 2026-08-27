@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["@prisma/client", "prisma", "mariadb", "sharp"],
+  serverExternalPackages: ["@prisma/client", "mariadb", "sharp", "@aws-sdk/client-s3"],
   poweredByHeader: false,
   compress: true,
   experimental: {

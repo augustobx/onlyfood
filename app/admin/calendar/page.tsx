@@ -5,7 +5,7 @@ import { CalendarClient } from "./CalendarClient";
 export const dynamic = "force-dynamic";
 
 export default async function AdminCalendarPage() {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
 
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);

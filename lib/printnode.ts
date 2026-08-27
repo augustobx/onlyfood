@@ -119,18 +119,19 @@ function counterBlocks(order: PrintableOrder, columns: number): TextBlock[] {
 }
 
 async function localLogoBuffer(logoUrl: string | null) {
+  if (!logoUrl) return null;
   const publicDirectory = path.resolve(process.cwd(), "public");
-  if (logoUrl?.startsWith("/") && !logoUrl.startsWith("//")) {
+  if (logoUrl.startsWith("/") && !logoUrl.startsWith("//")) {
     const candidate = path.resolve(publicDirectory, `.${decodeURIComponent(logoUrl)}`);
     if (candidate.startsWith(`${publicDirectory}${path.sep}`)) {
       try {
         return await fs.readFile(candidate);
       } catch {
-        // Sigue con el logo local de Raptor.
+        return null;
       }
     }
   }
-  return fs.readFile(path.join(publicDirectory, "logo.png"));
+  return null;
 }
 
 function ascii(value: string) {
@@ -168,6 +169,7 @@ function wrapText(value: string, width: number) {
 async function rasterLogo(logoUrl: string | null, rollSize: string | null) {
   const targetWidth = rollSize === "58mm" ? 176 : 240;
   const input = await localLogoBuffer(logoUrl);
+  if (!input) return null;
   const { data, info } = await sharp(input)
     .resize({ width: targetWidth, height: targetWidth, fit: "inside", withoutEnlargement: false })
     .flatten({ background: "white" })
@@ -189,7 +191,7 @@ async function rasterLogo(logoUrl: string | null, rollSize: string | null) {
   ]);
 }
 
-async function createTicketRaw(order: PrintableOrder, kind: PrintKind, appName: string, rollSize: string | null, logoUrl: string | null) {
+async function createTicketRaw(order: PrintableOrder, kind: PrintKind, rollSize: string | null, logoUrl: string | null) {
   const normalColumns = rollSize === "58mm" ? 32 : 42;
   const blocks = kind === "KITCHEN" ? kitchenBlocks(order) : counterBlocks(order, normalColumns);
   const chunks: Buffer[] = [
@@ -199,10 +201,10 @@ async function createTicketRaw(order: PrintableOrder, kind: PrintKind, appName: 
   if (kind === "COUNTER") {
     chunks.push(Buffer.from([ESC, 0x61, 0x01]));
     try {
-      chunks.push(await rasterLogo(logoUrl, rollSize));
+      const logo = await rasterLogo(logoUrl, rollSize);
+      if (logo) chunks.push(logo);
     } catch (error) {
       console.error("No se pudo rasterizar el logo del ticket", error);
-      chunks.push(Buffer.from(`${ascii(appName).toUpperCase()}\n`, "ascii"));
     }
   }
 
@@ -237,7 +239,7 @@ async function createTicketRaw(order: PrintableOrder, kind: PrintKind, appName: 
   return Buffer.concat(chunks);
 }
 
-async function createTestRaw(kind: PrintKind, appName: string, rollSize: string | null, logoUrl: string | null) {
+async function createTestRaw(kind: PrintKind, rollSize: string | null, logoUrl: string | null) {
   const fakeOrder = {
     id: `printnode-test-${kind.toLowerCase()}`,
     clientName: "Prueba PrintNode",
@@ -269,7 +271,7 @@ async function createTestRaw(kind: PrintKind, appName: string, rollSize: string 
       },
     ],
   } as unknown as PrintableOrder;
-  return createTicketRaw(fakeOrder, kind, appName, rollSize, logoUrl);
+  return createTicketRaw(fakeOrder, kind, rollSize, logoUrl);
 }
 
 async function submitPrintNodeJob(printerId: number, title: string, rawTicket: Buffer, idempotencyKey: string, customApiKey?: string) {
@@ -307,7 +309,12 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
   const order = await loadPrintableOrder(orderId);
   if (!order || order.status === "CANCELLED") return { success: false, skipped: true, jobs: [], error: "Pedido no disponible." };
 
+  if (options.tenantId && order.tenantId !== options.tenantId) {
+    return { success: false, skipped: true, jobs: [], error: "Pedido no disponible para este comercio." };
+  }
+
   const tenantId = options.tenantId || order.tenantId;
+  if (!tenantId) return { success: false, skipped: true, jobs: [], error: "Pedido sin comercio asociado." };
   let config: any = null;
   let customApiKey: string | undefined;
 
@@ -316,10 +323,6 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
     const creds = await getTenantIntegration<any>(tenantId, "PRINTNODE");
     if (creds?.apiKey) customApiKey = creds.apiKey;
     config = await prisma.systemConfig.findUnique({ where: { tenantId } });
-  }
-
-  if (!config) {
-    config = await prisma.systemConfig.findFirst();
   }
 
   if (!config || config.printingMode !== "PRINTNODE" || (!config.autoPrintTickets && !options.force)) {
@@ -345,11 +348,11 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
     const attempt = (existing?.attempts || 0) + 1;
     await prisma.printDispatch.upsert({
       where: { orderId_kind: { orderId, kind: target.kind } },
-      create: { orderId, kind: target.kind, status: "PROCESSING", attempts: 1, tenantId: tenantId || null },
+      create: { orderId, kind: target.kind, status: "PROCESSING", attempts: 1, tenantId },
       update: { status: "PROCESSING", attempts: { increment: 1 }, error: null },
     });
     try {
-      const rawTicket = await createTicketRaw(order, target.kind, config.appName, target.rollSize, config.logoUrl);
+      const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl);
       const key = options.force ? `onlyfood-raw-${orderId}-${target.kind}-manual-${attempt}` : `onlyfood-raw-${orderId}-${target.kind}-auto`;
       const jobId = await submitPrintNodeJob(target.printerId, `${config.appName} #${orderCode(order)} ${target.kind}`, rawTicket, key, customApiKey);
       await prisma.printDispatch.update({
@@ -371,6 +374,7 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
 }
 
 export async function testPrintNode(kind: PrintKind, requestedPrinterId?: number, requestedRollSize?: "58mm" | "80mm", tenantId?: string) {
+  if (!tenantId) return { success: false, error: "Comercio requerido." };
   let config: any = null;
   let customApiKey: string | undefined;
 
@@ -381,16 +385,12 @@ export async function testPrintNode(kind: PrintKind, requestedPrinterId?: number
     config = await prisma.systemConfig.findUnique({ where: { tenantId } });
   }
 
-  if (!config) {
-    config = await prisma.systemConfig.findFirst();
-  }
-
   if (!config) return { success: false, error: "No existe configuracion del comercio." };
   const printerId = requestedPrinterId || (kind === "KITCHEN" ? config.printNodeKitchenPrinterId : config.printNodeCounterPrinterId);
   const rollSize = requestedRollSize || (kind === "KITCHEN" ? config.printerKitchenSize : config.printerCounterSize);
   if (!printerId) return { success: false, error: "Guarda primero el ID de esta impresora." };
   try {
-    const rawTicket = await createTestRaw(kind, config.appName, rollSize, config.logoUrl);
+    const rawTicket = await createTestRaw(kind, rollSize, config.logoUrl);
     const jobId = await submitPrintNodeJob(printerId, `${config.appName} - Prueba ${kind}`, rawTicket, `onlyfood-raw-test-${kind}-${Date.now()}`, customApiKey);
     return { success: true, jobId };
   } catch (error) {

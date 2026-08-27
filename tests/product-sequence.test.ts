@@ -1,16 +1,19 @@
-import { describe, it, expect } from 'vitest';
-import { prisma } from '@/lib/prisma';
+import { describe, expect, it } from "vitest";
+import { prisma } from "@/lib/prisma";
 
-describe('Ensure Product sequence column and index', () => {
-  it('should add sequence to Product if missing', async () => {
-    try {
-      await prisma.$executeRawUnsafe('ALTER TABLE `Product` ADD COLUMN `sequence` INT NOT NULL DEFAULT 0');
-    } catch {}
-
-    try {
-      await prisma.$executeRawUnsafe('ALTER TABLE `Product` ADD INDEX `Product_tenantId_sequence_idx` (`tenantId`, `sequence`)');
-    } catch {}
-
-    expect(true).toBe(true);
+describe("Product sequence schema", () => {
+  it("contains the sequence column and tenant index", async () => {
+    const [columns, indexes] = await Promise.all([
+      prisma.$queryRaw<Array<{ COLUMN_NAME: string }>>`
+        SELECT COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Product' AND COLUMN_NAME = 'sequence'
+      `,
+      prisma.$queryRaw<Array<{ INDEX_NAME: string }>>`
+        SELECT INDEX_NAME FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Product' AND INDEX_NAME = 'Product_tenantId_sequence_idx'
+      `,
+    ]);
+    expect(columns).toHaveLength(1);
+    expect(indexes.length).toBeGreaterThan(0);
   });
 });

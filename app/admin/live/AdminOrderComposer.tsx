@@ -9,6 +9,7 @@ import { getAdminOrderCatalog } from "@/app/actions/admin-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 
 type CatalogData = Awaited<ReturnType<typeof getAdminOrderCatalog>>;
 type Product = CatalogData["categories"][number]["products"][number];
@@ -48,6 +49,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
   const [slotId, setSlotId] = useState("");
   const [orderType, setOrderType] = useState<"IMMEDIATE" | "SCHEDULED_TOMORROW" | "CUSTOM_DATE">("IMMEDIATE");
   const [scheduledDate, setScheduledDate] = useState("");
+  const quantityDiscount = useQuantityDiscountPreview(cart);
 
   useEffect(() => {
     if (!open || catalog || loadingCatalog) return;
@@ -81,7 +83,8 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
     : 0;
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const discountedSubtotal = subtotal * (1 - (catalog?.globalDiscount ?? 0) / 100);
+  const afterQuantityDiscount = Math.max(0, subtotal - (quantityDiscount?.amount || 0));
+  const discountedSubtotal = afterQuantityDiscount * (1 - (catalog?.globalDiscount ?? 0) / 100);
   const total = discountedSubtotal + (needsDelivery ? catalog?.deliveryCost ?? 0 : 0);
 
   const openProduct = (product: Product) => {
@@ -243,7 +246,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
                 ))}
               </div>
 
-              <div className="mt-5 space-y-2 border-t pt-4 text-sm"><div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{money(subtotal)}</span></div>{catalog.globalDiscount > 0 && <div className="flex justify-between text-green-700"><span>Descuento general ({catalog.globalDiscount}%)</span><span>-{money(subtotal - discountedSubtotal)}</span></div>}{needsDelivery && <div className="flex justify-between text-slate-500"><span>Envío</span><span>{money(catalog.deliveryCost)}</span></div>}<div className="flex justify-between border-t pt-3 text-xl font-black text-slate-950"><span>Total</span><span>{money(total)}</span></div></div>
+              <div className="mt-5 space-y-2 border-t pt-4 text-sm"><div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{money(subtotal)}</span></div>{quantityDiscount && <div className="flex justify-between font-bold text-emerald-700"><span>{quantityDiscount.name}</span><span>-{money(quantityDiscount.amount)}</span></div>}{catalog.globalDiscount > 0 && <div className="flex justify-between text-green-700"><span>Descuento general ({catalog.globalDiscount}%)</span><span>-{money(afterQuantityDiscount - discountedSubtotal)}</span></div>}{needsDelivery && <div className="flex justify-between text-slate-500"><span>Envío</span><span>{money(catalog.deliveryCost)}</span></div>}<div className="flex justify-between border-t pt-3 text-xl font-black text-slate-950"><span>Total</span><span>{money(total)}</span></div></div>
               <Button onClick={submitOrder} disabled={submitting || !cart.length} className="mt-5 h-14 w-full rounded-2xl bg-orange-600 text-base font-black hover:bg-orange-700">{submitting ? <><Loader2 className="mr-2 size-4 animate-spin" /> Creando pedido…</> : "Crear pedido pagado"}</Button>
             </aside>
           </div>

@@ -4,22 +4,27 @@ import { z } from "zod";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { getTenantIntegration, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
 import { getLoggedClient } from "@/lib/auth";
 import { getPublicConfig } from "@/lib/public-config";
-import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
+import { consumeRateLimit, getRequestIp, getRequestOrigin } from "@/lib/request-security";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
 import { dispatchOrderPrint } from "@/lib/printnode";
 import { reconcileMercadoPagoPayment } from "@/lib/mercadopago-payments";
 import { requireAdmin } from "@/lib/admin-session";
+import { createOrderTrackingToken } from "@/lib/order-tracking";
+import { calculateBestQuantityDiscount } from "@/lib/quantity-discounts";
 
 import { parseBusinessHours, isCurrentlyInBusinessHours } from "@/lib/business-hours";
-import { isDailyProduct, isDateValidForProduct, getProductDaysLabel, getNextAvailableDate, WEEK_DAYS } from "@/lib/weekly-menu";
+import { isDailyProduct, getNextAvailableDate, WEEK_DAYS } from "@/lib/weekly-menu";
 
 const idField = z.string().min(1).max(100);
+const optionalIdField = z.preprocess(
+  (value) => value === "" ? undefined : value,
+  idField.optional().nullable(),
+);
 
 const cartItemSchema = z.object({
   product: z.object({ id: idField }),
@@ -36,7 +41,7 @@ const orderSchema = z.object({
   clientPhone: z.string().trim().min(6).max(35),
   needsDelivery: z.boolean(),
   deliveryAddress: z.string().trim().max(250).optional().nullable(),
-  deliverySlotId: idField.optional().nullable(),
+  deliverySlotId: optionalIdField,
   orderType: z.enum(["IMMEDIATE", "SCHEDULED_TOMORROW", "CUSTOM_DATE"]).default("IMMEDIATE"),
   scheduledDate: z.string().optional().nullable(),
   scheduledTime: z.string().max(80).optional().nullable(),
@@ -45,6 +50,12 @@ const orderSchema = z.object({
   rouletteWinId: idField.optional().nullable(),
   redemptionId: idField.optional().nullable(),
 });
+
+const quantityPreviewSchema = z.array(z.object({
+  productId: idField,
+  quantity: z.number().int().min(1).max(50),
+  unitPrice: z.number().finite().min(0).max(100_000_000),
+})).min(1).max(40);
 
 type PreparedItem = {
   productId: string;
@@ -68,7 +79,42 @@ type PreparedItem = {
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 export async function fetchConfig() {
-  return getPublicConfig();
+  const tenant = await getTenantContext();
+  return getPublicConfig(tenant.id);
+}
+
+export async function previewQuantityDiscountAction(input: unknown) {
+  const parsed = quantityPreviewSchema.safeParse(input);
+  if (!parsed.success) return null;
+  const tenant = await getTenantContext();
+  if (!tenant.features.has("quantityDiscounts")) return null;
+  const db = createTenantDb(tenant.id);
+  const now = new Date();
+  const productIds = [...new Set(parsed.data.map((item) => item.productId))];
+  const [productCount, rules] = await Promise.all([
+    db.product.count({ where: { id: { in: productIds }, isActive: true } }),
+    db.quantityDiscount.findMany({
+      where: {
+        isActive: true,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
+      include: { products: { select: { productId: true } } },
+      orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+    }),
+  ]);
+  if (productCount !== productIds.length) return null;
+  return calculateBestQuantityDiscount(parsed.data, rules.map((rule) => ({
+    id: rule.id,
+    name: rule.name,
+    minQuantity: rule.minQuantity,
+    type: rule.type,
+    value: rule.value,
+    priority: rule.priority,
+    productIds: rule.products.map((product) => product.productId),
+  })));
 }
 
 export async function confirmMercadoPagoReturn(orderId: string, paymentId: string) {
@@ -89,7 +135,7 @@ export async function createOrder(input: unknown) {
 }
 
 export async function createAdminOrder(input: unknown) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "CASHIER", "STAFF"]);
   return createOrderInternal(input, true);
 }
 
@@ -114,7 +160,9 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
     const tenant = await getTenantContext();
     const db = createTenantDb(tenant.id);
     const loggedClient = adminDirectPaid ? null : await getLoggedClient(tenant.id);
+    const mpCreds = await getTenantIntegration<MercadoPagoCredentials>(tenant.id, "MERCADO_PAGO");
 
+    const tracking = createOrderTrackingToken();
     const result = await db.$transaction(async (tx) => {
       const config = (await tx.systemConfig.findFirst()) || {
         appName: tenant.name,
@@ -128,6 +176,8 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         deliveryCost: 0,
         asapEstimatedMinutes: 40,
         mpAccessToken: null,
+        autoScheduleEnabled: false,
+        businessHours: null,
       };
       if (!config) throw new Error("STORE_UNAVAILABLE");
 
@@ -147,7 +197,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         }
 
         if (data.paymentMethod === "CASH" && !config.paymentCash) throw new Error("PAYMENT_DISABLED");
-        if (data.paymentMethod === "MP" && (!config.paymentMp || !config.mpAccessToken)) throw new Error("PAYMENT_DISABLED");
+        if (data.paymentMethod === "MP" && (!config.paymentMp || !mpCreds?.accessToken)) throw new Error("PAYMENT_DISABLED");
       }
 
       let deliveryTimeDisplay = data.scheduledTime || "ASAP";
@@ -325,6 +375,93 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         };
       });
 
+      let benefitPercent = 0;
+      let benefitAmount = 0;
+      let consumedRedemptionId: string | null = null;
+      let consumedRouletteWinId: string | null = null;
+
+      const addFreeProduct = (product: any) => {
+        if (!product?.isActive) throw new Error("INVALID_PRIZE");
+        const reference = prepared[0];
+        if (!reference) throw new Error("INVALID_PRIZE");
+        const stockRequirements: InventoryRequirement[] = [];
+        if (product.isCombo) {
+          for (const comboItem of product.comboItemsConfig || []) {
+            for (const usage of comboItem.product.ingredients || []) {
+              stockRequirements.push({
+                ingredientId: usage.ingredientId,
+                name: usage.ingredient.name,
+                required: usage.quantity * comboItem.quantity,
+                available: usage.ingredient.stock,
+              });
+            }
+          }
+        } else {
+          for (const usage of product.ingredients || []) {
+            stockRequirements.push({
+              ingredientId: usage.ingredientId,
+              name: usage.ingredient.name,
+              required: usage.quantity,
+              available: usage.ingredient.stock,
+            });
+          }
+        }
+        prepared.push({
+          productId: product.id,
+          quantity: 1,
+          unitPrice: 0,
+          subtotal: 0,
+          notes: "Beneficio aplicado",
+          isHalfAndHalf: false,
+          secondHalfProductId: null,
+          removedIngredientIds: [],
+          extras: [],
+          comboItems: (product.comboItemsConfig || []).map((item: any) => ({ productId: item.productId, quantity: item.quantity, removedIngredientIds: [] })),
+          stockRequirements,
+          points: 0,
+          targetDateStr: reference.targetDateStr,
+          targetScheduledDate: reference.targetScheduledDate,
+          targetOrderType: reference.targetOrderType,
+          dayName: reference.dayName,
+        });
+      };
+
+      const applyPrize = (prize: any) => {
+        if (prize.type === "PRODUCT" || prize.type === "COMBO") addFreeProduct(prize.product);
+        else if (prize.type === "PERCENT") benefitPercent = Math.min(100, benefitPercent + Math.max(0, Number(prize.value || 0)));
+        else if (prize.type === "AMOUNT" || prize.type === "PROMO") benefitAmount += Math.max(0, Number(prize.value || 0));
+        else throw new Error("INVALID_PRIZE");
+      };
+
+      if (data.redemptionId) {
+        if (!loggedClient) throw new Error("INVALID_PRIZE");
+        const redemption = await tx.pointRedemption.findFirst({
+          where: { id: data.redemptionId, clientId: loggedClient.id, status: "AVAILABLE" },
+          include: { reward: { include: { product: { include: { ingredients: { include: { ingredient: true } }, comboItemsConfig: { include: { product: { include: { ingredients: { include: { ingredient: true } } } } } } } } } } },
+        });
+        if (!redemption || (redemption.expiresAt && redemption.expiresAt <= new Date())) throw new Error("INVALID_PRIZE");
+        const claimed = await tx.pointRedemption.updateMany({
+          where: { id: redemption.id, status: "AVAILABLE" },
+          data: { status: "USED", usedAt: new Date() },
+        });
+        if (claimed.count !== 1) throw new Error("INVALID_PRIZE");
+        consumedRedemptionId = redemption.id;
+        applyPrize(redemption.reward);
+      }
+
+      if (data.rouletteWinId) {
+        if (!loggedClient) throw new Error("INVALID_PRIZE");
+        const win = await tx.rouletteWin.findFirst({
+          where: { id: data.rouletteWinId, clientId: loggedClient.id, claimedAt: null, expiresAt: { gt: new Date() } },
+          include: { prize: { include: { product: { include: { ingredients: { include: { ingredient: true } }, comboItemsConfig: { include: { product: { include: { ingredients: { include: { ingredient: true } } } } } } } } } } },
+        });
+        if (!win) throw new Error("INVALID_PRIZE");
+        const claimed = await tx.rouletteWin.updateMany({ where: { id: win.id, claimedAt: null }, data: { claimedAt: new Date() } });
+        if (claimed.count !== 1) throw new Error("INVALID_PRIZE");
+        consumedRouletteWinId = win.id;
+        applyPrize(win.prize);
+      }
+
       // Stock check and reservation
       const stockMap = new Map<string, InventoryRequirement>();
       for (const item of prepared) {
@@ -392,39 +529,39 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
 
       const dateGroups = Array.from(dateGroupsMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
-      // Global and coupon discounts
+      // Quantity promotions are authoritative on the server. If several rules
+      // match, only the one with the greatest customer saving is applied.
+      const activeQuantityDiscounts = tenant.features.has("quantityDiscounts") ? await tx.quantityDiscount.findMany({
+        where: {
+          isActive: true,
+          AND: [
+            { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+            { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+          ],
+        },
+        include: { products: { select: { productId: true } } },
+        orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+      }) : [];
+      const quantityDiscount = calculateBestQuantityDiscount(
+        prepared.map((item) => ({ productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice })),
+        activeQuantityDiscounts.map((rule) => ({
+          id: rule.id,
+          name: rule.name,
+          minQuantity: rule.minQuantity,
+          type: rule.type,
+          value: rule.value,
+          priority: rule.priority,
+          productIds: rule.products.map((product) => product.productId),
+        })),
+      );
+
+      // Quantity, global and coupon discounts
       const globalDiscount = Math.min(100, Math.max(0, config.globalDiscount));
-      const totalRawSubtotal = prepared.reduce((sum, item) => sum + item.subtotal, 0);
-
-      // Handle coupon / redemption
-      let couponRewardProduct: any = null;
-      if (data.redemptionId) {
-        if (!loggedClient) throw new Error("INVALID_PRIZE");
-        const redemption = await tx.pointRedemption.findUnique({
-          where: { id: data.redemptionId },
-          include: {
-            reward: {
-              include: { product: { include: { ingredients: { include: { ingredient: true } } } } },
-            },
-          },
-        });
-        if (
-          !redemption ||
-          redemption.clientId !== loggedClient.id ||
-          redemption.status !== "AVAILABLE" ||
-          (redemption.expiresAt && redemption.expiresAt <= new Date())
-        ) {
-          throw new Error("INVALID_PRIZE");
-        }
-
-        await tx.pointRedemption.update({
-          where: { id: redemption.id },
-          data: { status: "USED", usedAt: new Date() },
-        });
-        if (redemption.reward.type === "PRODUCT" && redemption.reward.product) {
-          couponRewardProduct = redemption.reward.product;
-        }
-      }
+      const rawSubtotal = roundMoney(prepared.reduce((sum, item) => sum + item.subtotal, 0));
+      const afterQuantityDiscount = roundMoney(rawSubtotal - (quantityDiscount?.amount ?? 0));
+      const discountedSubtotal = afterQuantityDiscount * (1 - globalDiscount / 100) * (1 - benefitPercent / 100);
+      let remainingBenefitAmount = Math.min(benefitAmount, roundMoney(discountedSubtotal));
+      let remainingQuantityDiscount = quantityDiscount?.amount ?? 0;
 
       const adminPhoneKey = adminDirectPaid ? data.clientPhone.replace(/\D/g, "").slice(-6) : null;
       const adminClient = adminDirectPaid
@@ -476,7 +613,20 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       for (let i = 0; i < numGroups; i++) {
         const group = dateGroups[i];
         let groupSubtotal = roundMoney(group.items.reduce((sum, item) => sum + item.subtotal, 0));
+        const groupQuantityDiscount = quantityDiscount
+          ? i === numGroups - 1
+            ? Math.min(groupSubtotal, remainingQuantityDiscount)
+            : Math.min(groupSubtotal, roundMoney(quantityDiscount.amount * (groupSubtotal / Math.max(rawSubtotal, 0.01))))
+          : 0;
+        groupSubtotal = roundMoney(groupSubtotal - groupQuantityDiscount);
+        remainingQuantityDiscount = roundMoney(Math.max(0, remainingQuantityDiscount - groupQuantityDiscount));
         groupSubtotal = roundMoney(groupSubtotal * (1 - globalDiscount / 100));
+        groupSubtotal = roundMoney(groupSubtotal * (1 - benefitPercent / 100));
+        const groupAmountDiscount = i === numGroups - 1
+          ? Math.min(groupSubtotal, remainingBenefitAmount)
+          : Math.min(groupSubtotal, roundMoney(benefitAmount * (groupSubtotal / Math.max(discountedSubtotal, 0.01))));
+        groupSubtotal = roundMoney(groupSubtotal - groupAmountDiscount);
+        remainingBenefitAmount = roundMoney(Math.max(0, remainingBenefitAmount - groupAmountDiscount));
 
         const baseEarnedPoints = group.items.reduce((sum, item) => sum + item.points, 0);
         const groupEarnedPoints = Math.round(baseEarnedPoints * tierMultiplier);
@@ -489,6 +639,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
 
         const order = await tx.order.create({
           data: {
+            trackingTokenHash: tracking.tokenHash,
             clientName: data.clientName,
             clientPhone: data.clientPhone,
             needsDelivery: data.needsDelivery,
@@ -498,8 +649,13 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             orderType: group.orderType,
             scheduledDate: group.scheduledDate,
             scheduledTime: groupDeliveryTime,
-            paymentMethod: adminDirectPaid ? "ADMIN" : data.paymentMethod,
+            paymentMethod: data.paymentMethod,
             total: groupTotal,
+            quantityDiscountAmount: groupQuantityDiscount,
+            discountDetails: quantityDiscount ? {
+              ...quantityDiscount,
+              allocatedAmount: groupQuantityDiscount,
+            } : undefined,
             status: "NEW",
             paymentStatus: adminDirectPaid ? "PAID" : "PENDING",
             clientId: adminClient?.id ?? loggedClient?.id ?? null,
@@ -534,24 +690,29 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         createdOrders.push(order);
       }
 
+      if (consumedRedemptionId) {
+        await tx.pointRedemption.update({ where: { id: consumedRedemptionId }, data: { usedOrderId: createdOrders[0].id } });
+      }
+
       return {
         orders: createdOrders,
         primaryOrder: createdOrders[0],
-        mpAccessToken: config.mpAccessToken,
         stockRequirements,
         totalGrand: roundMoney(createdOrders.reduce((sum, o) => sum + o.total, 0)),
+        consumedRedemptionId,
+        consumedRouletteWinId,
       };
     });
 
     const primaryOrder = result.primaryOrder;
     let mpInitPoint: string | undefined;
 
-    const mpCreds = await getTenantIntegration<MercadoPagoCredentials>(tenant.id, "MERCADO_PAGO");
-    const resolvedMpAccessToken = mpCreds?.accessToken || result.mpAccessToken;
+    const resolvedMpAccessToken = mpCreds?.accessToken;
 
     if (primaryOrder.paymentMethod === "MP" && resolvedMpAccessToken) {
-      const baseUrl = process.env.BASE_URL;
-      if (!baseUrl || (!baseUrl.startsWith("https://") && process.env.NODE_ENV === "production")) {
+      const baseUrl = await getRequestOrigin();
+      const webhookBaseUrl = process.env.BASE_URL;
+      if (!webhookBaseUrl || (!webhookBaseUrl.startsWith("https://") && process.env.NODE_ENV === "production")) {
         throw new Error("BASE_URL_INVALID");
       }
       try {
@@ -567,12 +728,12 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             }],
             external_reference: primaryOrder.id,
             back_urls: {
-              success: `${baseUrl}/track/${primaryOrder.id}?status=approved`,
-              failure: `${baseUrl}/track/${primaryOrder.id}?status=failure`,
-              pending: `${baseUrl}/track/${primaryOrder.id}?status=pending`,
+              success: `${baseUrl}/track/${primaryOrder.id}?status=approved&token=${tracking.token}`,
+              failure: `${baseUrl}/track/${primaryOrder.id}?status=failure&token=${tracking.token}`,
+              pending: `${baseUrl}/track/${primaryOrder.id}?status=pending&token=${tracking.token}`,
             },
             auto_return: "approved",
-            notification_url: `${baseUrl}/api/webhooks/mercadopago`,
+            notification_url: `${webhookBaseUrl}/api/webhooks/mercadopago?tenant=${encodeURIComponent(tenant.id)}`,
           },
         });
 
@@ -595,6 +756,15 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
               data: { stock: { increment: requirement.required } },
             });
           }
+          if (result.consumedRedemptionId) {
+            await tx.pointRedemption.updateMany({
+              where: { id: result.consumedRedemptionId, usedOrderId: result.primaryOrder.id },
+              data: { status: "AVAILABLE", usedAt: null, usedOrderId: null },
+            });
+          }
+          if (result.consumedRouletteWinId) {
+            await tx.rouletteWin.updateMany({ where: { id: result.consumedRouletteWinId }, data: { claimedAt: null } });
+          }
         });
         console.error("MP Preference Error:", error);
         return { success: false, error: "No se pudo iniciar el pago. El pedido fue cancelado sin cargo." };
@@ -611,6 +781,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
     return {
       success: true,
       orderId: primaryOrder.id,
+      trackingToken: tracking.token,
       allOrderIds: result.orders.map(o => o.id),
       isMultiDay: result.orders.length > 1,
       mpInitPoint

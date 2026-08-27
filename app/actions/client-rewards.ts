@@ -5,14 +5,19 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { getLoggedClient } from "@/lib/auth";
 import { getPublicConfig } from "@/lib/public-config";
+import { hasTenantFeature, requireTenantFeature } from "@/lib/features";
+import { z } from "zod";
 
 export async function fetchPublicRewards() {
-  const config = await getPublicConfig();
+  const tenant = await getTenantContext();
+  if (!(await hasTenantFeature(tenant.id, "loyalty"))) {
+    return { isActive: false, rewards: [], loggedClient: null, redemptions: [], tiers: [] };
+  }
+  const config = await getPublicConfig(tenant.id);
   if (!config || config.isPointsCatalogActive === false) {
     return { isActive: false, rewards: [], loggedClient: null, redemptions: [], tiers: [] };
   }
 
-  const tenant = await getTenantContext();
   const db = createTenantDb(tenant.id);
   const client = await getLoggedClient(tenant.id);
 
@@ -21,7 +26,7 @@ export async function fetchPublicRewards() {
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { pointsCost: "asc" }],
       include: {
-        product: { select: { id: true, name: true, basePrice: true, imageUrl: true } },
+        product: { select: { id: true, name: true, basePrice: true, imageUrl: true, isActive: true } },
         minTier: { select: { id: true, name: true, badgeText: true, color: true, iconName: true } },
       },
     }),
@@ -43,7 +48,11 @@ export async function fetchPublicRewards() {
       : null,
     client
       ? db.pointRedemption.findMany({
-          where: { clientId: client.id, status: "AVAILABLE" },
+          where: {
+            clientId: client.id,
+            status: "AVAILABLE",
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
           include: {
             reward: {
               include: { product: { select: { id: true, name: true, basePrice: true, imageUrl: true } } },
@@ -96,7 +105,7 @@ export async function fetchPublicRewards() {
 
   return {
     isActive: true,
-    rewards,
+    rewards: rewards.filter((reward) => (reward.type !== "PRODUCT" && reward.type !== "COMBO") || reward.product?.isActive),
     tiers,
     loggedClient: dbClient
       ? {
@@ -117,10 +126,14 @@ export async function fetchPublicRewards() {
 
 export async function redeemReward(rewardId: string) {
   const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "loyalty");
   const db = createTenantDb(tenant.id);
   const client = await getLoggedClient(tenant.id);
   if (!client) {
     return { success: false, error: "Debes iniciar sesión con tu teléfono para canjear puntos." };
+  }
+  if (!z.string().uuid().safeParse(rewardId).success) {
+    return { success: false, error: "El beneficio seleccionado no es válido." };
   }
 
   const config = await db.systemConfig.findFirst({ select: { isPointsCatalogActive: true } });
@@ -148,6 +161,9 @@ export async function redeemReward(rewardId: string) {
       ]);
 
       if (!reward) throw new Error("REWARD_NOT_FOUND");
+      if ((reward.type === "PRODUCT" || reward.type === "COMBO") && !reward.product?.isActive) {
+        throw new Error("REWARD_NOT_FOUND");
+      }
 
       // Verify minimum tier requirement if set
       if (reward.minTierId && reward.minTier) {
@@ -177,11 +193,13 @@ export async function redeemReward(rewardId: string) {
         throw new Error("INSUFFICIENT_POINTS");
       }
 
-      // Descontar puntos
-      const updatedClient = await tx.client.update({
-        where: { id: client.id },
+      // Descontar de forma condicional para evitar doble canje concurrente.
+      const charged = await tx.client.updateMany({
+        where: { id: client.id, points: { gte: reward.pointsCost } },
         data: { points: { decrement: reward.pointsCost } },
       });
+      if (charged.count !== 1) throw new Error("INSUFFICIENT_POINTS");
+      const updatedClient = await tx.client.findUniqueOrThrow({ where: { id: client.id } });
 
       // Crear cupón/beneficio
       const redemption = await tx.pointRedemption.create({
@@ -230,6 +248,7 @@ export async function redeemReward(rewardId: string) {
 
 export async function fetchClientAvailableCoupons() {
   const tenant = await getTenantContext();
+  if (!(await hasTenantFeature(tenant.id, "loyalty"))) return [];
   const db = createTenantDb(tenant.id);
   const client = await getLoggedClient(tenant.id);
   if (!client) return [];
@@ -238,6 +257,7 @@ export async function fetchClientAvailableCoupons() {
     where: {
       clientId: client.id,
       status: "AVAILABLE",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
     },
     include: {
       reward: {

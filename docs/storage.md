@@ -1,25 +1,37 @@
-# Almacenamiento en Cloudflare R2 / S3
+# Almacenamiento multimedia
 
-## 1. Estructura de Object Keys
+`lib/storage.ts` implementa dos proveedores:
 
-Todos los archivos multimedia se almacenan bajo el espacio de nombres del comercio:
+| Proveedor | Uso | Persistencia |
+| --- | --- | --- |
+| `local` | desarrollo | `public/uploads/tenants/{tenantId}/...` |
+| `r2` / `s3` | producción | bucket compatible con S3 |
 
-```
-tenants/
-  {tenantId}/
-      branding/
-          {timestamp}_{hash}_logo.png
-          {timestamp}_{hash}_background.webp
-      products/
-          {timestamp}_{hash}_burger_cheddar.webp
-      promotions/
-          {timestamp}_{hash}_banner_promo.jpg
-```
+En `NODE_ENV=production`, el proveedor local falla salvo `ALLOW_LOCAL_STORAGE=true`. Esa excepción existe para entornos controlados, no para una instalación productiva con varias réplicas o filesystem efímero.
 
----
+## Configuración R2/S3
 
-## 2. Aislamiento y Operaciones
+- `R2_ENDPOINT` o `S3_ENDPOINT`
+- `R2_BUCKET` o `S3_BUCKET`
+- `R2_ACCESS_KEY_ID` o `S3_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY` o `S3_SECRET_ACCESS_KEY`
+- `R2_PUBLIC_URL` o `NEXT_PUBLIC_CDN_URL`
+- opcionales: `S3_REGION`, `S3_FORCE_PATH_STYLE`
 
-* La clase `ObjectStorageService` en `lib/storage.ts` valida que ninguna operación de borrado o reemplazo pueda afectar archivos de otro `tenantId`.
-* Los archivos se validan por tipo MIME (JPG, PNG, WEBP, GIF, SVG, AVIF, MP4, WEBM) y tamaño máximo (10 MB imágenes, 50 MB videos).
-* En la base de datos se almacena `objectKey` en la tabla `MediaAsset`.
+El bucket debe bloquear listado público. Si los objetos se publican por CDN, limitar el origen al bucket y aplicar CORS solo a los dominios necesarios. Habilitar versionado y lifecycle.
+
+## Seguridad
+
+Las claves se generan en el servidor y siempre comienzan con `tenants/{tenantId}/`. No se confía en paths enviados por el navegador. Para borrar, primero se carga `MediaAsset` mediante el cliente tenant-safe y luego se valida nuevamente el prefijo.
+
+Tipos permitidos: JPEG, PNG, WebP, GIF, AVIF, MP4, WebM y QuickTime. Se rechaza SVG. El servidor valida tamaño, MIME y firma binaria antes de escribir.
+
+Límites: 10 MiB para imágenes y 50 MiB para videos. Caddy limita el cuerpo completo a 50 MB; debe mantenerse alineado con la aplicación.
+
+## Prueba manual de aislamiento
+
+1. Subir una imagen autenticado en Tenant A.
+2. Guardar el ID y object key.
+3. Intentar eliminar ese ID desde Tenant B.
+4. Esperar `not found`/`forbidden` y confirmar que el objeto siga disponible para Tenant A.
+5. Repetir con un filename que contenga `../`; debe rechazarse o normalizarse sin salir del prefijo.

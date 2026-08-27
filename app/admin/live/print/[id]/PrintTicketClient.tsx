@@ -4,8 +4,7 @@ import { useEffect } from "react";
 
 function TicketLogo({ src, appName }: { src: string; appName: string }) {
   return (
-    // La imagen nativa permite esperar document.images antes de imprimir y
-    // sustituir una URL configurada que falle por el logo local.
+    // La imagen nativa permite esperar document.images antes de imprimir.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
@@ -19,18 +18,14 @@ function TicketLogo({ src, appName }: { src: string; appName: string }) {
 
 export function PrintTicketClient({ order, config }: { order: any; config: any }) {
   const paperWidth = config?.printerCounterSize === "58mm" ? "58mm" : "80mm";
-  const logoUrl = config?.logoUrl || "/logo.png";
+  const logoUrl = config?.logoUrl || null;
 
   useEffect(() => {
     let cancelled = false;
 
     const waitForImage = (image: HTMLImageElement) => new Promise<void>((resolve) => {
-      const isFallback = () => new URL(image.src, window.location.href).pathname === "/logo.png";
-      const useFallbackOrFinish = () => {
-        if (!isFallback()) {
-          image.src = "/logo.png";
-          return;
-        }
+      const hideAndFinish = () => {
+        image.hidden = true;
         resolve();
       };
 
@@ -38,9 +33,12 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
         resolve();
         return;
       }
-      if (image.complete) image.src = "/logo.png";
+      if (image.complete) {
+        hideAndFinish();
+        return;
+      }
       image.addEventListener("load", () => resolve(), { once: true });
-      image.addEventListener("error", useFallbackOrFinish);
+      image.addEventListener("error", hideAndFinish, { once: true });
     });
 
     const prepareAndPrint = async () => {
@@ -102,7 +100,7 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
       >
         <section className="ticket-section p-3">
           <div className="mb-4 text-center">
-            <TicketLogo src={logoUrl} appName={config?.appName || "Raptor"} />
+            {logoUrl && <TicketLogo src={logoUrl} appName={config?.appName || "Comercio"} />}
             <h1 className="text-xl font-black">{config?.appName || "NFOOD"}</h1>
             <p className="border-b border-dashed border-black pb-2 text-sm">TICKET COCINA</p>
           </div>
@@ -137,7 +135,7 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
 
         <section className="ticket-section p-3">
           <div className="mb-4 text-center">
-            <TicketLogo src={logoUrl} appName={config?.appName || "Raptor"} />
+            {logoUrl && <TicketLogo src={logoUrl} appName={config?.appName || "Comercio"} />}
             <h1 className="text-xl font-black">{config?.appName || "NFOOD"}</h1>
             <p className="border-b border-dashed border-black pb-2 text-sm">TICKET DE PEDIDO</p>
           </div>
@@ -171,15 +169,16 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
 
           <div className="mb-4 space-y-1 text-sm">
             <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span>${order.total.toLocaleString("es-AR")}</span>
+              <span>Productos:</span>
+              <span>${order.items.reduce((sum: number, item: any) => sum + item.subtotal, 0).toLocaleString("es-AR")}</span>
             </div>
+            {order.quantityDiscountAmount > 0 && <div className="flex justify-between font-bold"><span>Promo por cantidad:</span><span>-${order.quantityDiscountAmount.toLocaleString("es-AR")}</span></div>}
             <div className="flex justify-between border-t border-black pt-1 text-base font-black">
               <span>TOTAL:</span>
               <span>${order.total.toLocaleString("es-AR")}</span>
             </div>
             <p className="mt-2 border border-black p-1 text-center text-[10px] font-bold">
-              {order.paymentMethod === "CASH" ? "A COBRAR EN EFECTIVO" : order.paymentMethod === "ADMIN" ? "PAGADO EN MOSTRADOR" : "PAGADO VÍA MERCADOPAGO"}
+              {order.paymentMethod === "CASH" ? (order.paymentStatus === "PAID" ? "PAGADO EN EFECTIVO" : "A COBRAR EN EFECTIVO") : order.paymentMethod === "ADMIN" ? "PAGADO EN MOSTRADOR" : "PAGADO VÍA MERCADOPAGO"}
             </p>
           </div>
 

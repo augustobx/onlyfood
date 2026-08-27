@@ -1,19 +1,14 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+export { FEATURE_KEYS } from "@/lib/feature-catalog";
+export type { FeatureKey } from "@/lib/feature-catalog";
+import type { FeatureKey } from "@/lib/feature-catalog";
 
-export type FeatureKey =
-  | "orders"
-  | "loyalty"
-  | "roulette"
-  | "whatsapp"
-  | "customDomain"
-  | "multipleLocations"
-  | "printNode"
-  | "advancedReports";
+export type PlanCode = "STARTER" | "PRO" | "BUSINESS";
 
 export interface PlanDefinition {
-  code: string;
+  code: PlanCode;
   name: string;
   priceMonthly: number;
   maxLocations: number;
@@ -21,27 +16,27 @@ export interface PlanDefinition {
   features: FeatureKey[];
 }
 
-export const SAAS_PLANS: Record<string, PlanDefinition> = {
+export const SAAS_PLANS: Record<PlanCode, PlanDefinition> = {
   STARTER: {
     code: "STARTER",
     name: "Plan Starter",
-    priceMonthly: 8000,
+    priceMonthly: 25000,
     maxLocations: 1,
     maxProducts: 50,
-    features: ["orders", "customDomain"],
+    features: ["orders", "cashRegister", "quantityDiscounts"],
   },
   PRO: {
     code: "PRO",
     name: "Plan Profesional",
-    priceMonthly: 15000,
+    priceMonthly: 45000,
     maxLocations: 3,
     maxProducts: 300,
-    features: ["orders", "loyalty", "roulette", "whatsapp", "customDomain", "printNode"],
+    features: ["orders", "loyalty", "roulette", "printNode", "cashRegister", "quantityDiscounts"],
   },
   BUSINESS: {
     code: "BUSINESS",
     name: "Plan Business",
-    priceMonthly: 25000,
+    priceMonthly: 85000,
     maxLocations: 10,
     maxProducts: 2000,
     features: [
@@ -53,8 +48,17 @@ export const SAAS_PLANS: Record<string, PlanDefinition> = {
       "multipleLocations",
       "printNode",
       "advancedReports",
+      "cashRegister",
+      "quantityDiscounts",
     ],
   },
+};
+
+export const PLANS = SAAS_PLANS;
+export const PLAN_FEATURES: Record<PlanCode, FeatureKey[]> = {
+  STARTER: SAAS_PLANS.STARTER.features,
+  PRO: SAAS_PLANS.PRO.features,
+  BUSINESS: SAAS_PLANS.BUSINESS.features,
 };
 
 /**
@@ -98,8 +102,10 @@ export async function getTenantFeatures(tenantId: string): Promise<{
   }
 
   const sub = tenant.subscription;
+  const now = new Date();
   const isSubscriptionActive =
-    sub?.status === "ACTIVE" || sub?.status === "TRIAL";
+    (sub?.status === "ACTIVE" && sub.currentPeriodEnd > now) ||
+    (sub?.status === "TRIAL" && Boolean(sub.trialEndsAt && sub.trialEndsAt > now));
 
   const planFeatures = (Array.isArray(sub?.plan?.features)
     ? (sub?.plan?.features as FeatureKey[])

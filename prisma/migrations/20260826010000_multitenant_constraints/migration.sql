@@ -3,13 +3,73 @@
 -- ==========================================
 
 -- Drop legacy unique indexes if they exist
-ALTER TABLE `Client` DROP INDEX `Client_phone_key`;
-ALTER TABLE `MediaAsset` DROP INDEX `MediaAsset_filename_key`;
-ALTER TABLE `PushSubscription` DROP INDEX `PushSubscription_endpointHash_key`;
+ALTER TABLE `Client` DROP INDEX IF EXISTS `Client_phone_key`;
+ALTER TABLE `MediaAsset` DROP INDEX IF EXISTS `MediaAsset_filename_key`;
+ALTER TABLE `PushSubscription` DROP INDEX IF EXISTS `PushSubscription_endpointHash_key`;
+
+-- Create an explicit legacy tenant and backfill every pre-SaaS business row
+-- before adding unique indexes and foreign keys. This keeps upgrades safe and
+-- prevents rows from remaining globally visible with a NULL tenantId.
+INSERT IGNORE INTO `Tenant` (`id`, `slug`, `name`, `status`, `createdAt`, `updatedAt`)
+VALUES ('legacy-default-tenant', 'beats', 'OnlyFood', 'ACTIVE', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3));
+INSERT IGNORE INTO `Plan` (`id`, `code`, `name`, `priceMonthly`, `maxLocations`, `maxProducts`, `features`, `isActive`, `createdAt`, `updatedAt`)
+VALUES ('legacy-default-plan', 'BUSINESS', 'Business', 0, 10, 10000, JSON_ARRAY('whatsapp','loyalty','roulette','customDomain','printNode'), true, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3));
+INSERT IGNORE INTO `Subscription` (`id`, `tenantId`, `planId`, `status`, `currentPeriodStart`, `currentPeriodEnd`, `createdAt`, `updatedAt`)
+VALUES ('legacy-default-subscription', 'legacy-default-tenant', 'legacy-default-plan', 'ACTIVE', CURRENT_TIMESTAMP(3), DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 10 YEAR), CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3));
+INSERT IGNORE INTO `Location` (`id`, `tenantId`, `name`, `code`, `isMain`, `isActive`, `createdAt`, `updatedAt`)
+VALUES ('legacy-default-location', 'legacy-default-tenant', 'Principal', 'main', true, true, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3));
+INSERT IGNORE INTO `TenantDomain` (`id`, `tenantId`, `hostname`, `isPrimary`, `isCustom`, `verifiedAt`, `createdAt`, `updatedAt`)
+VALUES ('legacy-default-domain', 'legacy-default-tenant', 'localhost', true, false, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3));
+
+UPDATE `SystemConfig` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `Category` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `Product` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `Ingredient` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `Extra` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `Order` SET `tenantId` = 'legacy-default-tenant', `locationId` = COALESCE(`locationId`, 'legacy-default-location') WHERE `tenantId` IS NULL;
+UPDATE `Client` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `PushSubscription` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `RoulettePrize` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `RouletteWin` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `PointReward` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `PointRedemption` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `CustomerTier` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `DeliveryTimeSlot` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `Messenger` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `PaymentRecord` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `Session` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `WhatsAppSession` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `MediaAsset` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+UPDATE `PrintDispatch` SET `tenantId` = 'legacy-default-tenant' WHERE `tenantId` IS NULL;
+
+-- Tenant-owned rows must never become global again. The backfill above makes
+-- these changes safe for upgrades from the legacy single-tenant schema.
+ALTER TABLE `SystemConfig` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Category` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Product` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Ingredient` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Extra` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Order` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Client` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `PushSubscription` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `RoulettePrize` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `RouletteWin` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `PointReward` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `PointRedemption` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `CustomerTier` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `DeliveryTimeSlot` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Messenger` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `PaymentRecord` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `Session` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `WhatsAppSession` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `MediaAsset` MODIFY `tenantId` VARCHAR(191) NOT NULL;
+ALTER TABLE `PrintDispatch` MODIFY `tenantId` VARCHAR(191) NOT NULL;
 
 -- WhatsAppSession restructure to compound key
 ALTER TABLE `WhatsAppSession` DROP PRIMARY KEY;
-ALTER TABLE `WhatsAppSession` ADD COLUMN IF NOT EXISTS `id` VARCHAR(191) NOT NULL FIRST;
+ALTER TABLE `WhatsAppSession` ADD COLUMN IF NOT EXISTS `id` VARCHAR(191) NULL FIRST;
+UPDATE `WhatsAppSession` SET `id` = UUID() WHERE `id` IS NULL OR `id` = '';
+ALTER TABLE `WhatsAppSession` MODIFY `id` VARCHAR(191) NOT NULL;
 ALTER TABLE `WhatsAppSession` ADD PRIMARY KEY (`id`);
 ALTER TABLE `WhatsAppSession` ADD UNIQUE INDEX `WhatsAppSession_tenantId_phone_key` (`tenantId`, `phone`);
 ALTER TABLE `WhatsAppSession` ADD INDEX `WhatsAppSession_tenantId_idx` (`tenantId`);

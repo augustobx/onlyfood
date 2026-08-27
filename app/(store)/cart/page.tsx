@@ -5,9 +5,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { Trash2, ShoppingBag, ArrowRight, ArrowLeft, Plus, Minus, Calendar, AlertCircle } from "lucide-react";
+import { Trash2, ShoppingBag, ArrowRight, ArrowLeft, Plus, Minus, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { analyzeCartSchedule, isDailyProduct, getProductBadgeLabel } from "@/lib/weekly-menu";
+import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 
 function useStoreTheme() {
   const [theme, setTheme] = useState("ORIGINAL");
@@ -127,6 +128,7 @@ function getThemeClasses(theme: string) {
 export default function CartPage() {
   const router = useRouter();
   const { items, removeItem, updateQuantity, getTotal, dailyPrize } = useCartStore();
+  const quantityDiscount = useQuantityDiscountPreview(items);
   const theme = useStoreTheme();
   const t = getThemeClasses(theme);
 
@@ -274,6 +276,8 @@ export default function CartPage() {
               <h3 className={`text-sm font-bold ${t.subtext}`}>Subtotal</h3>
               <span className={`text-xl font-black ${t.accent}`}>${subtotal.toLocaleString('es-AR')}</span>
             </div>
+            {quantityDiscount && <div className={`flex items-center justify-between rounded-xl p-2 text-xs font-black ${t.tag.green}`}><span>📦 {quantityDiscount.name}</span><span>−${quantityDiscount.amount.toLocaleString("es-AR")}</span></div>}
+            {quantityDiscount && <div className="flex items-center justify-between border-t pt-2"><span className={`text-sm font-bold ${t.heading}`}>Total con promoción</span><span className={`text-xl font-black ${t.accent}`}>${Math.max(0, subtotal - quantityDiscount.amount).toLocaleString("es-AR")}</span></div>}
           </div>
         );
       })()}

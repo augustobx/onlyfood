@@ -78,8 +78,11 @@ export async function resolveTenantByHostname(hostname: string): Promise<TenantR
 
   try {
     // 1. Buscar coincidencia exacta en TenantDomain (para dominios personalizados o subdominios registrados)
-    const domainRecord = await prisma.tenantDomain.findUnique({
-      where: { hostname: cleanHost },
+    const domainRecord = await prisma.tenantDomain.findFirst({
+      where: {
+        hostname: cleanHost,
+        OR: [{ isCustom: false }, { verifiedAt: { not: null } }],
+      },
       include: {
         tenant: {
           include: {
@@ -96,7 +99,8 @@ export async function resolveTenantByHostname(hostname: string): Promise<TenantR
 
     // 2. Si no se encontró por dominio exacto, intentar extraer subdominio slug
     if (!tenantData) {
-      const slugCandidate = extractSubdomainSlug(cleanHost);
+      const localHostname = cleanHost === "localhost" || cleanHost === "127.0.0.1" || cleanHost.endsWith(".localhost");
+      const slugCandidate = process.env.NODE_ENV === "production" && localHostname ? null : extractSubdomainSlug(cleanHost);
       if (slugCandidate) {
         tenantData = (await prisma.tenant.findUnique({
           where: { slug: slugCandidate },
@@ -111,7 +115,11 @@ export async function resolveTenantByHostname(hostname: string): Promise<TenantR
     }
 
     // 3. Fallback en desarrollo para "localhost" o "127.0.0.1" -> tenant por defecto "beats"
-    if (!tenantData && (cleanHost === "localhost" || cleanHost === "127.0.0.1" || cleanHost === "::1")) {
+    if (
+      process.env.NODE_ENV !== "production" &&
+      !tenantData &&
+      (cleanHost === "localhost" || cleanHost === "127.0.0.1" || cleanHost === "::1")
+    ) {
       tenantData = (await prisma.tenant.findUnique({
         where: { slug: "beats" },
         include: {
@@ -128,7 +136,18 @@ export async function resolveTenantByHostname(hostname: string): Promise<TenantR
     }
 
     // 4. Validar estado del tenant
-    const isSuspended = tenantData.status === "SUSPENDED" || tenantData.subscription?.status === "SUSPENDED";
+    const subscription = tenantData.subscription;
+    const now = new Date();
+    const subscriptionExpired = Boolean(
+      subscription &&
+      ((subscription.status === "TRIAL" && subscription.trialEndsAt && subscription.trialEndsAt <= now) ||
+        (subscription.status === "ACTIVE" && subscription.currentPeriodEnd <= now)),
+    );
+    const isSuspended =
+      ["SUSPENDED", "CANCELED", "PAST_DUE"].includes(tenantData.status) ||
+      !subscription ||
+      ["SUSPENDED", "CANCELED", "PAST_DUE"].includes(subscription.status) ||
+      subscriptionExpired;
     if (isSuspended) {
       return {
         success: false,
@@ -141,7 +160,12 @@ export async function resolveTenantByHostname(hostname: string): Promise<TenantR
     const plan = tenantData.subscription?.plan;
     const planFeatures: string[] = Array.isArray(plan?.features) ? (plan?.features as string[]) : [];
     const tenantSpecificFeatures = tenantData.features.filter((f) => f.isEnabled).map((f) => f.featureKey);
-    const combinedFeatures = new Set<string>([...planFeatures, ...tenantSpecificFeatures]);
+    const disabledFeatures = new Set(
+      tenantData.features.filter((f) => !f.isEnabled).map((f) => f.featureKey),
+    );
+    const combinedFeatures = new Set<string>(
+      [...planFeatures, ...tenantSpecificFeatures].filter((feature) => !disabledFeatures.has(feature)),
+    );
 
     const resolved: ResolvedTenant = {
       id: tenantData.id,
@@ -183,9 +207,9 @@ export async function resolveTenantByHostname(hostname: string): Promise<TenantR
 export async function getTenantContext(): Promise<ResolvedTenant> {
   const requestHeaders = await headers();
   const host =
-    requestHeaders.get("x-forwarded-host") ||
     requestHeaders.get("host") ||
-    requestHeaders.get("x-tenant-host") ||
+    requestHeaders.get("x-forwarded-host") ||
+    (process.env.NODE_ENV !== "production" ? requestHeaders.get("x-tenant-host") : null) ||
     "localhost";
 
   const result = await resolveTenantByHostname(host);

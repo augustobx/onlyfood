@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
 import { notFound } from "next/navigation";
 import { ProductDetailsClient } from "./ProductDetailsClient";
 
@@ -7,8 +7,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   // 2. Esperamos a que los params lleguen
   const { id } = await params;
+  const db = await getTenantDb();
 
-  const product = await prisma.product.findUnique({
+  const product = await db.product.findUnique({
     where: { id: id }, // 3. Usamos 'id' directamente
     include: {
       ingredients: { include: { ingredient: true } },
@@ -34,7 +35,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   // Pre-fetch siblings if it's a Half to build Half-and-Half configurations
   let halfSiblings: any[] = [];
   if (product.allowHalf && !product.onlyHalf) {
-    halfSiblings = await prisma.product.findMany({
+    halfSiblings = await db.product.findMany({
       where: {
         categoryId: product.categoryId,
         id: { not: product.id },

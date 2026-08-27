@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/admin-session";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requireAdmin(["OWNER", "MANAGER", "DELIVERY", "STAFF"]);
     const db = await getTenantDb();
     const messengers = await db.messenger.findMany({
       where: { isActive: true },

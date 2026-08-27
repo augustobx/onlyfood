@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Star, Gift, Crown } from "lucide-react";
 import { UsersTableClient } from "./UsersTableClient";
@@ -7,9 +7,10 @@ import { requireAdmin } from "@/lib/admin-session";
 export const dynamic = "force-dynamic";
 
 export default async function AdminUsersPage() {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const db = await getTenantDb();
   const [users, rewards, tiers] = await Promise.all([
-    prisma.client.findMany({
+    db.client.findMany({
       include: {
         orders: {
           where: { status: { not: "CANCELLED" } },
@@ -22,11 +23,11 @@ export default async function AdminUsersPage() {
       },
       orderBy: { points: "desc" },
     }),
-    prisma.pointReward.findMany({
+    db.pointReward.findMany({
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { pointsCost: "asc" }],
     }),
-    prisma.customerTier.findMany({
+    db.customerTier.findMany({
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { minSpent: "asc" }],
     }),

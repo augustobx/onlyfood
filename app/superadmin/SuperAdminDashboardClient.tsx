@@ -3,14 +3,11 @@
 import { useState } from "react";
 import {
   createTenantAction,
-  updateTenantStatusAction,
-  changeTenantPlanAction,
   logoutSuperAdminAction,
-} from "@/lib/../app/actions/superadmin";
-import type { PlanCode } from "@/lib/features";
+} from "@/app/actions/superadmin";
+import { PlanManagementModal, TenantControlModal } from "./SuperAdminControlModals";
 import {
   Building2,
-  Users,
   Store,
   DollarSign,
   TrendingUp,
@@ -25,39 +22,37 @@ import {
   LogOut,
   Shield,
   Loader2,
-  Filter,
-  RefreshCw,
   Sliders,
-  ChevronRight,
-  MoreVertical,
   X,
 } from "lucide-react";
 
 interface SuperAdminDashboardProps {
   initialMetrics: any;
   initialTenants: any[];
+  initialPlans: any[];
 }
 
 export default function SuperAdminDashboardClient({
   initialMetrics,
   initialTenants,
+  initialPlans,
 }: SuperAdminDashboardProps) {
-  const [metrics, setMetrics] = useState(initialMetrics);
-  const [tenants, setTenants] = useState(initialTenants);
+  const [metrics] = useState(initialMetrics);
+  const [tenants] = useState(initialTenants);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isPlanManagementOpen, setIsPlanManagementOpen] = useState(false);
   const [selectedTenantForPlan, setSelectedTenantForPlan] = useState<any | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // New Tenant Form State
   const [formName, setFormName] = useState("");
   const [formSlug, setFormSlug] = useState("");
   const [formDomain, setFormDomain] = useState("");
-  const [formPlan, setFormPlan] = useState<PlanCode>("PRO");
+  const [formPlan, setFormPlan] = useState("PRO");
   const [formEmail, setFormEmail] = useState("");
   const [formOwnerName, setFormOwnerName] = useState("");
-  const [formPassword, setFormPassword] = useState("OnlyFood2026!");
+  const [formPassword, setFormPassword] = useState("");
   const [formLocationName, setFormLocationName] = useState("Sucursal Centro");
   const [formError, setFormError] = useState<string | null>(null);
   const [createLoading, setCreateLoading] = useState(false);
@@ -89,32 +84,6 @@ export default function SuperAdminDashboardClient({
     } else {
       setFormError(res.error || "Error al crear comercio");
       setCreateLoading(false);
-    }
-  };
-
-  const handleStatusChange = async (tenantId: string, newStatus: any) => {
-    if (!confirm(`¿Confirmás cambiar el estado de este comercio a ${newStatus}?`)) return;
-    setActionLoading(tenantId);
-    const res = await updateTenantStatusAction(tenantId, newStatus);
-    if (res.success) {
-      setTenants((prev) =>
-        prev.map((t) => (t.id === tenantId ? { ...t, status: newStatus } : t))
-      );
-    } else {
-      alert(res.error);
-    }
-    setActionLoading(null);
-  };
-
-  const handlePlanChange = async (tenantId: string, planCode: PlanCode) => {
-    setActionLoading(tenantId);
-    const res = await changeTenantPlanAction(tenantId, planCode);
-    if (res.success) {
-      setSelectedTenantForPlan(null);
-      window.location.reload();
-    } else {
-      alert(res.error);
-      setActionLoading(null);
     }
   };
 
@@ -183,7 +152,7 @@ export default function SuperAdminDashboardClient({
       default:
         return (
           <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 uppercase tracking-wide">
-            Starter
+            {code || "Sin plan"}
           </span>
         );
     }
@@ -211,11 +180,18 @@ export default function SuperAdminDashboardClient({
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setIsPlanManagementOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 sm:px-4 py-2 text-xs font-semibold text-slate-200 transition-all hover:bg-slate-700"
+            >
+              <Sliders className="w-4 h-4" />
+              Planes y opciones
+            </button>
+            <button
               onClick={() => setIsCreateModalOpen(true)}
               className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-md shadow-orange-500/20 flex items-center gap-1.5 transition-all"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Nuevo Comercio</span>
+              <span className="hidden sm:inline">Nuevo Comercio</span>
             </button>
 
             <button
@@ -348,6 +324,7 @@ export default function SuperAdminDashboardClient({
                   <th className="py-3.5 px-4">Dominio / Host</th>
                   <th className="py-3.5 px-4">Plan SaaS</th>
                   <th className="py-3.5 px-4">Estado</th>
+                  <th className="py-3.5 px-4">Vigencia</th>
                   <th className="py-3.5 px-4">Sucursales</th>
                   <th className="py-3.5 px-4">Pedidos</th>
                   <th className="py-3.5 px-5 text-right">Acciones</th>
@@ -356,7 +333,7 @@ export default function SuperAdminDashboardClient({
               <tbody className="divide-y divide-slate-800/50">
                 {filteredTenants.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                    <td colSpan={8} className="py-8 text-center text-slate-500">
                       No se encontraron comercios con los criterios de búsqueda.
                     </td>
                   </tr>
@@ -403,6 +380,16 @@ export default function SuperAdminDashboardClient({
                           </button>
                         </td>
                         <td className="py-3.5 px-4">{getStatusBadge(t.status)}</td>
+                        <td className="py-3.5 px-4 text-[11px] text-slate-400">
+                          <div className="font-semibold text-slate-200">
+                            {t.subscription?.currentPeriodEnd
+                              ? new Date(t.subscription.currentPeriodEnd).toLocaleDateString("es-AR")
+                              : "Sin período"}
+                          </div>
+                          {t.subscription?.status === "TRIAL" && t.subscription?.trialEndsAt && (
+                            <div className="text-blue-400">Prueba hasta {new Date(t.subscription.trialEndsAt).toLocaleDateString("es-AR")}</div>
+                          )}
+                        </td>
                         <td className="py-3.5 px-4 text-slate-400">
                           {t.locations?.length || 1} sucursal(es)
                         </td>
@@ -411,29 +398,11 @@ export default function SuperAdminDashboardClient({
                         </td>
                         <td className="py-3.5 px-5 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {t.status === "ACTIVE" || t.status === "TRIAL" ? (
-                              <button
-                                disabled={actionLoading === t.id}
-                                onClick={() => handleStatusChange(t.id, "SUSPENDED")}
-                                className="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all font-semibold text-[11px]"
-                              >
-                                Suspender
-                              </button>
-                            ) : (
-                              <button
-                                disabled={actionLoading === t.id}
-                                onClick={() => handleStatusChange(t.id, "ACTIVE")}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all font-semibold text-[11px]"
-                              >
-                                Reactivar
-                              </button>
-                            )}
-
                             <button
                               onClick={() => setSelectedTenantForPlan(t)}
                               className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all font-semibold text-[11px]"
                             >
-                              Plan
+                              Control
                             </button>
                           </div>
                         </td>
@@ -503,12 +472,14 @@ export default function SuperAdminDashboardClient({
                   <label className="block text-slate-400 mb-1 font-medium">Plan SaaS Asignado *</label>
                   <select
                     value={formPlan}
-                    onChange={(e) => setFormPlan(e.target.value as PlanCode)}
+                    onChange={(e) => setFormPlan(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
                   >
-                    <option value="STARTER">STARTER (1 Sucursal, Catálogo básico)</option>
-                    <option value="PRO">PRO (Multi-sucursal, Fidelización, Ruleta)</option>
-                    <option value="BUSINESS">BUSINESS (WhatsApp Bot, Multi-tenant Pro)</option>
+                    {initialPlans.filter((plan) => plan.isActive).map((plan) => (
+                      <option key={plan.id} value={plan.code}>
+                        {plan.code} — {plan.name} ({plan.maxLocations} suc., {plan.maxProducts} productos)
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -598,45 +569,21 @@ export default function SuperAdminDashboardClient({
         </div>
       )}
 
-      {/* Change Plan Modal */}
-      {selectedTenantForPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-base font-bold text-white">Cambiar Plan: {selectedTenantForPlan.name}</h3>
-              <button
-                onClick={() => setSelectedTenantForPlan(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {isPlanManagementOpen && (
+        <PlanManagementModal
+          plans={initialPlans}
+          onClose={() => setIsPlanManagementOpen(false)}
+          onSaved={() => window.location.reload()}
+        />
+      )}
 
-            <div className="mt-4 space-y-3">
-              {(["STARTER", "PRO", "BUSINESS"] as PlanCode[]).map((planCode) => (
-                <button
-                  key={planCode}
-                  onClick={() => handlePlanChange(selectedTenantForPlan.id, planCode)}
-                  className={`w-full p-4 rounded-xl border text-left flex items-center justify-between transition-all ${
-                    selectedTenantForPlan.subscription?.plan?.code === planCode
-                      ? "bg-orange-500/10 border-orange-500/40 text-orange-300"
-                      : "bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800/40"
-                  }`}
-                >
-                  <div>
-                    <div className="font-bold text-sm">{planCode}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {planCode === "STARTER" && "1 local • Catálogo básico"}
-                      {planCode === "PRO" && "Multi-sucursal • Puntos y Ruleta"}
-                      {planCode === "BUSINESS" && "WhatsApp Bot • Integraciones completas"}
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-500" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+      {selectedTenantForPlan && (
+        <TenantControlModal
+          tenant={selectedTenantForPlan}
+          plans={initialPlans}
+          onClose={() => setSelectedTenantForPlan(null)}
+          onSaved={() => window.location.reload()}
+        />
       )}
     </div>
   );

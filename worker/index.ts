@@ -18,16 +18,18 @@ self.addEventListener('push', (event) => {
         console.error("Error al procesar la notificación PUSH", e);
     }
 
-    const title = data.title || "Notificación de Raptor Burger";
-    const options = {
+    const title = data.title || "Notificación de tu comercio";
+    const options: NotificationOptions = {
         body: data.body || "Tienes una nueva actualización en tu pedido.",
-        icon: "/logo.png",
-        badge: "/logo.png",
         vibrate: [200, 100, 200, 100, 200],
         data: {
             url: data.url || "/",
         },
     };
+    if (typeof data.icon === "string" && data.icon) {
+        options.icon = data.icon;
+        options.badge = data.icon;
+    }
 
     event.waitUntil(self.registration.showNotification(title, options));
 });

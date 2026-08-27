@@ -20,7 +20,7 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-export function PushPrompt({ orderId, clientId, theme = "ORIGINAL" }: { orderId?: string, clientId?: string, theme?: string }) {
+export function PushPrompt({ orderId, clientId, trackingToken, theme = "ORIGINAL" }: { orderId?: string, clientId?: string, trackingToken?: string, theme?: string }) {
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -48,7 +48,8 @@ export function PushPrompt({ orderId, clientId, theme = "ORIGINAL" }: { orderId?
               body: JSON.stringify({
                 subscription: sub,
                 orderId,
-                clientId
+                clientId,
+                trackingToken,
               })
             }).catch(e => console.error("Error actualizando subscripción silenciosa:", e));
           }
@@ -63,7 +64,7 @@ export function PushPrompt({ orderId, clientId, theme = "ORIGINAL" }: { orderId?
 
     // Detectar si es Chrome o un navegador in-app en iOS
     setIsChromeIOS(ios && (/CriOS/.test(navigator.userAgent) || /FBAV|FBAN|Instagram/.test(navigator.userAgent)));
-  }, [orderId, clientId]);
+  }, [orderId, clientId, trackingToken]);
 
   const subscribePush = async () => {
     try {
@@ -108,7 +109,8 @@ export function PushPrompt({ orderId, clientId, theme = "ORIGINAL" }: { orderId?
         body: JSON.stringify({
           subscription,
           orderId,
-          clientId
+          clientId,
+          trackingToken,
         })
       });
 

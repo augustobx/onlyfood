@@ -1,11 +1,20 @@
-{$SITE_ADDRESS} {
-  encode zstd gzip
-  request_body {
-    max_size 50MB
-  }
-  header {
-    Strict-Transport-Security "max-age=31536000; includeSubDomains"
-    -Server
-  }
-  reverse_proxy app:3000
+{
+	on_demand_tls {
+		ask http://app:3000/api/internal/caddy/ask
+	}
+}
+
+https:// {
+	encode zstd gzip
+	request_body {
+		max_size 50MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	tls {
+		on_demand
+	}
+	reverse_proxy app:3000
 }

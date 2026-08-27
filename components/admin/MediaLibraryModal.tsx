@@ -96,7 +96,7 @@ export function MediaLibraryModal({
 
   useEffect(() => {
     if (isOpen) {
-      loadAssets(search);
+      loadAssets();
       setActiveTab(filterType);
     }
   }, [isOpen, filterType]);

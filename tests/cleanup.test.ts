@@ -1,22 +1,19 @@
-import { describe, it, expect } from 'vitest';
-import { prisma } from '@/lib/prisma';
+import { describe, expect, it } from "vitest";
+import { prisma } from "@/lib/prisma";
 
-describe('Sanitize existing DB constraints', () => {
-  it('should clean orphan productIds in PointReward and RoulettePrize', async () => {
-    await prisma.$executeRawUnsafe(`
-      UPDATE PointReward pr 
-      LEFT JOIN Product p ON pr.productId = p.id 
-      SET pr.productId = NULL 
-      WHERE pr.productId IS NOT NULL AND p.id IS NULL
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      UPDATE RoulettePrize rp 
-      LEFT JOIN Product p ON rp.productId = p.id 
-      SET rp.productId = NULL 
-      WHERE rp.productId IS NOT NULL AND p.id IS NULL
-    `);
-
-    expect(true).toBe(true);
+describe("Relational integrity", () => {
+  it("contains no orphan reward product references", async () => {
+    const [rewardOrphans, rouletteOrphans] = await Promise.all([
+      prisma.$queryRaw<Array<{ total: bigint }>>`
+        SELECT COUNT(*) AS total FROM PointReward pr LEFT JOIN Product p ON p.id = pr.productId
+        WHERE pr.productId IS NOT NULL AND p.id IS NULL
+      `,
+      prisma.$queryRaw<Array<{ total: bigint }>>`
+        SELECT COUNT(*) AS total FROM RoulettePrize rp LEFT JOIN Product p ON p.id = rp.productId
+        WHERE rp.productId IS NOT NULL AND p.id IS NULL
+      `,
+    ]);
+    expect(Number(rewardOrphans[0]?.total || 0)).toBe(0);
+    expect(Number(rouletteOrphans[0]?.total || 0)).toBe(0);
   });
 });

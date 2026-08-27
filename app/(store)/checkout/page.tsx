@@ -13,6 +13,7 @@ import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Chec
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
+import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 
 /* ══ Theme class maps ══ */
 function getThemeClasses(theme: string) {
@@ -162,6 +163,7 @@ export default function CheckoutPage() {
   const checkoutCompletedRef = useRef(false);
 
   const { items, getTotal, clearCart, dailyPrize } = useCartStore();
+  const quantityDiscount = useQuantityDiscountPreview(items);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -239,7 +241,7 @@ export default function CheckoutPage() {
           }));
         }
       });
-  }, []);
+  }, [schedule.hasScheduledProducts, schedule.targetDateInfo]);
 
   useEffect(() => {
     import("@/app/actions/auth").then(({ fetchCurrentClient }) => {
@@ -270,8 +272,9 @@ export default function CheckoutPage() {
   }, [items, router, isSuccess]);
 
   const subtotal = getTotal();
+  const afterQuantityDiscount = Math.max(0, subtotal - (quantityDiscount?.amount || 0));
   const discountMultiplier = 1 - (config?.globalDiscount || 0) / 100;
-  let discountedSubtotal = subtotal * discountMultiplier;
+  let discountedSubtotal = afterQuantityDiscount * discountMultiplier;
 
   let prizeDiscount = 0;
   if (dailyPrize) {
@@ -336,7 +339,7 @@ export default function CheckoutPage() {
             checkoutCompletedRef.current = true;
             setIsSuccess(true);
             clearCart();
-            router.push(`/track/${result.orderId}`);
+            router.push(`/track/${result.orderId}?token=${encodeURIComponent(result.trackingToken || "")}`);
           }
         } else {
           checkoutCompletedRef.current = true;
@@ -349,7 +352,7 @@ export default function CheckoutPage() {
           } catch {
             // ignore audio fail
           }
-          router.push(`/track/${result.orderId}`);
+          router.push(`/track/${result.orderId}?token=${encodeURIComponent(result.trackingToken || "")}`);
         }
       } else {
         throw new Error(result.error);
@@ -719,10 +722,16 @@ export default function CheckoutPage() {
                 <span>Subtotal</span>
                 <span>${subtotal.toLocaleString("es-AR")}</span>
               </div>
+              {quantityDiscount && (
+                <div className="flex justify-between text-emerald-600 font-bold text-[11px]">
+                  <span>📦 {quantityDiscount.name} ({quantityDiscount.qualifyingUnits} un.)</span>
+                  <span>-${quantityDiscount.amount.toLocaleString("es-AR")}</span>
+                </div>
+              )}
               {config?.globalDiscount > 0 && (
                 <div className="flex justify-between text-green-600 font-bold text-[11px]">
                   <span>Descuento ({config.globalDiscount}%)</span>
-                  <span>-${(subtotal * (config.globalDiscount / 100)).toLocaleString("es-AR")}</span>
+                  <span>-${(afterQuantityDiscount * (config.globalDiscount / 100)).toLocaleString("es-AR")}</span>
                 </div>
               )}
               {dailyPrize && dailyPrize.type !== "PRODUCT" && (

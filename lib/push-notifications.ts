@@ -12,11 +12,28 @@ function configure(publicKey: string, privateKey: string) {
 }
 
 export async function sendOrderPush(orderId: string, title: string, body: string, url = `/track/${orderId}`) {
-  const config = await prisma.systemConfig.findFirst({ select: { vapidPublicKey: true, vapidPrivateKey: true } });
-  if (!config?.vapidPublicKey || !config.vapidPrivateKey) return;
-  configure(config.vapidPublicKey, config.vapidPrivateKey);
-  const subscriptions = await prisma.pushSubscription.findMany({ where: { orderId } });
-  const payload = JSON.stringify({ title, body, url });
+  const publicKey = process.env.VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  if (!publicKey || !privateKey) return;
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      tenantId: true,
+      clientId: true,
+      tenant: { select: { settings: { select: { logoUrl: true } } } },
+    },
+  });
+  if (!order?.tenantId) return;
+  configure(publicKey, privateKey);
+  const subscriptions = await prisma.pushSubscription.findMany({ where: { tenantId: order.tenantId, orderId } });
+  // Anonymous tracking URLs require the one-time token, which is intentionally
+  // never persisted in plaintext. Do not send a broken or unprotected deep link.
+  const payload = JSON.stringify({
+    title,
+    body,
+    url: order.clientId ? url : "/",
+    icon: order.tenant?.settings?.logoUrl || undefined,
+  });
   await Promise.allSettled(subscriptions.map(async (subscription) => {
     try {
       await webpush.sendNotification({
@@ -31,4 +48,3 @@ export async function sendOrderPush(orderId: string, title: string, body: string
     }
   }));
 }
-

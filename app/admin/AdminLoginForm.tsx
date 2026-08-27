@@ -4,10 +4,11 @@ import { loginAdmin } from "@/app/actions/admin-auth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Lock } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function AdminLoginForm() {
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const router = useRouter();
@@ -21,7 +22,7 @@ export default function AdminLoginForm() {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        const res = await loginAdmin(password);
+        const res = await loginAdmin(email, password);
         if (res.success) {
             toast.success("Acceso concedido");
             // Transición suave nativa de Next.js (evita el bug de la pantalla oscura)
@@ -44,13 +45,27 @@ export default function AdminLoginForm() {
                 </div>
                 <form onSubmit={handleLogin} className="space-y-4">
                     <div>
+                        <div className="relative mb-3">
+                            <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                type="email"
+                                placeholder="Correo del usuario"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="h-12 bg-slate-50 pl-10"
+                                autoComplete="email"
+                                required
+                                autoFocus
+                            />
+                        </div>
                         <Input
                             type="password"
-                            placeholder="Ingresar contraseña..."
+                            placeholder="Contraseña"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="h-12 text-center text-lg tracking-widest bg-slate-50"
-                            autoFocus
+                            autoComplete="current-password"
+                            required
                         />
                     </div>
                     <Button type="submit" disabled={loading} className="w-full h-12 bg-orange-600 hover:bg-orange-700 text-white font-bold text-lg rounded-xl transition-all">

@@ -49,7 +49,7 @@ export async function upsertProduct(data: {
   isCombo?: boolean,
   comboItemsData?: { id: string, quantity: number }[]
 }) {
-  await requireAdmin();
+  const { tenant } = await requireAdmin(["OWNER", "MANAGER"]);
   const parsed = z.object({
     id: idSchema.optional().nullable(),
     name: nameSchema,
@@ -77,6 +77,27 @@ export async function upsertProduct(data: {
   const cleanData = parsed.data;
   try {
     const db = await getTenantDb();
+    const relationIds = {
+      ingredients: [...new Set(cleanData.ingredientsData.map((item) => item.id))],
+      extras: [...new Set(cleanData.extraIds)],
+      comboProducts: [...new Set(cleanData.comboItemsData.map((item) => item.id))],
+    };
+    const [categoryCount, ingredientCount, extraCount, comboProductCount, existingProduct, productCount] = await Promise.all([
+      cleanData.categoryId ? db.category.count({ where: { id: cleanData.categoryId } }) : 0,
+      relationIds.ingredients.length ? db.ingredient.count({ where: { id: { in: relationIds.ingredients } } }) : 0,
+      relationIds.extras.length ? db.extra.count({ where: { id: { in: relationIds.extras } } }) : 0,
+      relationIds.comboProducts.length ? db.product.count({ where: { id: { in: relationIds.comboProducts }, isCombo: false } }) : 0,
+      cleanData.id ? db.product.findFirst({ where: { id: cleanData.id }, select: { id: true } }) : null,
+      cleanData.id ? 0 : db.product.count(),
+    ]);
+    if (
+      (cleanData.categoryId && categoryCount !== 1) ||
+      ingredientCount !== relationIds.ingredients.length ||
+      extraCount !== relationIds.extras.length ||
+      comboProductCount !== relationIds.comboProducts.length ||
+      (cleanData.id && !existingProduct)
+    ) throw new Error("INVALID_TENANT_RELATION");
+    if (!cleanData.id && productCount >= tenant.plan.maxProducts) throw new Error("PLAN_PRODUCT_LIMIT");
     const daysString = Array.isArray(cleanData.availableDays)
       ? cleanData.availableDays.join(",")
       : (cleanData.availableDays || "");
@@ -105,7 +126,7 @@ export async function upsertProduct(data: {
           where: { id: cleanData.id },
           data: {
              ...payload,
-             category: cleanData.categoryId ? { connect: { id: cleanData.categoryId } } : { disconnect: true },
+             categoryId: cleanData.categoryId || null,
              ingredients: { create: cleanData.ingredientsData.map(ing => ({ ingredientId: ing.id, isRemovable: true, quantity: ing.quantity })) },
              extras: { create: cleanData.extraIds.map(id => ({ extraId: id })) },
              comboItemsConfig: cleanData.isCombo ? { create: cleanData.comboItemsData.map(item => ({ productId: item.id, quantity: item.quantity })) } : undefined
@@ -117,8 +138,9 @@ export async function upsertProduct(data: {
       await db.product.create({
         data: {
           ...payload,
+          tenantId: tenant.id,
           isActive: true,
-          category: cleanData.categoryId ? { connect: { id: cleanData.categoryId } } : undefined,
+          categoryId: cleanData.categoryId || null,
           ingredients: { create: cleanData.ingredientsData.map(ing => ({ ingredientId: ing.id, isRemovable: true, quantity: ing.quantity })) },
           extras: { create: cleanData.extraIds.map(id => ({ extraId: id })) },
           comboItemsConfig: cleanData.isCombo ? { create: cleanData.comboItemsData.map(item => ({ productId: item.id, quantity: item.quantity })) } : undefined
@@ -130,7 +152,12 @@ export async function upsertProduct(data: {
     return { success: true };
   } catch (error: any) {
     console.error("Error al guardar producto en BD:", error);
-    return { success: false, error: error?.message || "Error al guardar producto en base de datos" };
+    const message = error?.message === "PLAN_PRODUCT_LIMIT"
+      ? `Alcanzaste el límite de ${tenant.plan.maxProducts} productos de tu plan.`
+      : error?.message === "INVALID_TENANT_RELATION"
+        ? "Una categoría, ingrediente, extra o producto pertenece a otro comercio o ya no existe."
+        : "Error al guardar producto en base de datos";
+    return { success: false, error: message };
   }
 }
 

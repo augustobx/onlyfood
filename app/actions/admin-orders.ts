@@ -24,7 +24,7 @@ const transitions: Record<string, string[]> = {
 };
 
 export async function getAdminOrderCatalog() {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   const db = await getTenantDb();
   const [categories, slots, config] = await Promise.all([
     db.category.findMany({
@@ -98,7 +98,7 @@ export async function getAdminOrderCatalog() {
 }
 
 export async function reconcilePendingMercadoPagoOrders() {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   const db = await getTenantDb();
   const pending = await db.order.findMany({
     where: { paymentMethod: "MP", paymentStatus: "PENDING", status: { not: "CANCELLED" }, createdAt: { gte: startOfBusinessDayUtc() } },
@@ -145,7 +145,7 @@ async function releaseStock(tx: any, requirements: ReturnType<typeof calculateOr
 }
 
 export async function updateOrderStatus(orderId: string, requestedStatus: string) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   const parsedId = z.string().uuid().safeParse(orderId);
   const parsedStatus = statusSchema.safeParse(requestedStatus);
   if (!parsedId.success || !parsedStatus.success) return { success: false, error: "Datos inválidos" };
@@ -178,6 +178,26 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
 
       const requirements = calculateOrderRequirements(current.items);
 
+      const transitioned = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          status: current.status,
+          ...(parsedStatus.data === "DELIVERED" ? { pointsAwarded: false } : {}),
+        },
+        data: {
+          status: parsedStatus.data,
+          pointsAwarded: parsedStatus.data === "DELIVERED" && current.clientId !== null && current.earnedPoints > 0
+            ? true
+            : current.pointsAwarded,
+          stockCommitted: parsedStatus.data === "CANCELLED"
+            ? false
+            : parsedStatus.data === "IN_PROCESS"
+              ? true
+              : current.stockCommitted,
+        },
+      });
+      if (transitioned.count !== 1) throw new Error("CONCURRENT_TRANSITION");
+
       if (current.status === "NEW" && parsedStatus.data === "IN_PROCESS" && !current.stockCommitted) {
         await reserveStock(tx, requirements);
       }
@@ -197,21 +217,8 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         await tx.client.update({ where: { id: current.clientId }, data: { points: { increment: current.earnedPoints } } });
       }
 
-      return tx.order.update({
-        where: { id: orderId },
-        data: {
-          status: parsedStatus.data,
-          pointsAwarded: parsedStatus.data === "DELIVERED" && current.clientId !== null && current.earnedPoints > 0
-            ? true
-            : current.pointsAwarded,
-          stockCommitted: parsedStatus.data === "CANCELLED"
-            ? false
-            : parsedStatus.data === "IN_PROCESS"
-              ? true
-              : current.stockCommitted,
-          history: { create: { status: parsedStatus.data } },
-        },
-      });
+      await tx.orderHistory.create({ data: { orderId, status: parsedStatus.data } });
+      return tx.order.findUniqueOrThrow({ where: { id: orderId } });
     });
 
     const messages: Record<string, string> = {
@@ -241,7 +248,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
 }
 
 export async function assignMessenger(orderId: string, messengerId: string | null) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   if (!z.string().uuid().safeParse(orderId).success || (messengerId && !z.string().uuid().safeParse(messengerId).success)) {
     return { success: false, error: "Datos inválidos" };
   }
@@ -261,7 +268,7 @@ export async function assignMessenger(orderId: string, messengerId: string | nul
 }
 
 export async function dispatchMessengerRoadmap(messengerId: string) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   if (!z.string().uuid().safeParse(messengerId).success) return { success: false, error: "Repartidor inválido" };
   try {
     const db = await getTenantDb();

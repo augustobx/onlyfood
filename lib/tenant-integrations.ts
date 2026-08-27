@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { encryptPayload, decryptPayload } from "@/lib/encryption";
+import crypto from "crypto";
 
 export type IntegrationType = "MERCADO_PAGO" | "WHATSAPP" | "PRINTNODE";
 
@@ -47,6 +48,7 @@ export async function saveTenantIntegration(
       iv: encrypted.iv,
       authTag: encrypted.authTag,
       isActive: true,
+      externalAccountId: type === "WHATSAPP" ? (credentials as WhatsAppCredentials).phoneNumberId : undefined,
     },
     create: {
       tenantId,
@@ -55,6 +57,7 @@ export async function saveTenantIntegration(
       iv: encrypted.iv,
       authTag: encrypted.authTag,
       isActive: true,
+      externalAccountId: type === "WHATSAPP" ? (credentials as WhatsAppCredentials).phoneNumberId : null,
     },
   });
 }
@@ -87,4 +90,40 @@ export async function getTenantIntegration<T = any>(
     console.error(`[Integration Decryption Error] Tenant ${tenantId}, Type ${type}`, error);
     return null;
   }
+}
+
+export async function resolveWhatsAppTenant(phoneNumberId: string): Promise<string | null> {
+  if (!phoneNumberId) return null;
+  const direct = await prisma.tenantIntegration.findFirst({
+    where: { type: "WHATSAPP", isActive: true, externalAccountId: phoneNumberId },
+    select: { tenantId: true },
+  });
+  if (direct) return direct.tenantId;
+
+  const legacy = await prisma.tenantIntegration.findMany({ where: { type: "WHATSAPP", isActive: true } });
+  for (const record of legacy) {
+    try {
+      const credentials = decryptPayload<WhatsAppCredentials>(record);
+      if (credentials.phoneNumberId === phoneNumberId) return record.tenantId;
+    } catch {
+      // Ignore corrupt legacy credentials.
+    }
+  }
+  return null;
+}
+
+export async function resolveWhatsAppVerificationToken(token: string): Promise<boolean> {
+  if (!token) return false;
+  const records = await prisma.tenantIntegration.findMany({ where: { type: "WHATSAPP", isActive: true } });
+  for (const record of records) {
+    try {
+      const credentials = decryptPayload<WhatsAppCredentials>(record);
+      const left = Buffer.from(token);
+      const right = Buffer.from(credentials.verifyToken || "");
+      if (left.length === right.length && crypto.timingSafeEqual(left, right)) return true;
+    } catch {
+      // Ignore invalid integration payloads.
+    }
+  }
+  return false;
 }

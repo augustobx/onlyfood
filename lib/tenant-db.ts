@@ -1,10 +1,11 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import type { PrismaClient } from "@prisma/client";
 
 // Modelos que pertenecen exclusivamente a un tenant
 const TENANT_SCOPED_MODELS = new Set([
+  "Location",
+  "TenantMembership",
   "SystemConfig",
   "Category",
   "Product",
@@ -27,6 +28,9 @@ const TENANT_SCOPED_MODELS = new Set([
   "PaymentRecord",
   "PrintDispatch",
   "Session",
+  "CashSession",
+  "CashMovement",
+  "QuantityDiscount",
 ]);
 
 /**
@@ -86,8 +90,8 @@ export function createTenantDb(tenantId: string) {
                   tenantId,
                 },
               };
-              // @ts-ignore
-              const result = await (prisma as any)[model.charAt(0).toLowerCase() + model.slice(1)].findFirst(findFirstArgs);
+              const delegate = (prisma as unknown as Record<string, any>)[model.charAt(0).toLowerCase() + model.slice(1)];
+              const result = await delegate.findFirst(findFirstArgs);
               if (!result && operation === "findUniqueOrThrow") {
                 throw new Error(`Registro no encontrado en ${model} para el comercio actual.`);
               }
@@ -124,8 +128,8 @@ export function createTenantDb(tenantId: string) {
           // 5. Actualizaciones individuales (update)
           if (operation === "update") {
             // Validar que el registro pertenece al tenant antes de actualizar
-            // @ts-ignore
-            const existing = await (prisma as any)[model.charAt(0).toLowerCase() + model.slice(1)].findFirst({
+            const delegate = (prisma as unknown as Record<string, any>)[model.charAt(0).toLowerCase() + model.slice(1)];
+            const existing = await delegate.findFirst({
               where: {
                 ...safeArgs.where,
                 tenantId,
@@ -160,8 +164,8 @@ export function createTenantDb(tenantId: string) {
           // 7. Eliminaciones individuales (delete)
           if (operation === "delete") {
             // Validar que el registro pertenece al tenant antes de eliminar
-            // @ts-ignore
-            const existing = await (prisma as any)[model.charAt(0).toLowerCase() + model.slice(1)].findFirst({
+            const delegate = (prisma as unknown as Record<string, any>)[model.charAt(0).toLowerCase() + model.slice(1)];
+            const existing = await delegate.findFirst({
               where: {
                 ...safeArgs.where,
                 tenantId,

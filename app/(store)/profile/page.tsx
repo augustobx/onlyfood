@@ -1,5 +1,6 @@
 import { getLoggedClient } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { getTenantDb } from "@/lib/tenant-db";
+import { getTenantContext } from "@/lib/tenant-context";
 import { redirect } from "next/navigation";
 import { 
   ArrowLeft, 
@@ -73,9 +74,11 @@ export default async function ProfilePage() {
   if (!client) {
     redirect("/");
   }
+  const db = await getTenantDb();
+  const tenant = await getTenantContext();
 
   const [orders, tiers, dbClient] = await Promise.all([
-    prisma.order.findMany({
+    db.order.findMany({
       where: { clientId: client.id },
       orderBy: [
         { scheduledDate: "asc" },
@@ -85,11 +88,11 @@ export default async function ProfilePage() {
         items: { include: { product: true } }
       }
     }),
-    prisma.customerTier.findMany({
+    tenant.features.has("loyalty") ? db.customerTier.findMany({
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { minSpent: "asc" }],
-    }),
-    prisma.client.findUnique({
+    }) : [],
+    db.client.findUnique({
       where: { id: client.id },
       include: { customTier: true },
     }),

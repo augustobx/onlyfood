@@ -45,7 +45,7 @@ const configSchema = z.object({
   });
 
 export async function updateConfig(id: string, data: unknown) {
-  await requireAdmin();
+  await requireAdmin(["OWNER", "MANAGER"]);
   const parsedId = idSchema.safeParse(id);
   const parsed = configSchema.safeParse(data);
   if (!parsedId.success || !parsed.success) return { success: false, error: parsed.error?.issues[0]?.message || "Configuracion invalida." };
@@ -69,12 +69,30 @@ export async function updateConfig(id: string, data: unknown) {
       });
     }
 
+    const {
+      mpAccessToken: _mpAccessToken,
+      mpPublicKey: _mpPublicKey,
+      metaApiToken: _metaApiToken,
+      metaPhoneNumberId: _metaPhoneNumberId,
+      metaVerifyToken: _metaVerifyToken,
+      ...configData
+    } = parsed.data;
+    const safeConfigData = {
+      ...configData,
+      mpAccessToken: null,
+      mpPublicKey: null,
+      metaApiToken: null,
+      metaPhoneNumberId: null,
+      metaVerifyToken: null,
+      vapidPrivateKey: null,
+    };
+
     await db.$transaction(async (tx) => {
       const config = await tx.systemConfig.findFirst();
       if (!config) {
-        await tx.systemConfig.create({ data: { ...parsed.data, tenantId: tenant.id } });
+        await tx.systemConfig.create({ data: { ...safeConfigData, tenantId: tenant.id } });
       } else {
-        await tx.systemConfig.update({ where: { id: config.id }, data: parsed.data });
+        await tx.systemConfig.update({ where: { id: config.id }, data: safeConfigData });
       }
     });
 

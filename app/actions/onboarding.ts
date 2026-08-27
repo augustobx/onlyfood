@@ -3,6 +3,19 @@
 import { provisionNewTenant } from "@/lib/superadmin";
 import { createTenantDb } from "@/lib/tenant-db";
 import type { PlanCode } from "@/lib/features";
+import { z } from "zod";
+import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
+
+const onboardingSchema = z.object({
+  businessName: z.string().trim().min(2).max(100),
+  slug: z.string().trim().min(2).max(63),
+  categoryType: z.enum(["BURGER", "PIZZA", "SUSHI", "CAFE", "VIANDAS", "GENERAL"]),
+  planCode: z.enum(["STARTER", "PRO", "BUSINESS"]),
+  email: z.string().trim().email().max(254),
+  password: z.string().min(12).max(200),
+  phone: z.string().trim().max(30).optional(),
+  locationAddress: z.string().trim().max(250).optional(),
+});
 
 export interface OnboardingInput {
   businessName: string;
@@ -62,50 +75,55 @@ const TEMPLATE_CATALOGS: Record<string, { category: string; products: Array<{ na
 
 export async function registerMerchantOnboarding(input: OnboardingInput) {
   try {
-    const cleanSlug = input.slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, "-");
+    const parsed = onboardingSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: "Revisá los datos. La contraseña debe tener al menos 12 caracteres." };
+    const data = parsed.data;
+    const ip = await getRequestIp();
+    if (!(await consumeRateLimit("merchant-onboarding", ip, 3, 24 * 60 * 60 * 1000))) {
+      return { success: false, error: "Se alcanzó el límite de registros. Intentá nuevamente mañana." };
+    }
+    const cleanSlug = data.slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, "-");
     if (!cleanSlug || cleanSlug.length < 2) {
       return { success: false, error: "El nombre de enlace / slug es inválido." };
     }
 
     // 1. Provision Tenant Transactionally
     const tenant = await provisionNewTenant({
-      name: input.businessName,
+      name: data.businessName,
       slug: cleanSlug,
-      planCode: input.planCode,
-      ownerEmail: input.email,
-      ownerName: input.businessName,
-      ownerPassword: input.password,
+      planCode: data.planCode,
+      ownerEmail: data.email,
+      ownerName: data.businessName,
+      ownerPassword: data.password,
       locationName: "Local Principal",
-      locationAddress: input.locationAddress,
-      locationPhone: input.phone,
+      locationAddress: data.locationAddress,
+      locationPhone: data.phone,
     });
 
     // 2. Seed Initial Tailored Catalog
     const db = createTenantDb(tenant.id);
-    const template = TEMPLATE_CATALOGS[input.categoryType] || TEMPLATE_CATALOGS.GENERAL;
+    const template = TEMPLATE_CATALOGS[data.categoryType] || TEMPLATE_CATALOGS.GENERAL;
 
-    const cat = await db.category.create({
-      data: {
-        name: template.category,
-        isActive: true,
-        sequence: 1,
-        tenantId: tenant.id,
-      },
-    });
-
-    for (let i = 0; i < template.products.length; i++) {
-      const p = template.products[i];
-      await db.product.create({
+    await db.$transaction(async (tx) => {
+      const cat = await tx.category.create({
         data: {
-          name: p.name,
-          basePrice: p.price,
-          description: p.desc,
-          categoryId: cat.id,
+          name: template.category,
           isActive: true,
+          sequence: 1,
           tenantId: tenant.id,
         },
       });
-    }
+      await tx.product.createMany({
+        data: template.products.map((product) => ({
+          name: product.name,
+          basePrice: product.price,
+          description: product.desc,
+          categoryId: cat.id,
+          isActive: true,
+          tenantId: tenant.id,
+        })),
+      });
+    });
 
     return {
       success: true,
@@ -120,6 +138,8 @@ export async function registerMerchantOnboarding(input: OnboardingInput) {
     const errorMsg =
       error.message === "SLUG_ALREADY_EXISTS"
         ? "Ese nombre de enlace ya está en uso por otro comercio. Elegí uno diferente."
+        : error.message === "OWNER_EMAIL_EXISTS"
+        ? "Ese correo ya está registrado. Usá la misma contraseña o ingresá con tu cuenta existente."
         : "Ocurrió un error al registrar tu tienda. Por favor intentá nuevamente.";
     return { success: false, error: errorMsg };
   }
