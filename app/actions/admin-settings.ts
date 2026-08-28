@@ -20,6 +20,11 @@ const configSchema = z.object({
   splashEnabled: z.boolean(), splashDuration: z.number().int().min(0).max(30),
   splashType: z.enum(["IMAGE", "VIDEO"]),
   welcomeBalloonEnabled: z.boolean(), welcomeBalloonText: z.string().max(500), welcomeBalloonDuration: z.number().int().min(0).max(60),
+  noticeBoardEnabled: z.boolean(),
+  noticeBoardTitle: z.string().trim().max(80),
+  noticeBoardMessage: z.string().trim().max(2000),
+  noticeBoardAutoClose: z.boolean(),
+  noticeBoardDuration: z.number().int().min(3).max(120),
   deliveryCost: z.number().min(0).max(10_000_000), globalDiscount: z.number().min(0).max(100),
   splashUrl: optionalAssetUrl, splashVideoUrl: optionalAssetUrl, logoUrl: optionalAssetUrl, backgroundUrl: optionalAssetUrl, backgroundBlur: z.boolean(),
   paymentCash: z.boolean(), paymentMp: z.boolean(), autoPrintTickets: z.boolean(),
@@ -52,6 +57,9 @@ const configSchema = z.object({
   businessHours: z.string().nullable().optional(),
   autoScheduleEnabled: z.boolean().default(false),
 }).strict()
+  .refine((value) => !value.noticeBoardEnabled || (value.noticeBoardTitle.length > 0 && value.noticeBoardMessage.length > 0), {
+    message: "Para activar el tablón completá el título y el mensaje.",
+  })
   .refine((value) => value.paymentCash || value.paymentMp, { message: "Debe habilitar al menos un medio de pago." })
   .refine((value) => value.printingMode !== "PRINTNODE" || (value.printNodeCounterPrinterId && value.printNodeKitchenPrinterId), {
     message: "Para usar PrintNode completá los IDs de cocina y mostrador.",

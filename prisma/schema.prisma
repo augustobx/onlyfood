@@ -32,6 +32,12 @@ model SystemConfig {
   welcomeBalloonText     String  @default("¡Te damos la bienvenida a BeatsBurgers!")
   welcomeBalloonDuration Int     @default(5) // seconds
 
+  noticeBoardEnabled   Boolean @default(false)
+  noticeBoardTitle     String  @default("Novedades")
+  noticeBoardMessage   String  @default("") @db.Text
+  noticeBoardAutoClose Boolean @default(false)
+  noticeBoardDuration  Int     @default(8)
+
   deliveryCost   Float @default(0)
   globalDiscount Float @default(0) // percentage 0-100
 
@@ -941,6 +947,12 @@ model TenantSettings {
   welcomeBalloonEnabled  Boolean @default(false)
   welcomeBalloonText     String  @default("¡Te damos la bienvenida!")
   welcomeBalloonDuration Int     @default(5)
+
+  noticeBoardEnabled   Boolean @default(false)
+  noticeBoardTitle     String  @default("Novedades")
+  noticeBoardMessage   String  @default("") @db.Text
+  noticeBoardAutoClose Boolean @default(false)
+  noticeBoardDuration  Int     @default(8)
 
   deliveryCost   Float @default(0)
   globalDiscount Float @default(0)

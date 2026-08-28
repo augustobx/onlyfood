@@ -31,11 +31,54 @@ const transitions: Record<string, string[]> = {
   CANCELLED: [],
 };
 
+const adminOrderProductSelect = {
+  id: true,
+  name: true,
+  description: true,
+  basePrice: true,
+  isCombo: true,
+  allowHalf: true,
+  onlyHalf: true,
+  allowRemoveIngredients: true,
+  categoryId: true,
+  ingredients: {
+    select: {
+      ingredientId: true,
+      isRemovable: true,
+      ingredient: { select: { id: true, name: true, stock: true } },
+    },
+  },
+  extras: {
+    where: { extra: { isActive: true } },
+    select: { extra: { select: { id: true, name: true, price: true } } },
+  },
+  comboItemsConfig: {
+    select: {
+      id: true,
+      quantity: true,
+      product: {
+        select: {
+          id: true,
+          name: true,
+          allowRemoveIngredients: true,
+          ingredients: {
+            select: {
+              ingredientId: true,
+              isRemovable: true,
+              ingredient: { select: { id: true, name: true, stock: true } },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 export async function getAdminOrderCatalog() {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   await requireOrdersModule();
   const db = await getTenantDb();
-  const [categories, slots, config] = await Promise.all([
+  const [categories, combos, slots, config] = await Promise.all([
     db.category.findMany({
       where: { isActive: true },
       orderBy: { sequence: "asc" },
@@ -43,52 +86,16 @@ export async function getAdminOrderCatalog() {
         id: true,
         name: true,
         products: {
-          where: { isActive: true },
+          where: { isActive: true, isCombo: false },
           orderBy: { name: "asc" },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            basePrice: true,
-            isCombo: true,
-            allowHalf: true,
-            onlyHalf: true,
-            allowRemoveIngredients: true,
-            categoryId: true,
-            ingredients: {
-              select: {
-                ingredientId: true,
-                isRemovable: true,
-                ingredient: { select: { id: true, name: true, stock: true } },
-              },
-            },
-            extras: {
-              where: { extra: { isActive: true } },
-              select: { extra: { select: { id: true, name: true, price: true } } },
-            },
-            comboItemsConfig: {
-              select: {
-                id: true,
-                quantity: true,
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    allowRemoveIngredients: true,
-                    ingredients: {
-                      select: {
-                        ingredientId: true,
-                        isRemovable: true,
-                        ingredient: { select: { id: true, name: true, stock: true } },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
+          select: adminOrderProductSelect,
         },
       },
+    }),
+    db.product.findMany({
+      where: { isActive: true, isCombo: true },
+      orderBy: [{ sequence: "asc" }, { name: "asc" }],
+      select: adminOrderProductSelect,
     }),
     db.deliveryTimeSlot.findMany({
       where: { isActive: true, available: { gt: 0 } },
@@ -100,6 +107,7 @@ export async function getAdminOrderCatalog() {
 
   return {
     categories,
+    combos,
     slots,
     deliveryCost: Math.max(0, config?.deliveryCost ?? 0),
     globalDiscount: Math.min(100, Math.max(0, config?.globalDiscount ?? 0)),

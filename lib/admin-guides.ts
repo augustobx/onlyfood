@@ -39,6 +39,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     purpose: "Centralizar la operación del día y mantener informado al cliente sobre el estado de su compra.",
     steps: [
       { title: "Revisá los nuevos", detail: "Los pedidos ingresan en Nuevos. Abrí el detalle y verificá productos, variantes, pago, entrega y observaciones." },
+      { title: "Cargá ventas de mostrador", detail: "Usá Nuevo pedido manual para elegir productos o combos, personalizar ingredientes y extras, cargar al cliente y dejar la venta pagada en efectivo." },
       { title: "Confirmá o rechazá", detail: "Confirmá únicamente cuando puedas producirlo. Los rechazados pasan a la papelera de Cancelados y desaparecen automáticamente de la agenda, pero conservan trazabilidad en el historial." },
       { title: "Avanzá por etapas", detail: "Mové el pedido a Cocina, luego a Despacho o Reparto y finalmente a Completado." },
       { title: "Imprimí cuando corresponda", detail: "Usá el ticket manual o la impresión automática configurada. No dupliques impresiones si el pedido ya fue enviado a PrintNode." },
@@ -184,10 +185,10 @@ export const ADMIN_GUIDES: AdminGuide[] = [
       { title: "Negocio", detail: "Configurá nombre, estado abierto/cerrado, mensaje de cierre y tipos de pedido aceptados." },
       { title: "Horarios", detail: "Definí apertura automática, anticipación, tiempo estimado y cupos de entrega o retiro." },
       { title: "Pagos y envíos", detail: "Elegí efectivo o Mercado Pago, costo fijo de envío y descuento global si corresponde." },
-      { title: "Diseño y comunicación", detail: "Seleccioná uno de los ocho temas, incluidos Comic Food Pop y Arcade Kitchen con experiencias, animaciones y Club VIP propios. También podés configurar logo, colores, fondo, splash y bienvenida. WhatsApp e impresoras solo aparecen si el plan los habilita." },
+      { title: "Diseño y comunicación", detail: "Seleccioná uno de los ocho temas, incluidos Comic Food Pop y Arcade Kitchen con experiencias, animaciones y Club VIP propios. También podés configurar logo, colores, fondo, splash, bienvenida y un tablón de noticias con cierre manual o automático. WhatsApp e impresoras solo aparecen si el plan los habilita." },
     ],
     tips: ["Guardá y probá la tienda después de cada cambio importante.", "Un descuento global se aplica a todo el menú: usalo con cuidado."],
-    keywords: ["configuración", "horario", "diseño", "tema", "envío", "abierto", "splash"],
+    keywords: ["configuración", "horario", "diseño", "tema", "envío", "abierto", "splash", "tablón", "noticias", "aviso"],
   },
   {
     id: "mercado-pago", title: "Mercado Pago del comercio", category: "Configuración", href: "/admin/settings", icon: "payment", feature: "orders", minutes: 7,

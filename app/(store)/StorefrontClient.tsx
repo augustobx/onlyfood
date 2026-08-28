@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ShoppingBag, ChevronDown, Search, Layers, Star, User, ReceiptText, Gift, Calendar, Dices } from "lucide-react";
@@ -13,6 +13,7 @@ import { CleanBoutiqueStorefront } from "@/components/store/CleanBoutiqueStorefr
 import { SignatureStorefront } from "@/components/store/SignatureStorefront";
 import { ComicFoodStorefront } from "@/components/store/ComicFoodStorefront";
 import { ArcadeKitchenStorefront } from "@/components/store/ArcadeKitchenStorefront";
+import { StoreNoticeBoard } from "@/components/store/StoreNoticeBoard";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -416,6 +417,10 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
 
   const [showSplash, setShowSplash] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showNoticeBoard, setShowNoticeBoard] = useState(false);
+  const [noticeGateReady, setNoticeGateReady] = useState(false);
+  const noticeContent = `${config?.id || "store"}|${config?.noticeBoardTitle || ""}|${config?.noticeBoardMessage || ""}`;
+  const noticeFingerprint = Array.from(noticeContent).reduce((hash, character) => ((hash << 5) - hash + character.charCodeAt(0)) | 0, 0).toString(36);
 
   useEffect(() => {
     if (!config?.splashEnabled) {
@@ -438,15 +443,32 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
     return () => clearTimeout(timer);
   }, [config?.splashEnabled, config?.splashDuration, config?.splashType, config?.splashVideoUrl]);
 
+  useEffect(() => {
+    if (showSplash) return;
+    if (!config?.noticeBoardEnabled || !config?.noticeBoardTitle?.trim() || !config?.noticeBoardMessage?.trim()) {
+      setShowNoticeBoard(false);
+      setNoticeGateReady(true);
+      return;
+    }
+    const seen = sessionStorage.getItem(`onlyfood_notice_seen_${noticeFingerprint}`) === "true";
+    setShowNoticeBoard(!seen);
+    setNoticeGateReady(true);
+  }, [config?.noticeBoardEnabled, config?.noticeBoardMessage, config?.noticeBoardTitle, noticeFingerprint, showSplash]);
+
+  const handleCloseNoticeBoard = useCallback(() => {
+    sessionStorage.setItem(`onlyfood_notice_seen_${noticeFingerprint}`, "true");
+    setShowNoticeBoard(false);
+  }, [noticeFingerprint]);
+
   // Welcome Banner VIP (sin sonidos ni ruidos, orientado al club y ranking)
   useEffect(() => {
-    if (config?.welcomeBalloonEnabled && !showSplash) {
+    if (config?.welcomeBalloonEnabled && !showSplash && noticeGateReady && !showNoticeBoard) {
       const welcomeSeen = sessionStorage.getItem("onlyfood_welcome_seen") === "true";
       if (!welcomeSeen) {
         setShowWelcome(true);
       }
     }
-  }, [config?.welcomeBalloonEnabled, showSplash]);
+  }, [config?.welcomeBalloonEnabled, noticeGateReady, showNoticeBoard, showSplash]);
 
   const handleAcceptWelcome = () => {
     sessionStorage.setItem("onlyfood_welcome_seen", "true");
@@ -517,6 +539,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
 
   const renderSharedModals = () => (
     <>
+      <StoreNoticeBoard open={showNoticeBoard} onClose={handleCloseNoticeBoard} config={config} />
       {/* ═══ MODAL DE BIENVENIDA VIP CLUB & RANKING ═══ */}
       <AnimatePresence>
         {showWelcome && loyaltyEnabled && (

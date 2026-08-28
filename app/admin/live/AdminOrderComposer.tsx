@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 
 type CatalogData = Awaited<ReturnType<typeof getAdminOrderCatalog>>;
-type Product = CatalogData["categories"][number]["products"][number];
+type Product = CatalogData["combos"][number];
 
 type CartItem = {
   key: string;
@@ -59,7 +59,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
     getAdminOrderCatalog()
       .then((data) => {
         setCatalog(data);
-        setCategoryId(data.categories[0]?.id ?? null);
+        setCategoryId(data.combos.length > 0 ? "combos" : data.categories[0]?.id ?? null);
         setSlotId(data.slots[0]?.id ?? "");
       })
       .catch(() => toast.error("No se pudo cargar el catálogo"))
@@ -70,11 +70,12 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
     if (!open) setSelectedProduct(null);
   }, [open]);
 
-  const allProducts = useMemo(() => catalog?.categories.flatMap((category) => category.products) ?? [], [catalog]);
+  const allProducts = useMemo(() => catalog ? [...catalog.combos, ...catalog.categories.flatMap((category) => category.products)] : [], [catalog]);
   const visibleProducts = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("es");
-    return allProducts.filter((product) => (!categoryId || product.categoryId === categoryId) && (!term || product.name.toLocaleLowerCase("es").includes(term)));
-  }, [allProducts, categoryId, search]);
+    const source = categoryId === "combos" ? catalog?.combos ?? [] : allProducts.filter((product) => !categoryId || product.categoryId === categoryId);
+    return source.filter((product) => !term || `${product.name} ${product.description || ""}`.toLocaleLowerCase("es").includes(term));
+  }, [allProducts, catalog?.combos, categoryId, search]);
 
   const secondHalf = allProducts.find((product) => product.id === secondHalfId) ?? null;
   const selectedExtras = selectedProduct?.extras
@@ -194,6 +195,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
               <div className="sticky top-0 z-10 -mx-1 mb-4 bg-slate-50/95 px-1 pb-3 backdrop-blur">
                 <div className="relative mb-3"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar producto…" className="h-11 rounded-xl bg-white pl-10" /></div>
                 <div className="flex gap-2 overflow-x-auto pb-1">
+                  {catalog.combos.length > 0 && <button type="button" onClick={() => setCategoryId("combos")} className={`shrink-0 rounded-full px-4 py-2 text-xs font-black transition ${categoryId === "combos" ? "bg-purple-700 text-white" : "border border-purple-200 bg-purple-50 text-purple-700"}`}>Combos</button>}
                   {catalog.categories.map((category) => <button type="button" key={category.id} onClick={() => setCategoryId(category.id)} className={`shrink-0 rounded-full px-4 py-2 text-xs font-black transition ${categoryId === category.id ? "bg-slate-950 text-white" : "border bg-white text-slate-600"}`}>{category.name}</button>)}
                 </div>
               </div>

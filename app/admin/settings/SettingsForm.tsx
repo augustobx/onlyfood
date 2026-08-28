@@ -77,6 +77,11 @@ export function SettingsForm({
       logoUrl: cfg.logoUrl,
       welcomeBalloonEnabled: cfg.welcomeBalloonEnabled,
       welcomeBalloonText: cfg.welcomeBalloonText,
+      noticeBoardEnabled: Boolean(cfg.noticeBoardEnabled),
+      noticeBoardTitle: cfg.noticeBoardTitle || "Novedades",
+      noticeBoardMessage: cfg.noticeBoardMessage || "",
+      noticeBoardAutoClose: Boolean(cfg.noticeBoardAutoClose),
+      noticeBoardDuration: Number(cfg.noticeBoardDuration) || 8,
       paymentCash: cfg.paymentCash,
       paymentMp: cfg.paymentMp,
       autoPrintTickets: printNodeEnabled ? cfg.autoPrintTickets : false,
@@ -705,6 +710,22 @@ export function SettingsForm({
                       <Label>Tiempo en pantalla (Segundos)</Label>
                       <Input type="number" min="1" max="20" value={cfg.welcomeBalloonDuration} onChange={e => updateField('welcomeBalloonDuration', e.target.value)} />
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* NOTICE BOARD */}
+              <div className="space-y-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div><Label className="text-base font-bold text-slate-800">Tablón de noticias</Label><p className="mt-1 text-xs text-slate-600">Se abre al entrar a la tienda, toma los colores del tema y se muestra una vez por sesión para cada mensaje.</p></div>
+                  <Switch checked={Boolean(cfg.noticeBoardEnabled)} onCheckedChange={value => updateField('noticeBoardEnabled', value)} />
+                </div>
+                {cfg.noticeBoardEnabled && (
+                  <div className="space-y-4 animate-in fade-in">
+                    <div className="space-y-2"><Label>Título</Label><Input value={cfg.noticeBoardTitle || ''} onChange={event => updateField('noticeBoardTitle', event.target.value)} maxLength={80} placeholder="Ej: Novedades de esta semana" /></div>
+                    <div className="space-y-2"><Label>Noticia o aviso</Label><Textarea value={cfg.noticeBoardMessage || ''} onChange={event => updateField('noticeBoardMessage', event.target.value)} maxLength={2000} rows={5} placeholder="Contá una promoción, cambio de horario, producto nuevo o cualquier novedad." /><p className="text-right text-[10px] text-slate-500">{(cfg.noticeBoardMessage || '').length}/2000</p></div>
+                    <div className="flex items-center justify-between rounded-xl border bg-white p-3"><div><Label className="font-bold">Cerrar automáticamente</Label><p className="text-xs text-muted-foreground">El botón de cerrar siempre estará disponible.</p></div><Switch checked={Boolean(cfg.noticeBoardAutoClose)} onCheckedChange={value => updateField('noticeBoardAutoClose', value)} /></div>
+                    {cfg.noticeBoardAutoClose && <div className="space-y-2"><Label>Tiempo visible (segundos)</Label><Input type="number" min="3" max="120" value={cfg.noticeBoardDuration || 8} onChange={event => updateField('noticeBoardDuration', event.target.value)} /></div>}
                   </div>
                 )}
               </div>
