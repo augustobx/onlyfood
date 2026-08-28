@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ShoppingBag, ChevronDown, Search, Layers, Star, User, ReceiptText, Gift, Calendar, Dices } from "lucide-react";
@@ -55,7 +55,17 @@ function getAvailableQuantity(product: any, secondHalf: any, removedIngredients:
 }
 
 // Componente ExpandableProductCard (sin cambios)
-function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled = false }: { product: any, categoryProducts?: any[], loyaltyEnabled?: boolean }) {
+type StoreOffer = {
+  id: string;
+  name: string;
+  minQuantity: number;
+  type: string;
+  value: number;
+  priority: number;
+  products: { productId: string }[];
+};
+
+function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled = false, offer }: { product: any, categoryProducts?: any[], loyaltyEnabled?: boolean, offer?: StoreOffer }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
 
@@ -77,6 +87,12 @@ function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled 
   const totalPrice = unitPrice * quantity;
   const availableQuantity = getAvailableQuantity(product, secondHalf, removedIngredients, comboRemovedIngredients);
   const isUnavailable = availableQuantity < 1;
+  const isFeatured = product.isCombo || Boolean(offer);
+  const offerLabel = offer
+    ? offer.type === "PERCENT"
+      ? `Llevá ${offer.minQuantity} · ${offer.value}% OFF`
+      : `Llevá ${offer.minQuantity} · $${offer.value.toLocaleString("es-AR")} final`
+    : "Combo destacado";
 
   const resetForm = () => {
     setQuantity(1);
@@ -135,7 +151,7 @@ function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled 
   };
 
   return (
-    <div className={`product-card overflow-hidden transition-colors duration-300 border-b last:border-0 ${isExpanded ? 'product-card-expanded bg-slate-50 border-orange-200' : 'bg-white hover:bg-slate-50'}`}>
+    <div className={`product-card overflow-hidden transition-colors duration-300 border-b last:border-0 ${isFeatured ? 'nexo-featured-product' : ''} ${offer ? 'nexo-product-offer' : ''} ${isExpanded ? 'product-card-expanded bg-slate-50 border-orange-200' : 'bg-white hover:bg-slate-50'}`}>
       {/* Closed Header (Preview) */}
       <div
         className="p-4 flex gap-4 cursor-pointer relative items-center"
@@ -151,6 +167,7 @@ function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled 
         </div>
         <div className="flex-1 flex flex-col justify-center">
           <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            {isFeatured && <span className="nexo-offer-callout"><Star className="h-3 w-3 fill-current" /> {offerLabel}</span>}
             {product.availableDays && !isDailyProduct(product.availableDays) && (
               <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-black uppercase text-purple-700 border border-purple-200">
                 <Calendar className="w-3 h-3" /> {getProductBadgeLabel(product.availableDays)}
@@ -381,16 +398,22 @@ function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled 
   );
 }
 
-export function StorefrontClient({ categories, combos, loggedClient, config, prizes = [], loyaltyEnabled = false, rouletteEnabled = false }: { categories: any[], combos: any[], loggedClient?: any, config?: any, prizes?: any[], loyaltyEnabled?: boolean, rouletteEnabled?: boolean }) {
+export function StorefrontClient({ categories, combos, loggedClient, config, prizes = [], offers = [], loyaltyEnabled = false, rouletteEnabled = false }: { categories: any[], combos: any[], loggedClient?: any, config?: any, prizes?: any[], offers?: StoreOffer[], loyaltyEnabled?: boolean, rouletteEnabled?: boolean }) {
   const isNexo = config?.storeTheme === "NEXO";
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const { items, getTotal, dailyPrize, setDailyPrize } = useCartStore();
   const [isRouletteOpen, setIsRouletteOpen] = useState(false);
 
-  useEffect(() => {
-    if (isNexo && !openCategoryId) setOpenCategoryId(combos.length > 0 ? "combos" : categories[0]?.id || null);
-  }, [isNexo, openCategoryId, combos.length, categories]);
+  const offerByProductId = useMemo(() => {
+    const result = new Map<string, StoreOffer>();
+    for (const offer of offers) {
+      for (const product of offer.products) {
+        if (!result.has(product.productId)) result.set(product.productId, offer);
+      }
+    }
+    return result;
+  }, [offers]);
   const [currentPoints, setCurrentPoints] = useState(loggedClient?.points || 0);
 
   useEffect(() => {
@@ -842,7 +865,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
               <h3 className="font-black text-lg text-slate-800">Resultados para "{searchTerm}"</h3>
             </div>
             {searchResults.length > 0 ? (
-              searchResults.map(p => <ExpandableProductCard key={p.id} product={p} categoryProducts={categories.find(c => c.id === p.categoryId)?.products || []} loyaltyEnabled={loyaltyEnabled} />)
+              searchResults.map(p => <ExpandableProductCard key={p.id} product={p} categoryProducts={categories.find(c => c.id === p.categoryId)?.products || []} loyaltyEnabled={loyaltyEnabled} offer={offerByProductId.get(p.id)} />)
             ) : (
               <div className="p-8 text-center text-muted-foreground">No encontramos nada con ese nombre.</div>
             )}
@@ -853,7 +876,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
 
             {/* Combos Accordion */}
             {combos.length > 0 && (
-              <motion.div id="category-combos" className="store-category bg-white/95 backdrop-blur-sm rounded-3xl shadow-sm border overflow-hidden border-purple-200 scroll-mt-36">
+              <motion.div id="category-combos" className="store-category nexo-combo-category bg-white/95 backdrop-blur-sm rounded-3xl shadow-sm border overflow-hidden border-purple-200 scroll-mt-36">
                 <button
                   onClick={() => handleToggleCategory('combos')}
                   className="w-full p-5 flex items-center justify-between text-left focus:outline-none focus-visible:bg-slate-50 transition-colors"
@@ -864,7 +887,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
                     </div>
                     <div>
                       <h2 className="text-xl font-black text-slate-800 tracking-tight">Promos y Combos</h2>
-                      <p className="text-sm text-purple-600 font-medium">{combos.length} opciones increíbles</p>
+                      <p className="text-sm text-purple-600 font-medium">{combos.length} opciones increíbles <span className="nexo-featured-dot" aria-hidden="true" /></p>
                     </div>
                   </div>
                   <motion.div animate={{ rotate: openCategoryId === 'combos' ? 180 : 0 }}>
@@ -883,7 +906,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
                       style={{ willChange: "height, opacity" }}
                     >
                       {combos.map(product => (
-                        <ExpandableProductCard key={product.id} product={product} loyaltyEnabled={loyaltyEnabled} />
+                        <ExpandableProductCard key={product.id} product={product} loyaltyEnabled={loyaltyEnabled} offer={offerByProductId.get(product.id)} />
                       ))}
                     </motion.div>
                   )}
@@ -923,7 +946,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
                       style={{ willChange: "height, opacity" }}
                     >
                       {category.products.map((product: any) => (
-                        <ExpandableProductCard key={product.id} product={product} categoryProducts={category.products} loyaltyEnabled={loyaltyEnabled} />
+                        <ExpandableProductCard key={product.id} product={product} categoryProducts={category.products} loyaltyEnabled={loyaltyEnabled} offer={offerByProductId.get(product.id)} />
                       ))}
                     </motion.div>
                   )}

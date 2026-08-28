@@ -1,5 +1,5 @@
 /* Theme Nexo is fully scoped so Theme Original remains unchanged. */
-.product-badge { display: none; }
+.product-badge, .nexo-offer-callout, .nexo-featured-dot { display: none; }
 
 .theme-nexo {
   --nexo-ink: #10141f;
@@ -69,6 +69,20 @@
 }
 .theme-nexo .store-category > button { padding: 1.25rem 1.4rem; }
 .theme-nexo .store-category > button h2 { letter-spacing: -.035em; color: var(--nexo-ink); }
+.theme-nexo .nexo-combo-category {
+  border-color: color-mix(in srgb, var(--brand-secondary) 30%, var(--nexo-line)) !important;
+  box-shadow: 0 14px 45px rgba(15, 23, 42, .055), 0 0 0 1px color-mix(in srgb, var(--brand-secondary) 12%, transparent);
+}
+.theme-nexo .nexo-featured-dot {
+  display: inline-block;
+  width: .45rem;
+  height: .45rem;
+  margin-left: .25rem;
+  border-radius: 999px;
+  background: var(--brand-secondary);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-secondary) 45%, transparent);
+  animation: nexo-featured-pulse 2.2s ease-out infinite;
+}
 .theme-nexo .store-category > div > div > div {
   border-color: rgba(15, 23, 42, .06);
 }
@@ -78,6 +92,38 @@
   contain: layout paint style;
   content-visibility: auto;
   contain-intrinsic-block-size: auto 8.5rem;
+}
+.theme-nexo .nexo-featured-product::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.72) 45%, transparent 60%);
+  transform: translateX(-125%);
+  animation: nexo-offer-shine 4.8s ease-in-out infinite;
+}
+.theme-nexo .nexo-featured-product > * { position: relative; z-index: 1; }
+.theme-nexo .nexo-featured-product {
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--brand-secondary) 5%, white), white 34%, color-mix(in srgb, var(--brand-primary) 5%, white));
+}
+.theme-nexo .nexo-product-offer {
+  box-shadow: inset .22rem 0 0 color-mix(in srgb, var(--brand-primary) 85%, #f59e0b);
+}
+.theme-nexo .nexo-offer-callout {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 35%, transparent);
+  border-radius: 999px;
+  padding: .22rem .55rem;
+  color: color-mix(in srgb, var(--brand-primary) 68%, #7c2d12);
+  background: color-mix(in srgb, var(--brand-primary) 10%, #fffdf8);
+  font-size: .62rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: .045em;
 }
 .theme-nexo .product-card > div:first-child { min-height: 8.5rem; padding: 1.15rem 1.25rem; }
 .theme-nexo .product-card .product-image {
@@ -199,6 +245,17 @@
 @keyframes nexo-enter {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nexo-offer-shine {
+  0%, 58% { transform: translateX(-125%); opacity: 0; }
+  66% { opacity: .7; }
+  82%, 100% { transform: translateX(125%); opacity: 0; }
+}
+
+@keyframes nexo-featured-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-secondary) 45%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 .55rem transparent; }
 }
 
 @media (min-width: 768px) {

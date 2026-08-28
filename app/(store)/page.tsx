@@ -87,7 +87,8 @@ export default async function StorePage() {
     for (const comboItem of combo.comboItemsConfig) comboItem.product.ingredients = comboItem.product.ingredients.map(applyLegacyDemand);
   }
 
-  const [prizes, tiers, dbClient] = await Promise.all([
+  const now = new Date();
+  const [prizes, tiers, dbClient, activeOffers] = await Promise.all([
     tenant.features.has("roulette") ? db.roulettePrize.findMany({
       include: { product: true },
     }) : [],
@@ -107,6 +108,25 @@ export default async function StorePage() {
           },
         })
       : null,
+    tenant.features.has("quantityDiscounts") ? db.quantityDiscount.findMany({
+      where: {
+        isActive: true,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        minQuantity: true,
+        type: true,
+        value: true,
+        priority: true,
+        products: { select: { productId: true } },
+      },
+      orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+    }) : [],
   ]);
 
   let clientTier: any = null;
@@ -165,6 +185,7 @@ export default async function StorePage() {
       loggedClient={safeClient}
       config={config}
       prizes={prizes}
+      offers={activeOffers}
       loyaltyEnabled={tenant.features.has("loyalty")}
       rouletteEnabled={tenant.features.has("roulette")}
     />
