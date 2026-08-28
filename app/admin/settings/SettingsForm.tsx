@@ -23,6 +23,8 @@ export function SettingsForm({
   metaAppSecretConfigured,
   whatsappWebhookUrl,
   whatsappNotifications,
+  whatsappEnabled,
+  printNodeEnabled,
 }: {
   initialConfig: any;
   printNodeApiKeyConfigured: boolean;
@@ -30,6 +32,8 @@ export function SettingsForm({
   metaAppSecretConfigured: boolean;
   whatsappWebhookUrl: string;
   whatsappNotifications: any[];
+  whatsappEnabled: boolean;
+  printNodeEnabled: boolean;
 }) {
   const [cfg, setCfg] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
@@ -75,8 +79,8 @@ export function SettingsForm({
       welcomeBalloonText: cfg.welcomeBalloonText,
       paymentCash: cfg.paymentCash,
       paymentMp: cfg.paymentMp,
-      autoPrintTickets: cfg.autoPrintTickets,
-      printingMode: cfg.printingMode || "BROWSER",
+      autoPrintTickets: printNodeEnabled ? cfg.autoPrintTickets : false,
+      printingMode: printNodeEnabled ? (cfg.printingMode || "BROWSER") : "BROWSER",
       printNodeCounterPrinterId: cfg.printNodeCounterPrinterId ? Number(cfg.printNodeCounterPrinterId) : null,
       printNodeKitchenPrinterId: cfg.printNodeKitchenPrinterId ? Number(cfg.printNodeKitchenPrinterId) : null,
       backgroundUrl: cfg.backgroundUrl,
@@ -101,7 +105,7 @@ export function SettingsForm({
       printerKitchenSize: cfg.printerKitchenSize || "80mm",
 
       // Notificaciones transaccionales por WhatsApp
-      whatsappNotificationsEnabled: cfg.whatsappNotificationsEnabled,
+      whatsappNotificationsEnabled: whatsappEnabled ? cfg.whatsappNotificationsEnabled : false,
       whatsappNotifyOrderConfirmed: Boolean(cfg.whatsappNotifyOrderConfirmed ?? true),
       whatsappNotifyOrderPreparing: Boolean(cfg.whatsappNotifyOrderPreparing ?? true),
       whatsappNotifyOrderReady: Boolean(cfg.whatsappNotifyOrderReady ?? true),
@@ -202,10 +206,10 @@ export function SettingsForm({
           <TabsTrigger value="schedule"><Calendar className="w-4 h-4 mr-2" /> Horarios</TabsTrigger>
           <TabsTrigger value="finance"><Wallet className="w-4 h-4 mr-2" /> Pagos</TabsTrigger>
           <TabsTrigger value="mercadopago"><CreditCard className="w-4 h-4 mr-2" /> M. Pago</TabsTrigger>
-          <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-2" /> WhatsApp</TabsTrigger>
+          {whatsappEnabled && <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-2" /> WhatsApp</TabsTrigger>}
           <TabsTrigger value="marketing"><Megaphone className="w-4 h-4 mr-2" /> Splash</TabsTrigger>
           <TabsTrigger value="theme"><Palette className="w-4 h-4 mr-2" /> Diseño</TabsTrigger>
-          <TabsTrigger value="printers"><Printer className="w-4 h-4 mr-2" /> Impresoras</TabsTrigger>
+          {printNodeEnabled && <TabsTrigger value="printers"><Printer className="w-4 h-4 mr-2" /> Impresoras</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="general" className="space-y-4 mt-4">
@@ -498,7 +502,7 @@ export function SettingsForm({
         </TabsContent>
 
         {/* WhatsApp transactional notifications */}
-        <TabsContent value="whatsapp" className="space-y-4 mt-4">
+        {whatsappEnabled && <TabsContent value="whatsapp" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Avisos automáticos por WhatsApp</CardTitle>
@@ -581,7 +585,7 @@ export function SettingsForm({
               {whatsappNotifications.length === 0 ? <p className="text-sm text-muted-foreground">Todavía no hay notificaciones registradas.</p> : <div className="space-y-2">{whatsappNotifications.map(notification => <div key={notification.id} className="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold">#{notification.order.id.slice(-6).toUpperCase()} · {notification.order.clientName}</p><p className="truncate text-xs text-muted-foreground">{notification.event} · {notification.templateName} · intento {notification.attempts}</p>{notification.error && <p className="mt-1 text-xs text-red-700">{notification.error}</p>}</div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${notification.status === 'FAILED' ? 'bg-red-100 text-red-700' : notification.status === 'READ' || notification.status === 'DELIVERED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{notification.status}</span>{notification.status === "FAILED" && <Button type="button" size="sm" variant="outline" onClick={() => handleWhatsAppRetry(notification.id)} disabled={retryingNotification === notification.id}><RefreshCw className={`mr-1 h-3 w-3 ${retryingNotification === notification.id ? 'animate-spin' : ''}`} /> Reintentar</Button>}</div></div>)}</div>}
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent>}
 
         <TabsContent value="marketing" className="space-y-4 mt-4">
           <Card>
@@ -806,6 +810,26 @@ export function SettingsForm({
                       El diseño tradicional de lista con acordeón desplegable por producto para compatibilidad.
                     </span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateField('storeTheme', 'FRESH_MARKET')}
+                    className={`rounded-3xl border-2 p-4 text-left transition-all ${cfg.storeTheme === 'FRESH_MARKET' ? 'border-[#173b2c] bg-[#f4f0e6] text-[#173b2c] shadow-xl ring-2 ring-[#ef6a4b]/30' : 'border-slate-200 bg-white hover:border-slate-400 text-slate-800'}`}
+                  >
+                    <div className="mb-2 flex items-center justify-between"><span className="rounded-lg bg-[#173b2c] px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-white">🌿 Fresh Market</span>{cfg.storeTheme === 'FRESH_MARKET' && <span className="text-xs font-bold">ACTIVO ✓</span>}</div>
+                    <span className="block font-serif text-base font-black">Fresh Market Editorial</span>
+                    <span className="mt-1 block text-xs leading-relaxed opacity-70">Marfil, verde botánico y coral; fotografía protagonista y estilo cálido para viandas, bowls, cafeterías y cocina natural.</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateField('storeTheme', 'RETRO_DINER')}
+                    className={`rounded-3xl border-2 p-4 text-left transition-all ${cfg.storeTheme === 'RETRO_DINER' ? 'border-[#251a32] bg-[#f8d84a] text-[#251a32] shadow-xl ring-2 ring-[#e43d30]/30' : 'border-slate-200 bg-white hover:border-slate-400 text-slate-800'}`}
+                  >
+                    <div className="mb-2 flex items-center justify-between"><span className="rounded-lg bg-[#e43d30] px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-white">🍒 Retro Diner</span>{cfg.storeTheme === 'RETRO_DINER' && <span className="text-xs font-bold">ACTIVO ✓</span>}</div>
+                    <span className="block text-base font-black uppercase">Retro Diner Pop</span>
+                    <span className="mt-1 block text-xs leading-relaxed opacity-70">Amarillo manteca, rojo cereza, bordes gráficos y tipografía contundente para hamburgueserías, pizzas, helados y fast food.</span>
+                  </button>
                 </div>
               </div>
 
@@ -855,7 +879,7 @@ export function SettingsForm({
         </TabsContent>
 
         {/* PESTAÑA IMPRESORAS */}
-        <TabsContent value="printers" className="space-y-4 mt-4">
+        {printNodeEnabled && <TabsContent value="printers" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Configuración de Impresoras Físicas</CardTitle>
@@ -967,7 +991,7 @@ export function SettingsForm({
 
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent>}
 
       </Tabs>
     </div>

@@ -7,6 +7,7 @@ import { getTenantDb } from "@/lib/tenant-db";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireAdmin } from "@/lib/admin-session";
 import { objectStorage } from "@/lib/storage";
+import { requireTenantFeature } from "@/lib/features";
 
 /**
  * Sube uno o varios archivos a /public/uploads y los registra en la BD bajo el Tenant actual.
@@ -16,6 +17,7 @@ export async function uploadMedia(formData: FormData) {
 
   try {
     const tenant = await getTenantContext();
+    await requireTenantFeature(tenant.id, "orders");
     const db = await getTenantDb();
     const rawFiles = formData.getAll("files");
     const singleFile = formData.get("file");
@@ -82,6 +84,7 @@ export async function getMediaAssets(search?: string) {
 
   try {
     const tenant = await getTenantContext();
+    await requireTenantFeature(tenant.id, "orders");
     const db = await getTenantDb();
 
     // Sincronizar archivos existentes en public/uploads/{tenantId} si no están en la BD
@@ -151,6 +154,7 @@ export async function deleteMediaAsset(id: string) {
 
   try {
     const tenant = await getTenantContext();
+    await requireTenantFeature(tenant.id, "orders");
     const db = await getTenantDb();
     const asset = await db.mediaAsset.findUnique({ where: { id } });
     if (!asset) {

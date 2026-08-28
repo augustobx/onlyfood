@@ -82,6 +82,8 @@ export default async function SettingsPage() {
             metaAppSecretConfigured={Boolean(process.env.META_APP_SECRET?.trim())}
             whatsappWebhookUrl={process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, "")}/api/webhooks/whatsapp` : ""}
             whatsappNotifications={whatsappNotifications}
+            whatsappEnabled={tenant.features.has("whatsapp")}
+            printNodeEnabled={tenant.features.has("printNode")}
           />
         </TabsContent>
 

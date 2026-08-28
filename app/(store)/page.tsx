@@ -10,6 +10,10 @@ export default async function StorePage() {
   const db = createTenantDb(tenant.id);
   const config = await db.systemConfig.findFirst({ select: publicConfigSelect });
   const loggedClient = await getLoggedClient();
+
+  if (!tenant.features.has("orders")) {
+    return <div className="flex min-h-[70vh] items-center justify-center px-4"><div className="max-w-lg rounded-3xl border bg-white p-8 text-center shadow-sm"><div className="text-4xl">🛍️</div><h1 className="mt-4 text-3xl font-black text-slate-900">Tienda no disponible</h1><p className="mt-2 text-sm leading-relaxed text-slate-600">La recepción de pedidos está desactivada para este comercio. Volvé a intentar más tarde.</p></div></div>;
+  }
   
   const allowsFutureOrders = Boolean(config?.allowScheduledTomorrow || config?.allowAdvanceOrders);
 

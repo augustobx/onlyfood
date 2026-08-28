@@ -3,10 +3,14 @@
 import { getTenantDb } from "@/lib/tenant-db";
 import { requireAdmin } from "@/lib/admin-session";
 import { calculateOrderRequirements, getInventoryIssues } from "@/lib/inventory";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
 
 export async function getCalendarOrders(startDateIso: string, endDateIso: string) {
   try {
     await requireAdmin();
+    const tenant = await getTenantContext();
+    await requireTenantFeature(tenant.id, "orders");
 
     const start = new Date(startDateIso);
     const end = new Date(endDateIso);

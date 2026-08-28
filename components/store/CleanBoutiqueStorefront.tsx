@@ -22,6 +22,7 @@ interface CleanBoutiqueStorefrontProps {
   currentPoints: number;
   onOpenAuth: () => void;
   onOpenPointsModal: () => void;
+  loyaltyEnabled: boolean;
 }
 
 export function CleanBoutiqueStorefront({
@@ -32,6 +33,7 @@ export function CleanBoutiqueStorefront({
   currentPoints,
   onOpenAuth,
   onOpenPointsModal,
+  loyaltyEnabled,
 }: CleanBoutiqueStorefrontProps) {
   const { items, getTotal } = useCartStore();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -82,6 +84,7 @@ export function CleanBoutiqueStorefront({
             {loggedClient ? (
               <button
                 type="button"
+                hidden={!loyaltyEnabled}
                 onClick={onOpenPointsModal}
                 className="relative group flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-white text-[10.5px] sm:text-[11px] font-black transition-all hover:scale-105 active:scale-95 shrink-0 whitespace-nowrap shadow-md"
                 style={{
@@ -101,6 +104,7 @@ export function CleanBoutiqueStorefront({
             ) : (
               <button
                 type="button"
+                hidden={!loyaltyEnabled}
                 onClick={onOpenAuth}
                 className="relative group flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-white text-[10.5px] sm:text-[11px] font-black transition-all hover:scale-105 active:scale-95 shrink-0 whitespace-nowrap shadow-md"
                 style={{
@@ -149,7 +153,7 @@ export function CleanBoutiqueStorefront({
         </p>
 
         {/* Club Puntos y Rangos */}
-        <div className="pt-1 flex justify-center">
+        <div hidden={!loyaltyEnabled} className="pt-1 flex justify-center">
           <button
             type="button"
             onClick={onOpenPointsModal}
@@ -228,7 +232,7 @@ export function CleanBoutiqueStorefront({
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredProducts.map((p) => (
-                <BoutiqueCard key={p.id} product={p} onSelect={() => setSelectedProduct(p)} />
+                <BoutiqueCard key={p.id} product={p} onSelect={() => setSelectedProduct(p)} loyaltyEnabled={loyaltyEnabled} />
               ))}
             </div>
           </div>
@@ -241,7 +245,7 @@ export function CleanBoutiqueStorefront({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {combos.map((combo) => (
-                    <BoutiqueCard key={combo.id} product={combo} onSelect={() => setSelectedProduct(combo)} isCombo />
+                    <BoutiqueCard key={combo.id} product={combo} onSelect={() => setSelectedProduct(combo)} isCombo loyaltyEnabled={loyaltyEnabled} />
                   ))}
                 </div>
               </div>
@@ -257,7 +261,7 @@ export function CleanBoutiqueStorefront({
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {cat.products.map((prod: any) => (
-                      <BoutiqueCard key={prod.id} product={prod} onSelect={() => setSelectedProduct(prod)} />
+                      <BoutiqueCard key={prod.id} product={prod} onSelect={() => setSelectedProduct(prod)} loyaltyEnabled={loyaltyEnabled} />
                     ))}
                   </div>
                 </div>
@@ -277,6 +281,7 @@ export function CleanBoutiqueStorefront({
             : []
         }
         theme="CLEAN_BOUTIQUE"
+        loyaltyEnabled={loyaltyEnabled}
       />
 
       {/* ═══ FLOATING BOTTOM BAR ═══ */}
@@ -308,10 +313,12 @@ function BoutiqueCard({
   product,
   onSelect,
   isCombo = false,
+  loyaltyEnabled,
 }: {
   product: any;
   onSelect: () => void;
   isCombo?: boolean;
+  loyaltyEnabled: boolean;
 }) {
   return (
     <div
@@ -329,7 +336,7 @@ function BoutiqueCard({
                 📅 {getProductBadgeLabel(product.availableDays)}
               </span>
             )}
-            {product.points > 0 && (
+            {loyaltyEnabled && product.points > 0 && (
               <span className="text-[8px] font-bold text-amber-800 bg-amber-100 px-1 py-0.5 rounded shrink-0">
                 +{product.points} pts
               </span>

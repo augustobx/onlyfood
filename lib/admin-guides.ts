@@ -25,10 +25,10 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     summary: "El recorrido mínimo para abrir la tienda y empezar a recibir pedidos.",
     purpose: "Confirmar que marca, menú, pagos y horarios estén completos antes de compartir el enlace público.",
     steps: [
-      { title: "Completá el asistente", detail: "Entrá en Puesta en Marcha y revisá los indicadores de catálogo, diseño, medios de pago y horarios." },
+      { title: "Completá los controles reales", detail: "Entrá en Puesta en Marcha y resolvé identidad, catálogo activo, modalidades y franjas, cobros, dominio verificado y pedido de prueba." },
       { title: "Probá la tienda", detail: "Usá Ver mi tienda online, agregá un producto al carrito y recorré el checkout como lo haría un cliente." },
       { title: "Hacé un pedido de prueba", detail: "Creá un pedido pequeño y comprobá que aparezca en Pedidos Hoy con el medio de pago y modalidad correctos." },
-      { title: "Abrí al público", detail: "Desde Configuración activá Local abierto y compartí el dominio o subdominio asignado." },
+      { title: "Abrí al público", detail: "Cuando todos los controles estén listos, abrí el local desde Pedidos Hoy y recién entonces compartí el dominio asignado." },
     ],
     tips: ["No publiques el enlace hasta completar un pedido de prueba.", "Si cambiás precios u horarios, repetí una compra de control."],
     keywords: ["inicio", "onboarding", "abrir", "publicar", "primer pedido"],
@@ -112,7 +112,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     keywords: ["promo", "descuento", "cantidad", "pack", "porcentaje", "precio final"],
   },
   {
-    id: "medios", title: "Galería de medios", category: "Catálogo", href: "/admin/media", icon: "media", minutes: 4,
+    id: "medios", title: "Galería de medios", category: "Catálogo", href: "/admin/media", icon: "media", feature: "orders", minutes: 4,
     summary: "Biblioteca central de logos, portadas y fotos de productos.",
     purpose: "Reutilizar imágenes optimizadas sin volver a subir archivos en cada formulario.",
     steps: [
@@ -125,7 +125,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     keywords: ["foto", "imagen", "logo", "portada", "galería", "media", "r2"],
   },
   {
-    id: "metricas", title: "Métricas", category: "Operación", href: "/admin/metricas", icon: "metrics", minutes: 5,
+    id: "metricas", title: "Métricas", category: "Operación", href: "/admin/metricas", icon: "metrics", feature: "advancedReports", minutes: 5,
     summary: "Indicadores de ventas, productos y consumo para tomar decisiones.",
     purpose: "Detectar tendencias, productos importantes y costos que requieren atención.",
     steps: [
@@ -138,7 +138,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     keywords: ["métrica", "reporte", "venta", "costo", "rentabilidad", "producto"],
   },
   {
-    id: "clientes", title: "Clientes", category: "Clientes", href: "/admin/users", icon: "clients", minutes: 5,
+    id: "clientes", title: "Clientes y puntos", category: "Clientes", href: "/admin/users", icon: "clients", feature: "loyalty", minutes: 5,
     summary: "Base de clientes, actividad, puntos y nivel de fidelización.",
     purpose: "Consultar el vínculo de cada comprador con el comercio y resolver ajustes controlados de puntos o nivel.",
     steps: [
@@ -184,7 +184,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
       { title: "Negocio", detail: "Configurá nombre, estado abierto/cerrado, mensaje de cierre y tipos de pedido aceptados." },
       { title: "Horarios", detail: "Definí apertura automática, anticipación, tiempo estimado y cupos de entrega o retiro." },
       { title: "Pagos y envíos", detail: "Elegí efectivo o Mercado Pago, costo fijo de envío y descuento global si corresponde." },
-      { title: "Diseño y comunicación", detail: "Seleccioná logo, tema, colores, fondo, splash, bienvenida y notificaciones." },
+      { title: "Diseño y comunicación", detail: "Seleccioná uno de los seis temas (incluidos Fresh Market y Retro Diner), logo, colores, fondo, splash y bienvenida. WhatsApp e impresoras solo aparecen si el plan los habilita." },
     ],
     tips: ["Guardá y probá la tienda después de cada cambio importante.", "Un descuento global se aplica a todo el menú: usalo con cuidado."],
     keywords: ["configuración", "horario", "diseño", "tema", "envío", "abierto", "splash"],

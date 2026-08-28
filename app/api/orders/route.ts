@@ -3,10 +3,14 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-session";
 import { startOfBusinessDayUtc } from "@/lib/time";
 import { calculateOrderRequirements, getInventoryIssues } from "@/lib/inventory";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
 
 export async function GET() {
   try {
     await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
+    const tenant = await getTenantContext();
+    await requireTenantFeature(tenant.id, "orders");
     const db = await getTenantDb();
     const orders = await db.order.findMany({
       where: {

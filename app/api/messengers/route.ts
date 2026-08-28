@@ -1,10 +1,14 @@
 import { getTenantDb } from "@/lib/tenant-db";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-session";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
 
 export async function GET() {
   try {
     await requireAdmin(["OWNER", "MANAGER", "DELIVERY", "STAFF"]);
+    const tenant = await getTenantContext();
+    await requireTenantFeature(tenant.id, "orders");
     const db = await getTenantDb();
     const messengers = await db.messenger.findMany({
       where: { isActive: true },

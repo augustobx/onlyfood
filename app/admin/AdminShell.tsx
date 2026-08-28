@@ -21,23 +21,24 @@ import {
   WalletCards,
   Dices,
   BookOpenCheck,
+  ShieldOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { LogoutButton } from "./LogoutButton";
 
 const routes = [
-  { name: "Pedidos Hoy", href: "/admin/live", icon: LayoutDashboard },
-  { name: "Agenda / Calendario", href: "/admin/calendar", icon: CalendarDays },
-  { name: "Historial", href: "/admin/history", icon: History },
+  { name: "Pedidos Hoy", href: "/admin/live", icon: LayoutDashboard, feature: "orders" },
+  { name: "Agenda / Calendario", href: "/admin/calendar", icon: CalendarDays, feature: "orders" },
+  { name: "Historial", href: "/admin/history", icon: History, feature: "orders" },
   { name: "Caja diaria", href: "/admin/cash", icon: WalletCards, feature: "cashRegister" },
-  { name: "Catálogo", href: "/admin/catalog", icon: ShoppingBag },
+  { name: "Catálogo", href: "/admin/catalog", icon: ShoppingBag, feature: "orders" },
   { name: "Promociones", href: "/admin/promotions", icon: BadgePercent, feature: "quantityDiscounts" },
-  { name: "Galería de Medios", href: "/admin/media", icon: ImageIcon },
-  { name: "Métricas", href: "/admin/metricas", icon: TrendingUp },
+  { name: "Galería de Medios", href: "/admin/media", icon: ImageIcon, feature: "orders" },
+  { name: "Métricas", href: "/admin/metricas", icon: TrendingUp, feature: "advancedReports" },
   { name: "Canje de Puntos", href: "/admin/rewards", icon: Gift, feature: "loyalty" },
   { name: "Ruleta de Premios", href: "/admin/games", icon: Dices, feature: "roulette" },
-  { name: "Clientes", href: "/admin/users", icon: Users },
+  { name: "Clientes y puntos", href: "/admin/users", icon: Users, feature: "loyalty" },
   { name: "Puesta en Marcha", href: "/admin/wizard", icon: Sparkles },
   { name: "Guías", href: "/admin/guides", icon: BookOpenCheck },
   { name: "Configuración", href: "/admin/settings", icon: Settings },
@@ -87,6 +88,23 @@ export function AdminShell({ children, enabledFeatures = [] }: { children: React
   // su min-height montados genera una gran zona en blanco en rollos térmicos.
   if (pathname.startsWith("/admin/live/print/")) return <>{children}</>;
 
+  const currentRoute = routes.find((route) => pathname === route.href || pathname.startsWith(`${route.href}/`));
+  const blockedRoute = currentRoute?.feature && !enabledFeatures.includes(currentRoute.feature);
+  const pageContent = blockedRoute ? (
+    <div className="mx-auto mt-12 max-w-xl rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+      <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+        <ShieldOff className="size-7" />
+      </div>
+      <h1 className="text-2xl font-black text-slate-900">Módulo desactivado</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+        {currentRoute.name} no está habilitado para este comercio. El acceso y sus operaciones están bloqueados hasta que el SuperAdmin lo active.
+      </p>
+      <Link href="/admin/settings" className="mt-6 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">
+        Ir a configuración
+      </Link>
+    </div>
+  ) : children;
+
   return (
     <div className="flex min-h-screen bg-neutral-100">
       <aside className={`relative hidden shrink-0 flex-col bg-slate-900 text-white transition-[width] duration-300 md:flex ${collapsed ? "w-20" : "w-64"}`}>
@@ -131,7 +149,7 @@ export function AdminShell({ children, enabledFeatures = [] }: { children: React
           </Sheet>
           <span className="font-black text-slate-900">OnlyFood Admin</span>
         </header>
-        <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">{children}</main>
+        <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">{pageContent}</main>
       </div>
     </div>
   );

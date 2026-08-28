@@ -23,7 +23,7 @@ model SystemConfig {
 
   primaryColor   String @default("#f97316") // orange-500
   secondaryColor String @default("#9333ea") // purple-600
-  storeTheme     String @default("ORIGINAL") // ORIGINAL, NEXO
+  storeTheme     String @default("ORIGINAL") // ORIGINAL (legacy), NEXO, URBAN_DARK, FAST_NEO, CLEAN_BOUTIQUE, FRESH_MARKET, RETRO_DINER
 
   splashEnabled  Boolean @default(false)
   splashDuration Int     @default(3) // seconds

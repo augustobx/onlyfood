@@ -2,11 +2,13 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { normalizeHostname } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
 
 /**
  * Agrega un nuevo dominio o subdominio a un Tenant.
  */
 export async function addTenantDomain(tenantId: string, hostname: string, isCustom = false) {
+  if (isCustom) await requireTenantFeature(tenantId, "customDomain");
   const cleanHost = normalizeHostname(hostname);
   if (!cleanHost || cleanHost.length < 3) {
     throw new Error("INVALID_HOSTNAME: El nombre de dominio no es válido.");

@@ -53,8 +53,14 @@ export default async function StoreLayout({
   const isUrbanDark = theme === "URBAN_DARK";
   const isCleanBoutique = theme === "CLEAN_BOUTIQUE";
   const isFastNeo = theme === "FAST_NEO";
+  const isFreshMarket = theme === "FRESH_MARKET";
+  const isRetroDiner = theme === "RETRO_DINER";
 
-  const themeBgClass = isUrbanDark
+  const themeBgClass = isFreshMarket
+    ? "bg-[#f4f0e6] text-[#173b2c]"
+    : isRetroDiner
+    ? "bg-[#f8d84a] text-[#251a32]"
+    : isUrbanDark
     ? "bg-[#080a0f] text-white"
     : isCleanBoutique
     ? "bg-[#f6f3ee] text-stone-900"

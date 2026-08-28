@@ -315,6 +315,10 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
 
   const tenantId = options.tenantId || order.tenantId;
   if (!tenantId) return { success: false, skipped: true, jobs: [], error: "Pedido sin comercio asociado." };
+  const { hasTenantFeature } = await import("@/lib/features");
+  if (!(await hasTenantFeature(tenantId, "printNode"))) {
+    return { success: true, skipped: true, jobs: [] as Array<{ kind: PrintKind; success: boolean; error?: string }> };
+  }
   let config: any = null;
   let customApiKey: string | undefined;
 

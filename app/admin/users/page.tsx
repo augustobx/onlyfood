@@ -3,11 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Star, Gift, Crown } from "lucide-react";
 import { UsersTableClient } from "./UsersTableClient";
 import { requireAdmin } from "@/lib/admin-session";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUsersPage() {
   await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "loyalty");
   const db = await getTenantDb();
   const [users, rewards, tiers] = await Promise.all([
     db.client.findMany({

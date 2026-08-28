@@ -26,6 +26,8 @@ Desde `/superadmin`, una cuenta SuperAdmin puede:
 
 La resolución efectiva de opciones aplica esta precedencia: una excepción `DISABLED` bloquea la opción; una excepción `ENABLED` la concede; sin excepción, se hereda el plan. Cambiar un plan afecta inmediatamente a todos los comercios que lo heredan, pero no elimina sus excepciones individuales. Todas estas operaciones pasan por autorización de SuperAdmin, validación de servidor y auditoría.
 
+La desactivación se aplica en tres capas: navegación/pantallas, Server Actions y procesos de negocio. Por ejemplo, `orders` bloquea catálogo, tablero, APIs y checkout; `loyalty` evita canjes y acumulación de puntos; `advancedReports` protege métricas; `whatsapp` y `printNode` ocultan su configuración y bloquean sus operaciones. Al desactivar WhatsApp, ruleta, fidelización o PrintNode también se apaga su configuración operativa, sin eliminar datos históricos.
+
 No se permite borrar planes desde la interfaz porque podrían tener historial de suscripciones. Para retirarlos se usa `isActive = false`, preservando integridad y trazabilidad.
 
 ## Estados

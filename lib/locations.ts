@@ -25,6 +25,7 @@ export async function getTenantLocations(tenantId: string) {
  * Crea una nueva sucursal validando el límite máximo permitido por el plan de suscripción.
  */
 export async function createTenantLocation(tenantId: string, input: CreateLocationInput) {
+  const { features } = await getTenantFeatures(tenantId);
   const tenant = await prisma.tenant.findUniqueOrThrow({
     where: { id: tenantId },
     include: {
@@ -34,6 +35,9 @@ export async function createTenantLocation(tenantId: string, input: CreateLocati
   });
 
   const maxAllowed = tenant.subscription?.plan?.maxLocations || 1;
+  if (tenant.locations.length > 0 && !features.has("multipleLocations")) {
+    throw new Error("FEATURE_DISABLED: El módulo de múltiples sucursales no está habilitado.");
+  }
   if (tenant.locations.length >= maxAllowed) {
     throw new Error(`PLAN_LIMIT_REACHED: Tu plan actual permite un máximo de ${maxAllowed} sucursal(es).`);
   }

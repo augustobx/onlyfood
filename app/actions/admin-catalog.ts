@@ -4,12 +4,20 @@ import { getTenantDb } from "@/lib/tenant-db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
 import { z } from "zod";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
+
+async function requireOrdersModule() {
+  const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "orders");
+}
 
 const idSchema = z.string().min(1).max(128);
 const nameSchema = z.string().trim().min(1).max(250);
 
 export async function addCategory(name: string) {
   await requireAdmin();
+  await requireOrdersModule();
   const parsedName = nameSchema.safeParse(name);
   if (!parsedName.success) return { success: false, error: "Nombre inválido" };
   try {
@@ -22,6 +30,7 @@ export async function addCategory(name: string) {
 
 export async function toggleCategory(id: string, isActive: boolean) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success || typeof isActive !== "boolean") return { success: false, error: "Datos inválidos" };
   try {
     const db = await getTenantDb();
@@ -50,6 +59,7 @@ export async function upsertProduct(data: {
   comboItemsData?: { id: string, quantity: number }[]
 }) {
   const { tenant } = await requireAdmin(["OWNER", "MANAGER"]);
+  await requireTenantFeature(tenant.id, "orders");
   const parsed = z.object({
     id: idSchema.optional().nullable(),
     name: nameSchema,
@@ -164,6 +174,7 @@ export async function upsertProduct(data: {
 
 export async function toggleProduct(id: string, isActive: boolean) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success || typeof isActive !== "boolean") return { success: false, error: "Datos invalidos" };
   try {
     const db = await getTenantDb();
@@ -175,6 +186,7 @@ export async function toggleProduct(id: string, isActive: boolean) {
 
 export async function toggleProductImage(id: string, showImage: boolean) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success || typeof showImage !== "boolean") return { success: false, error: "Datos invalidos" };
   try {
     const db = await getTenantDb();
@@ -186,6 +198,7 @@ export async function toggleProductImage(id: string, showImage: boolean) {
 
 export async function reorderProducts(input: { categoryId?: string | null; isCombo?: boolean; productIds: string[] }) {
   await requireAdmin(["OWNER", "MANAGER"]);
+  await requireOrdersModule();
   const parsed = z.object({
     categoryId: idSchema.nullable().optional(),
     isCombo: z.boolean().optional().default(false),
@@ -216,6 +229,7 @@ export async function reorderProducts(input: { categoryId?: string | null; isCom
 
 export async function addIngredient(data: { name: string, categoryIds: string[], purchaseVolume: string, purchasePrice: number, yieldUnits: number }) {
   await requireAdmin();
+  await requireOrdersModule();
   const parsed = z.object({ name: nameSchema, categoryIds: z.array(idSchema).max(100), purchaseVolume: z.string().trim().max(100), purchasePrice: z.number().min(0).max(10_000_000), yieldUnits: z.number().positive().max(1_000_000) }).strict().safeParse(data);
   if (!parsed.success) return { success: false, error: "Datos de ingrediente invalidos." };
   data = parsed.data;
@@ -245,6 +259,7 @@ export async function addIngredient(data: { name: string, categoryIds: string[],
 
 export async function restockIngredient(id: string, purchasePrice: number, yieldUnits: number, purchaseVolume: string) {
   await requireAdmin();
+  await requireOrdersModule();
   const parsed = z.object({ id: idSchema, purchasePrice: z.number().min(0).max(10_000_000), yieldUnits: z.number().positive().max(1_000_000), purchaseVolume: z.string().trim().max(100) }).safeParse({ id, purchasePrice, yieldUnits, purchaseVolume });
   if (!parsed.success) return { success: false, error: "Datos de reposicion invalidos." };
   try {
@@ -269,6 +284,7 @@ export async function restockIngredient(id: string, purchasePrice: number, yield
 
 export async function toggleIngredient(id: string, isActive: boolean) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success || typeof isActive !== "boolean") return { success: false, error: "Datos invalidos" };
   try {
     const db = await getTenantDb();
@@ -286,6 +302,7 @@ export async function upsertExtra(
   selectionType: "SINGLE" | "MULTIPLE" = "MULTIPLE"
 ) {
   await requireAdmin();
+  await requireOrdersModule();
   const parsed = z.object({
     name: nameSchema,
     price: z.number().min(0).max(10_000_000),
@@ -330,6 +347,7 @@ export async function upsertExtra(
 
 export async function toggleExtra(id: string, isActive: boolean) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success || typeof isActive !== "boolean") return { success: false, error: "Datos invalidos" };
   try {
     const db = await getTenantDb();
@@ -341,6 +359,7 @@ export async function toggleExtra(id: string, isActive: boolean) {
 
 export async function deleteCategory(id: string) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success) return { success: false, error: "ID invalido" };
   try {
     const db = await getTenantDb();
@@ -352,6 +371,7 @@ export async function deleteCategory(id: string) {
 
 export async function deleteProduct(id: string) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success) return { success: false, error: "ID invalido" };
   try {
     const db = await getTenantDb();
@@ -363,6 +383,7 @@ export async function deleteProduct(id: string) {
 
 export async function deleteIngredient(id: string) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success) return { success: false, error: "ID invalido" };
   try {
     const db = await getTenantDb();
@@ -374,6 +395,7 @@ export async function deleteIngredient(id: string) {
 
 export async function deleteExtra(id: string) {
   await requireAdmin();
+  await requireOrdersModule();
   if (!idSchema.safeParse(id).success) return { success: false, error: "ID invalido" };
   try {
     const db = await getTenantDb();

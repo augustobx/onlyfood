@@ -2,6 +2,8 @@ import { getTenantDb } from "@/lib/tenant-db";
 import { notFound } from "next/navigation";
 import { PrintTicketClient } from "./PrintTicketClient";
 import { requireAdmin } from "@/lib/admin-session";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
 
 /**
  * En las versiones más recientes de Next.js, 'params' es una Promise.
@@ -13,6 +15,8 @@ export default async function PrintTicketPage({
   params: Promise<{ id: string }>
 }) {
   await requireAdmin(["OWNER", "MANAGER", "STAFF", "KITCHEN", "CASHIER"]);
+  const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "orders");
   const db = await getTenantDb();
   // Esperamos a que los parámetros se resuelvan antes de usarlos
   const { id } = await params;

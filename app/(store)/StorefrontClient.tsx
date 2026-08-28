@@ -10,6 +10,7 @@ import { RouletteModal } from "@/components/RouletteModal";
 import { UrbanDarkStorefront } from "@/components/store/UrbanDarkStorefront";
 import { FastNeoStorefront } from "@/components/store/FastNeoStorefront";
 import { CleanBoutiqueStorefront } from "@/components/store/CleanBoutiqueStorefront";
+import { SignatureStorefront } from "@/components/store/SignatureStorefront";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,7 @@ function getAvailableQuantity(product: any, secondHalf: any, removedIngredients:
 }
 
 // Componente ExpandableProductCard (sin cambios)
-function ExpandableProductCard({ product, categoryProducts = [] }: { product: any, categoryProducts?: any[] }) {
+function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled = false }: { product: any, categoryProducts?: any[], loyaltyEnabled?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { addItem } = useCartStore();
 
@@ -153,7 +154,7 @@ function ExpandableProductCard({ product, categoryProducts = [] }: { product: an
               </span>
             )}
             {product.isCombo && <span className="product-badge bg-purple-100 text-purple-700">Combo</span>}
-            {product.points > 0 && <span className="product-badge bg-yellow-100 text-yellow-700"><Star className="h-3 w-3 fill-current" /> +{product.points} pts</span>}
+            {loyaltyEnabled && product.points > 0 && <span className="product-badge bg-yellow-100 text-yellow-700"><Star className="h-3 w-3 fill-current" /> +{product.points} pts</span>}
             {isUnavailable && <span className="inline-flex rounded-full bg-red-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-red-700">Agotado</span>}
           </div>
           <h3 className="product-title font-bold text-lg leading-tight text-slate-800">{product.name}</h3>
@@ -161,7 +162,7 @@ function ExpandableProductCard({ product, categoryProducts = [] }: { product: an
           <span className={`font-bold mt-1.5 inline-flex items-center gap-2 ${product.isCombo ? 'text-purple-700' : 'text-orange-600'}`}>
             ${product.basePrice.toLocaleString('es-AR')}
             {product.allowHalf && <span className="text-[10px] uppercase bg-slate-100 text-slate-500 px-1 rounded">Mitades disp.</span>}
-            {product.points > 0 && <span className="original-product-points text-[10px] font-black bg-yellow-100 text-yellow-700 px-1 py-0.5 rounded flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> +{product.points} Pts</span>}
+            {loyaltyEnabled && product.points > 0 && <span className="original-product-points text-[10px] font-black bg-yellow-100 text-yellow-700 px-1 py-0.5 rounded flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> +{product.points} Pts</span>}
           </span>
         </div>
         <div className="flex-shrink-0 w-8 h-8 rounded-full border flex items-center justify-center bg-white shadow-sm text-slate-400">
@@ -516,7 +517,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
     <>
       {/* ═══ MODAL DE BIENVENIDA VIP CLUB & RANKING ═══ */}
       <AnimatePresence>
-        {showWelcome && (
+        {showWelcome && loyaltyEnabled && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -649,6 +650,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
           currentPoints={currentPoints}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOpenPointsModal={() => setIsPointsModalOpen(true)}
+          loyaltyEnabled={loyaltyEnabled}
         />
         {renderSharedModals()}
       </>
@@ -667,6 +669,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
           currentPoints={currentPoints}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOpenPointsModal={() => setIsPointsModalOpen(true)}
+          loyaltyEnabled={loyaltyEnabled}
         />
         {renderSharedModals()}
       </>
@@ -685,7 +688,17 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
           currentPoints={currentPoints}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOpenPointsModal={() => setIsPointsModalOpen(true)}
+          loyaltyEnabled={loyaltyEnabled}
         />
+        {renderSharedModals()}
+      </>
+    );
+  }
+
+  if (config?.storeTheme === "FRESH_MARKET" || config?.storeTheme === "RETRO_DINER") {
+    return (
+      <>
+        <SignatureStorefront categories={categories} combos={combos} config={config} theme={config.storeTheme} loyaltyEnabled={loyaltyEnabled} />
         {renderSharedModals()}
       </>
     );
@@ -701,12 +714,12 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
         <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-20">
           {loggedClient ? (
             <div className="flex gap-2">
-              <Link href="/profile">
+              {loyaltyEnabled && <Link href="/profile">
                 <div className="bg-white/20 backdrop-blur-md rounded-full px-4 py-2 flex items-center gap-2 hover:bg-white/30 transition-colors cursor-pointer border border-white/20">
                   <ReceiptText className="w-4 h-4 text-white" />
                   <span className="text-white font-bold text-sm tracking-tight hidden md:inline">Ver Pedidos</span>
                 </div>
-              </Link>
+              </Link>}
               <Link href="/profile">
                 <div className="bg-white/20 backdrop-blur-md rounded-full px-4 py-2 flex items-center gap-2 hover:bg-white/30 transition-colors cursor-pointer border border-white/20">
                   <Star className="w-4 h-4 text-yellow-300 fill-current" />
@@ -767,7 +780,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
               <h3 className="font-black text-lg text-slate-800">Resultados para "{searchTerm}"</h3>
             </div>
             {searchResults.length > 0 ? (
-              searchResults.map(p => <ExpandableProductCard key={p.id} product={p} categoryProducts={categories.find(c => c.id === p.categoryId)?.products || []} />)
+              searchResults.map(p => <ExpandableProductCard key={p.id} product={p} categoryProducts={categories.find(c => c.id === p.categoryId)?.products || []} loyaltyEnabled={loyaltyEnabled} />)
             ) : (
               <div className="p-8 text-center text-muted-foreground">No encontramos nada con ese nombre.</div>
             )}
@@ -807,7 +820,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
                       className="border-t"
                     >
                       {combos.map(product => (
-                        <ExpandableProductCard key={product.id} product={product} />
+                        <ExpandableProductCard key={product.id} product={product} loyaltyEnabled={loyaltyEnabled} />
                       ))}
                     </motion.div>
                   )}
@@ -846,7 +859,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
                       className="border-t"
                     >
                       {category.products.map((product: any) => (
-                        <ExpandableProductCard key={product.id} product={product} categoryProducts={category.products} />
+                        <ExpandableProductCard key={product.id} product={product} categoryProducts={category.products} loyaltyEnabled={loyaltyEnabled} />
                       ))}
                     </motion.div>
                   )}

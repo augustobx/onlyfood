@@ -92,6 +92,7 @@ export default function LiveDashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isCancelledOpen, setIsCancelledOpen] = useState(false);
 
   const [moduleStates, setModuleStates] = useState<{
     allowImmediateOrders: boolean;
@@ -369,7 +370,8 @@ export default function LiveDashboardPage() {
   const stageNew = filteredTodayOrders.filter((o: any) => o.status === "NEW");
   const stageInPrep = filteredTodayOrders.filter((o: any) => o.status === "IN_PROCESS");
   const stageReadyOrDelivery = filteredTodayOrders.filter((o: any) => o.status === "PENDING_DELIVERY" || o.status === "OUT_FOR_DELIVERY" || o.status === "FINISHED");
-  const stageCompleted = filteredTodayOrders.filter((o: any) => o.status === "DELIVERED" || o.status === "CANCELLED");
+  const stageCompleted = filteredTodayOrders.filter((o: any) => o.status === "DELIVERED");
+  const stageCancelled = filteredTodayOrders.filter((o: any) => o.status === "CANCELLED");
 
   // Metrics summary
   const activeOrdersCount = stageNew.length + stageInPrep.length + stageReadyOrDelivery.length;
@@ -714,6 +716,15 @@ export default function LiveDashboardPage() {
 
         {/* Right: Actions (Search, New Order, Sound, Module Popover) */}
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setIsCancelledOpen(true)}
+            className="h-9 rounded-xl border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 hover:bg-red-100"
+            title="Ver pedidos cancelados"
+          >
+            <Trash2 className="mr-1.5 size-4" /> Cancelados
+            {stageCancelled.length > 0 && <Badge className="ml-2 rounded-full bg-red-600 px-1.5 text-white">{stageCancelled.length}</Badge>}
+          </Button>
           {/* Quick Search */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -879,6 +890,20 @@ export default function LiveDashboardPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={isCancelledOpen} onOpenChange={setIsCancelledOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto rounded-3xl bg-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-800"><Trash2 className="size-5" /> Pedidos cancelados de hoy</DialogTitle>
+            <DialogDescription>Se guardan como historial y no forman parte de los pedidos completados ni de la facturación.</DialogDescription>
+          </DialogHeader>
+          <div className="mt-3 space-y-3">
+            {stageCancelled.length === 0
+              ? <div className="rounded-2xl bg-slate-50 p-10 text-center text-sm font-semibold text-slate-500">No hay pedidos cancelados hoy.</div>
+              : stageCancelled.map((order) => renderOrderCard(order, "COMPLETED"))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Settings & Modules Modal Dialog */}
       <Dialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen}>

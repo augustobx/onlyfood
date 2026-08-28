@@ -1,11 +1,15 @@
 import { requireAdmin } from "@/lib/admin-session";
 import { fetchAdminRewards, fetchCustomerRanking } from "@/app/actions/admin-rewards";
 import { RewardsClient } from "./RewardsClient";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminRewardsPage() {
   await requireAdmin();
+  const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "loyalty");
   const [{ rewards, products, tiers, isPointsCatalogActive }, rankingRes] = await Promise.all([
     fetchAdminRewards(),
     fetchCustomerRanking(),

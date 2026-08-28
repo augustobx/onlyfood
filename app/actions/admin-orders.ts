@@ -12,6 +12,13 @@ import { dispatchOrderPrint } from "@/lib/printnode";
 import { startOfBusinessDayUtc } from "@/lib/time";
 import { dispatchWhatsAppNotification, queueRelatedOrderConfirmationNotifications, queueOrderWhatsAppNotification } from "@/lib/whatsapp-notifications";
 import { notificationEventForStatus } from "@/lib/whatsapp-message-utils";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
+
+async function requireOrdersModule() {
+  const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "orders");
+}
 
 const statusSchema = z.enum(["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"]);
 const transitions: Record<string, string[]> = {
@@ -26,6 +33,7 @@ const transitions: Record<string, string[]> = {
 
 export async function getAdminOrderCatalog() {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
+  await requireOrdersModule();
   const db = await getTenantDb();
   const [categories, slots, config] = await Promise.all([
     db.category.findMany({
@@ -100,6 +108,7 @@ export async function getAdminOrderCatalog() {
 
 export async function reconcilePendingMercadoPagoOrders() {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
+  await requireOrdersModule();
   const db = await getTenantDb();
   const pending = await db.order.findMany({
     where: { paymentMethod: "MP", paymentStatus: "PENDING", status: { not: "CANCELLED" }, createdAt: { gte: startOfBusinessDayUtc() } },
@@ -152,6 +161,7 @@ async function releaseStock(tx: any, requirements: ReturnType<typeof calculateOr
 
 export async function updateOrderStatus(orderId: string, requestedStatus: string) {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
+  await requireOrdersModule();
   const parsedId = z.string().uuid().safeParse(orderId);
   const parsedStatus = statusSchema.safeParse(requestedStatus);
   if (!parsedId.success || !parsedStatus.success) return { success: false, error: "Datos inválidos" };
@@ -260,6 +270,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
 
 export async function assignMessenger(orderId: string, messengerId: string | null) {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
+  await requireOrdersModule();
   if (!z.string().uuid().safeParse(orderId).success || (messengerId && !z.string().uuid().safeParse(messengerId).success)) {
     return { success: false, error: "Datos inválidos" };
   }
@@ -280,6 +291,7 @@ export async function assignMessenger(orderId: string, messengerId: string | nul
 
 export async function dispatchMessengerRoadmap(messengerId: string) {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
+  await requireOrdersModule();
   if (!z.string().uuid().safeParse(messengerId).success) return { success: false, error: "Repartidor inválido" };
   try {
     const db = await getTenantDb();

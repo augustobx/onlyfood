@@ -25,6 +25,7 @@ interface FastNeoStorefrontProps {
   currentPoints: number;
   onOpenAuth: () => void;
   onOpenPointsModal: () => void;
+  loyaltyEnabled: boolean;
 }
 
 export function FastNeoStorefront({
@@ -35,6 +36,7 @@ export function FastNeoStorefront({
   currentPoints,
   onOpenAuth,
   onOpenPointsModal,
+  loyaltyEnabled,
 }: FastNeoStorefrontProps) {
   const { items, getTotal } = useCartStore();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -85,6 +87,7 @@ export function FastNeoStorefront({
             {loggedClient ? (
               <button
                 type="button"
+                hidden={!loyaltyEnabled}
                 onClick={onOpenPointsModal}
                 className="relative group flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-white text-[10.5px] sm:text-[11px] font-black transition-all hover:scale-105 active:scale-95 shrink-0 whitespace-nowrap shadow-md"
                 style={{
@@ -104,6 +107,7 @@ export function FastNeoStorefront({
             ) : (
               <button
                 type="button"
+                hidden={!loyaltyEnabled}
                 onClick={onOpenAuth}
                 className="relative group flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-white text-[10.5px] sm:text-[11px] font-black transition-all hover:scale-105 active:scale-95 shrink-0 whitespace-nowrap shadow-md"
                 style={{
@@ -159,6 +163,7 @@ export function FastNeoStorefront({
       {/* Banner Ranking VIP */}
       <div className="max-w-6xl mx-auto px-3.5 pt-3">
         <div
+          hidden={!loyaltyEnabled}
           onClick={onOpenPointsModal}
           className="cursor-pointer bg-gradient-to-r from-purple-900 via-slate-900 to-purple-950 text-white p-3 rounded-2xl flex items-center justify-between gap-2 shadow-sm border border-purple-800/30"
         >
@@ -184,7 +189,7 @@ export function FastNeoStorefront({
       {/* ═══ STORIES / DESTACADOS ═══ */}
       <section className="px-3.5 py-3 bg-white border-b border-slate-100 overflow-x-auto no-scrollbar">
         <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <button type="button" onClick={onOpenPointsModal} className="flex flex-col items-center gap-1 shrink-0 group">
+          <button type="button" hidden={!loyaltyEnabled} onClick={onOpenPointsModal} className="flex flex-col items-center gap-1 shrink-0 group">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-orange-500 p-[2.5px] shadow-sm group-active:scale-95 transition-transform">
               <div className="w-full h-full bg-white rounded-[13px] flex items-center justify-center text-2xl">🎁</div>
             </div>
@@ -268,7 +273,7 @@ export function FastNeoStorefront({
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
               {filteredProducts.map((p) => (
-                <FastNeoCard key={p.id} product={p} onSelect={() => setSelectedProduct(p)} />
+                <FastNeoCard key={p.id} product={p} onSelect={() => setSelectedProduct(p)} loyaltyEnabled={loyaltyEnabled} />
               ))}
             </div>
           </div>
@@ -279,7 +284,7 @@ export function FastNeoStorefront({
                 <h3 className="font-black text-base text-slate-900">⚡ Combos Especiales</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
                   {combos.map((combo) => (
-                    <FastNeoCard key={combo.id} product={combo} onSelect={() => setSelectedProduct(combo)} isCombo />
+                    <FastNeoCard key={combo.id} product={combo} onSelect={() => setSelectedProduct(combo)} isCombo loyaltyEnabled={loyaltyEnabled} />
                   ))}
                 </div>
               </div>
@@ -295,7 +300,7 @@ export function FastNeoStorefront({
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
                     {cat.products.map((prod: any) => (
-                      <FastNeoCard key={prod.id} product={prod} onSelect={() => setSelectedProduct(prod)} />
+                      <FastNeoCard key={prod.id} product={prod} onSelect={() => setSelectedProduct(prod)} loyaltyEnabled={loyaltyEnabled} />
                     ))}
                   </div>
                 </div>
@@ -315,6 +320,7 @@ export function FastNeoStorefront({
             : []
         }
         theme="FAST_NEO"
+        loyaltyEnabled={loyaltyEnabled}
       />
 
       {/* ═══ BOTTOM DOCK FLOTANTE ═══ */}
@@ -325,7 +331,7 @@ export function FastNeoStorefront({
             <span className="text-[9px] font-bold">Menú</span>
           </button>
 
-          <button type="button" onClick={onOpenPointsModal} className="flex flex-col items-center gap-0.5 py-1 px-3 text-slate-400">
+          <button type="button" hidden={!loyaltyEnabled} onClick={onOpenPointsModal} className="flex flex-col items-center gap-0.5 py-1 px-3 text-slate-400">
             <Gift className="w-5 h-5" />
             <span className="text-[9px] font-bold">Puntos</span>
           </button>
@@ -361,10 +367,12 @@ function FastNeoCard({
   product,
   onSelect,
   isCombo = false,
+  loyaltyEnabled,
 }: {
   product: any;
   onSelect: () => void;
   isCombo?: boolean;
+  loyaltyEnabled: boolean;
 }) {
   return (
     <div
@@ -391,7 +399,7 @@ function FastNeoCard({
                 📅 {getProductBadgeLabel(product.availableDays)}
               </span>
             )}
-            {product.points > 0 && (
+            {loyaltyEnabled && product.points > 0 && (
               <span className="bg-amber-400 text-slate-900 font-black text-[8px] px-1.5 py-0.5 rounded-md shadow-xs">
                 +{product.points} pts
               </span>

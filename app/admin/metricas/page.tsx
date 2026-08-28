@@ -1,11 +1,15 @@
 import { getTenantDb } from "@/lib/tenant-db";
 import { MetricsClient } from "./MetricsClient";
 import { requireAdmin } from "@/lib/admin-session";
+import { getTenantContext } from "@/lib/tenant-context";
+import { requireTenantFeature } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
 export default async function MetricsPage() {
   await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "advancedReports");
   const db = await getTenantDb();
   const [orders, products, ingredients] = await Promise.all([
      db.order.findMany({

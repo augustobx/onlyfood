@@ -76,6 +76,7 @@ export default async function ProfilePage() {
   }
   const db = await getTenantDb();
   const tenant = await getTenantContext();
+  const loyaltyEnabled = tenant.features.has("loyalty");
 
   const [orders, tiers, dbClient] = await Promise.all([
     db.order.findMany({
@@ -88,7 +89,7 @@ export default async function ProfilePage() {
         items: { include: { product: true } }
       }
     }),
-    tenant.features.has("loyalty") ? db.customerTier.findMany({
+    loyaltyEnabled ? db.customerTier.findMany({
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { minSpent: "asc" }],
     }) : [],
@@ -168,7 +169,7 @@ export default async function ProfilePage() {
       </div>
 
       {/* ═══ VIP LOYALTY TIER & POINTS CARD ═══ */}
-      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 rounded-[2.5rem] p-7 text-white shadow-xl mb-8 relative overflow-hidden border border-white/10">
+      {loyaltyEnabled && <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 rounded-[2.5rem] p-7 text-white shadow-xl mb-8 relative overflow-hidden border border-white/10">
         <Sparkles className="absolute -right-6 -bottom-6 w-44 h-44 text-purple-400 opacity-10 pointer-events-none" />
         
         <div className="relative z-10 space-y-5">
@@ -234,7 +235,7 @@ export default async function ProfilePage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* 1. SECCIÓN: PEDIDOS EN CURSO PARA HOY */}
       {todayActiveOrders.length > 0 && (

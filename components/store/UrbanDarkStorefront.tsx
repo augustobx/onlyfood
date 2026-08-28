@@ -28,6 +28,7 @@ interface UrbanDarkStorefrontProps {
   currentPoints: number;
   onOpenAuth: () => void;
   onOpenPointsModal: () => void;
+  loyaltyEnabled: boolean;
 }
 
 export function UrbanDarkStorefront({
@@ -38,6 +39,7 @@ export function UrbanDarkStorefront({
   currentPoints,
   onOpenAuth,
   onOpenPointsModal,
+  loyaltyEnabled,
 }: UrbanDarkStorefrontProps) {
   const { items, getTotal } = useCartStore();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -86,6 +88,7 @@ export function UrbanDarkStorefront({
             {loggedClient ? (
               <button
                 type="button"
+                hidden={!loyaltyEnabled}
                 onClick={onOpenPointsModal}
                 className="relative group flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-white text-[10.5px] sm:text-[11px] font-black transition-all hover:scale-105 active:scale-95 shrink-0 whitespace-nowrap shadow-md"
                 style={{
@@ -105,6 +108,7 @@ export function UrbanDarkStorefront({
             ) : (
               <button
                 type="button"
+                hidden={!loyaltyEnabled}
                 onClick={onOpenAuth}
                 className="relative group flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-white text-[10.5px] sm:text-[11px] font-black transition-all hover:scale-105 active:scale-95 shrink-0 whitespace-nowrap shadow-md"
                 style={{
@@ -161,6 +165,7 @@ export function UrbanDarkStorefront({
             {/* Puntos Compacta */}
             <button
               type="button"
+              hidden={!loyaltyEnabled}
               onClick={onOpenPointsModal}
               className="flex items-center gap-2.5 bg-gradient-to-r from-purple-950/60 to-slate-900/80 border border-purple-500/30 p-2.5 rounded-2xl backdrop-blur-md self-start sm:self-auto hover:border-purple-500/60 transition-all group"
             >
@@ -184,6 +189,7 @@ export function UrbanDarkStorefront({
 
           {/* Banner de Membresía y Ranking VIP */}
           <div
+            hidden={!loyaltyEnabled}
             onClick={onOpenPointsModal}
             className="cursor-pointer bg-gradient-to-r from-slate-950 via-purple-950/60 to-slate-950 border border-purple-500/20 hover:border-purple-500/50 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-lg transition-all"
           >
@@ -273,7 +279,7 @@ export function UrbanDarkStorefront({
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
               {filteredProducts.map((prod) => (
-                <UrbanProductCard key={prod.id} product={prod} onSelect={() => setSelectedProduct(prod)} />
+                <UrbanProductCard key={prod.id} product={prod} onSelect={() => setSelectedProduct(prod)} loyaltyEnabled={loyaltyEnabled} />
               ))}
             </div>
             {filteredProducts.length === 0 && (
@@ -289,7 +295,7 @@ export function UrbanDarkStorefront({
                 <h2 className="text-lg sm:text-xl font-black text-white">⚡ Combos Beats</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
                   {combos.map((combo) => (
-                    <UrbanProductCard key={combo.id} product={combo} onSelect={() => setSelectedProduct(combo)} isCombo />
+                    <UrbanProductCard key={combo.id} product={combo} onSelect={() => setSelectedProduct(combo)} isCombo loyaltyEnabled={loyaltyEnabled} />
                   ))}
                 </div>
               </section>
@@ -305,7 +311,7 @@ export function UrbanDarkStorefront({
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
                     {cat.products.map((prod: any) => (
-                      <UrbanProductCard key={prod.id} product={prod} onSelect={() => setSelectedProduct(prod)} />
+                      <UrbanProductCard key={prod.id} product={prod} onSelect={() => setSelectedProduct(prod)} loyaltyEnabled={loyaltyEnabled} />
                     ))}
                   </div>
                 </section>
@@ -325,6 +331,7 @@ export function UrbanDarkStorefront({
             : []
         }
         theme="URBAN_DARK"
+        loyaltyEnabled={loyaltyEnabled}
       />
 
       {/* ═══ MOBILE BOTTOM DOCK ═══ */}
@@ -334,7 +341,7 @@ export function UrbanDarkStorefront({
             <ShoppingBag className="w-5 h-5" />
             <span className="text-[9px] font-bold">Menú</span>
           </Link>
-          <button type="button" onClick={onOpenPointsModal} className="flex flex-col items-center gap-0.5 py-1 text-slate-500">
+          <button type="button" hidden={!loyaltyEnabled} onClick={onOpenPointsModal} className="flex flex-col items-center gap-0.5 py-1 text-slate-500">
             <Gift className="w-5 h-5" />
             <span className="text-[9px] font-bold">Puntos</span>
           </button>
@@ -376,10 +383,12 @@ function UrbanProductCard({
   product,
   onSelect,
   isCombo = false,
+  loyaltyEnabled,
 }: {
   product: any;
   onSelect: () => void;
   isCombo?: boolean;
+  loyaltyEnabled: boolean;
 }) {
   return (
     <div
@@ -412,7 +421,7 @@ function UrbanProductCard({
           {isCombo && (
             <span className="bg-purple-600/90 text-white font-black text-[8px] px-1.5 py-0.5 rounded-md">COMBO</span>
           )}
-          {product.points > 0 && (
+          {loyaltyEnabled && product.points > 0 && (
             <span className="bg-amber-500/90 text-slate-950 font-black text-[8px] px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
               <Star className="w-2 h-2 fill-slate-950" /> +{product.points}
             </span>

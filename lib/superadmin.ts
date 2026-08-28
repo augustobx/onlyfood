@@ -305,6 +305,20 @@ export async function setTenantFeatureOverride(
         create: { tenantId, featureKey, isEnabled: state === "ENABLED" },
       });
     }
+    if (state === "DISABLED") {
+      const configData = featureKey === "whatsapp"
+        ? { whatsappNotificationsEnabled: false }
+        : featureKey === "roulette"
+          ? { isRouletteActive: false }
+          : featureKey === "loyalty"
+            ? { isPointsCatalogActive: false }
+            : featureKey === "printNode"
+              ? { autoPrintTickets: false, printingMode: "BROWSER" }
+              : null;
+      if (configData) {
+        await tx.systemConfig.updateMany({ where: { tenantId }, data: configData });
+      }
+    }
     await tx.platformAuditLog.create({
       data: {
         tenantId,

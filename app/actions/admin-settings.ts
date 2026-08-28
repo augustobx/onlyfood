@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
 import { sendOrderPush } from "@/lib/push-notifications";
 import { dispatchWhatsAppNotification } from "@/lib/whatsapp-notifications";
+import { hasTenantFeature, requireTenantFeature } from "@/lib/features";
 
 const idSchema = z.string().min(1).max(100);
 const optionalAssetUrl = z.union([z.literal(""), z.string().url().max(2048), z.string().regex(/^\/(?!\/)[^\s]{1,2047}$/)]).nullable().optional();
@@ -15,7 +16,7 @@ const configSchema = z.object({
   appName: z.string().trim().min(1).max(80),
   isStoreOpen: z.boolean(), closedMessage: z.string().trim().min(1).max(500),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/), secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  storeTheme: z.enum(["ORIGINAL", "NEXO", "URBAN_DARK", "FAST_NEO", "CLEAN_BOUTIQUE"]),
+  storeTheme: z.enum(["ORIGINAL", "NEXO", "URBAN_DARK", "FAST_NEO", "CLEAN_BOUTIQUE", "FRESH_MARKET", "RETRO_DINER"]),
   splashEnabled: z.boolean(), splashDuration: z.number().int().min(0).max(30),
   splashType: z.enum(["IMAGE", "VIDEO"]),
   welcomeBalloonEnabled: z.boolean(), welcomeBalloonText: z.string().max(500), welcomeBalloonDuration: z.number().int().min(0).max(60),
@@ -63,6 +64,16 @@ export async function updateConfig(id: string, data: unknown) {
   if (!parsedId.success || !parsed.success) return { success: false, error: parsed.error?.issues[0]?.message || "Configuracion invalida." };
   try {
     const tenant = await getTenantContext();
+    const [whatsappEnabled, printNodeEnabled] = await Promise.all([
+      hasTenantFeature(tenant.id, "whatsapp"),
+      hasTenantFeature(tenant.id, "printNode"),
+    ]);
+    if (parsed.data.whatsappNotificationsEnabled && !whatsappEnabled) {
+      return { success: false, error: "WhatsApp está desactivado para este comercio." };
+    }
+    if (parsed.data.printingMode === "PRINTNODE" && !printNodeEnabled) {
+      return { success: false, error: "PrintNode está desactivado para este comercio." };
+    }
     const db = await getTenantDb();
     const existingWhatsApp = await getTenantIntegration<WhatsAppCredentials>(tenant.id, "WHATSAPP");
 
@@ -129,6 +140,7 @@ export async function updateConfig(id: string, data: unknown) {
 export async function testWhatsAppConnection() {
   await requireAdmin(["OWNER", "MANAGER"]);
   const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "whatsapp");
   const credentials = await getTenantIntegration<WhatsAppCredentials>(tenant.id, "WHATSAPP");
   if (!credentials?.apiToken || !credentials.phoneNumberId) return { success: false, error: "No hay credenciales activas de WhatsApp." };
   const apiVersion = credentials.apiVersion || process.env.META_GRAPH_API_VERSION || "v23.0";
@@ -149,6 +161,7 @@ export async function testWhatsAppConnection() {
 export async function disconnectWhatsAppIntegration() {
   await requireAdmin(["OWNER", "MANAGER"]);
   const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "whatsapp");
   const db = await getTenantDb();
   await Promise.all([
     setTenantIntegrationActive(tenant.id, "WHATSAPP", false),
@@ -163,6 +176,7 @@ export async function retryWhatsAppNotification(notificationId: string) {
   const parsedId = z.string().uuid().safeParse(notificationId);
   if (!parsedId.success) return { success: false, error: "Notificación inválida." };
   const tenant = await getTenantContext();
+  await requireTenantFeature(tenant.id, "whatsapp");
   const db = await getTenantDb();
   const notification = await db.whatsAppNotification.findFirst({ where: { id: notificationId }, select: { status: true } });
   if (!notification || notification.status !== "FAILED") return { success: false, error: "Solo se pueden reintentar envíos fallidos." };

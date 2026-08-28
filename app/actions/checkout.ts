@@ -122,6 +122,9 @@ export async function previewQuantityDiscountAction(input: unknown) {
 export async function confirmMercadoPagoReturn(orderId: string, paymentId: string) {
   try {
     const tenant = await getTenantContext();
+    if (!tenant.features.has("orders")) {
+      return { success: false, error: "La recepción de pedidos está desactivada para este comercio." };
+    }
     const result = await reconcileMercadoPagoPayment(paymentId, orderId, tenant.id);
     if (result.transitionedToPaid) {
       const notificationIds = await queueRelatedOrderConfirmationNotifications(result.orderId, tenant.id);
@@ -166,6 +169,11 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
     }
 
     const tenant = await getTenantContext();
+    if (!tenant.features.has("orders")) {
+      return { success: false, error: "La recepción de pedidos está desactivada para este comercio." };
+    }
+    const loyaltyEnabled = tenant.features.has("loyalty");
+    const rouletteEnabled = tenant.features.has("roulette");
     const db = createTenantDb(tenant.id);
     const loggedClient = adminDirectPaid ? null : await getLoggedClient(tenant.id);
     const mpCreds = await getTenantIntegration<MercadoPagoCredentials>(tenant.id, "MERCADO_PAGO");
@@ -442,6 +450,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       };
 
       if (data.redemptionId) {
+        if (!loyaltyEnabled) throw new Error("FEATURE_DISABLED_LOYALTY");
         if (!loggedClient) throw new Error("INVALID_PRIZE");
         const redemption = await tx.pointRedemption.findFirst({
           where: { id: data.redemptionId, clientId: loggedClient.id, status: "AVAILABLE" },
@@ -458,6 +467,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       }
 
       if (data.rouletteWinId) {
+        if (!rouletteEnabled) throw new Error("FEATURE_DISABLED_ROULETTE");
         if (!loggedClient) throw new Error("INVALID_PRIZE");
         const win = await tx.rouletteWin.findFirst({
           where: { id: data.rouletteWinId, clientId: loggedClient.id, claimedAt: null, expiresAt: { gt: new Date() } },
@@ -587,7 +597,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
 
       const targetClientId = adminClient?.id ?? loggedClient?.id ?? null;
       let tierMultiplier = 1.0;
-      if (targetClientId) {
+      if (loyaltyEnabled && targetClientId) {
         const [dbClient, tiers] = await Promise.all([
           tx.client.findUnique({
             where: { id: targetClientId },
@@ -636,7 +646,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         groupSubtotal = roundMoney(groupSubtotal - groupAmountDiscount);
         remainingBenefitAmount = roundMoney(Math.max(0, remainingBenefitAmount - groupAmountDiscount));
 
-        const baseEarnedPoints = group.items.reduce((sum, item) => sum + item.points, 0);
+        const baseEarnedPoints = loyaltyEnabled ? group.items.reduce((sum, item) => sum + item.points, 0) : 0;
         const groupEarnedPoints = Math.round(baseEarnedPoints * tierMultiplier);
         const groupTotal = roundMoney(groupSubtotal + deliveryPerGroup);
 

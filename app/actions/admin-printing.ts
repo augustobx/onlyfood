@@ -13,12 +13,13 @@ export async function printOrderNow(orderId: string) {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "STAFF"]);
   if (!idSchema.safeParse(orderId).success) return { success: false, error: "Pedido inválido." };
   const tenant = await getTenantContext();
-  await requireTenantFeature(tenant.id, "printNode");
+  await requireTenantFeature(tenant.id, "orders");
   const db = await getTenantDb();
   const config = await db.systemConfig.findFirst({ select: { printingMode: true } });
   if (config?.printingMode !== "PRINTNODE") {
     return { success: true, mode: "BROWSER" as const, url: `/admin/live/print/${orderId}` };
   }
+  await requireTenantFeature(tenant.id, "printNode");
   const result = await dispatchOrderPrint(orderId, { force: true, tenantId: tenant.id });
   if (!result.success) {
     return { success: false, mode: "PRINTNODE" as const, error: result.jobs.filter((job) => !job.success).map((job) => job.error).join(" ") || result.error };

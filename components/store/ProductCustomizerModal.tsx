@@ -35,7 +35,8 @@ interface ProductCustomizerModalProps {
   isOpen: boolean;
   onClose: () => void;
   categoryProducts?: any[];
-  theme?: "URBAN_DARK" | "FAST_NEO" | "CLEAN_BOUTIQUE" | "NEXO" | "ORIGINAL";
+  theme?: "URBAN_DARK" | "FAST_NEO" | "CLEAN_BOUTIQUE" | "NEXO" | "ORIGINAL" | "FRESH_MARKET" | "RETRO_DINER";
+  loyaltyEnabled?: boolean;
 }
 
 export function ProductCustomizerModal({
@@ -44,6 +45,7 @@ export function ProductCustomizerModal({
   onClose,
   categoryProducts = [],
   theme = "URBAN_DARK",
+  loyaltyEnabled = true,
 }: ProductCustomizerModalProps) {
   const { addItem } = useCartStore();
 
@@ -222,7 +224,7 @@ export function ProductCustomizerModal({
                 COMBO
               </Badge>
             )}
-            {product.points > 0 && (
+            {loyaltyEnabled && product.points > 0 && (
               <Badge className="bg-amber-500 text-white font-black text-[10px] px-2 py-0.5 rounded-lg shadow-md flex items-center gap-1">
                 <Star className="w-3 h-3 fill-white" /> +{product.points * quantity} pts
               </Badge>
