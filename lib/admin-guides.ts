@@ -39,7 +39,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     purpose: "Centralizar la operación del día y mantener informado al cliente sobre el estado de su compra.",
     steps: [
       { title: "Revisá los nuevos", detail: "Los pedidos ingresan en Nuevos. Abrí el detalle y verificá productos, variantes, pago, entrega y observaciones." },
-      { title: "Confirmá o rechazá", detail: "Confirmá únicamente cuando puedas producirlo. Si lo rechazás, indicá el motivo para conservar trazabilidad." },
+      { title: "Confirmá o rechazá", detail: "Confirmá únicamente cuando puedas producirlo. Los rechazados pasan a la papelera de Cancelados y desaparecen automáticamente de la agenda, pero conservan trazabilidad en el historial." },
       { title: "Avanzá por etapas", detail: "Mové el pedido a Cocina, luego a Despacho o Reparto y finalmente a Completado." },
       { title: "Imprimí cuando corresponda", detail: "Usá el ticket manual o la impresión automática configurada. No dupliques impresiones si el pedido ya fue enviado a PrintNode." },
     ],

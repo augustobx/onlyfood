@@ -19,6 +19,7 @@ export async function getCalendarOrders(startDateIso: string, endDateIso: string
     const [orders, messengers] = await Promise.all([
       db.order.findMany({
         where: {
+          status: { not: "CANCELLED" },
           OR: [
             // Scheduled orders in range
             {

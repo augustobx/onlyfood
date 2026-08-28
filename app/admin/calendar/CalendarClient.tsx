@@ -67,7 +67,6 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; b
   OUT_FOR_DELIVERY: { label: "En Camino", color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200" },
   FINISHED: { label: "Listo Retiro", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" },
   DELIVERED: { label: "Entregado", color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200" },
-  CANCELLED: { label: "Cancelado", color: "text-red-700", bg: "bg-red-50", border: "border-red-200" },
 };
 
 export function CalendarClient({ initialOrders = [], initialMessengers = [] }: { initialOrders?: any[]; initialMessengers?: any[] }) {
@@ -101,7 +100,7 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
 
       const res = await getCalendarOrders(start.toISOString(), end.toISOString());
       if (res.success) {
-        setOrders(res.orders);
+        setOrders(res.orders.filter((order: any) => order.status !== "CANCELLED"));
         if (res.messengers) setMessengers(res.messengers);
       } else {
         toast.error("Error al cargar la agenda", { description: res.error });
@@ -164,8 +163,13 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
     try {
       const res = await updateOrderStatus(orderId, newStatus);
       if (res.success) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-        if (selectedOrder?.id === orderId) {
+        setOrders(prev => newStatus === "CANCELLED"
+          ? prev.filter(o => o.id !== orderId)
+          : prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        if (newStatus === "CANCELLED") {
+          setSelectedOrder(null);
+          setIsModalOpen(false);
+        } else if (selectedOrder?.id === orderId) {
           setSelectedOrder((prev: any) => ({ ...prev, status: newStatus }));
         }
         toast.success("Estado actualizado con éxito");
@@ -218,6 +222,7 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
   // Filtered orders
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
+      if (order.status === "CANCELLED") return false;
       // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
