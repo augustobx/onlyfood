@@ -1,0 +1,39 @@
+.root {
+  --comic-ink: #17121f;
+  background-color: #fff7db;
+  background-image: radial-gradient(circle at 1px 1px, rgba(23, 18, 31, .14) 1px, transparent 0);
+  background-size: 18px 18px;
+}
+
+.hero {
+  background:
+    radial-gradient(circle at 82% 22%, color-mix(in srgb, var(--brand-secondary) 68%, white) 0 8%, transparent 8.5%),
+    linear-gradient(125deg, color-mix(in srgb, var(--brand-primary) 88%, white), color-mix(in srgb, var(--brand-secondary) 76%, white));
+  box-shadow: 8px 8px 0 var(--comic-ink);
+}
+
+.burst {
+  clip-path: polygon(50% 0%, 61% 25%, 85% 15%, 75% 39%, 100% 50%, 75% 61%, 85% 85%, 61% 75%, 50% 100%, 39% 75%, 15% 85%, 25% 61%, 0 50%, 25% 39%, 15% 15%, 39% 25%);
+  animation: comic-float 3.2s ease-in-out infinite;
+}
+
+.marqueeTrack { animation: comic-marquee 18s linear infinite; }
+.card { box-shadow: 6px 6px 0 var(--comic-ink); }
+.card:hover { transform: translate(-2px, -3px) rotate(-.35deg); box-shadow: 10px 11px 0 var(--comic-ink); }
+.card:nth-child(even):hover { transform: translate(2px, -3px) rotate(.35deg); }
+.image { transition: transform .45s cubic-bezier(.2,.8,.2,1); }
+.card:hover .image { transform: scale(1.08) rotate(1deg); }
+.sticker { transform: rotate(-3deg); }
+
+@keyframes comic-float {
+  0%, 100% { transform: rotate(8deg) translateY(0); }
+  50% { transform: rotate(11deg) translateY(-8px); }
+}
+
+@keyframes comic-marquee { to { transform: translateX(-50%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .burst, .marqueeTrack { animation: none; }
+  .card, .image { transition: none; }
+  .card:hover, .card:nth-child(even):hover { transform: none; }
+}

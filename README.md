@@ -1,6 +1,6 @@
 # NanoLabs OnlyFood SaaS
 
-Plataforma gastronómica multi-tenant construida con Next.js 16, TypeScript, Prisma 7, MariaDB 11.8, Docker Compose y Caddy. Incluye storefront con seis temas visuales, catálogo ordenable, administración por comercio, puesta en marcha verificable, centro de guías autoservicio, caja diaria, promociones automáticas por cantidad, fidelización con canje de puntos, ruleta de premios y SuperAdmin maestro con control efectivo de planes, vigencias, accesos y pagos SaaS, además de onboarding, Mercado Pago, WhatsApp, PrintNode y almacenamiento S3/R2.
+Plataforma gastronómica multi-tenant construida con Next.js 16, TypeScript, Prisma 7, MariaDB 11.8, Docker Compose y Caddy. Incluye storefront con ocho temas visuales completos —incluidos Comic Food Pop y Arcade Kitchen—, catálogo ordenable, administración por comercio, puesta en marcha verificable, centro de guías autoservicio, caja diaria, promociones automáticas por cantidad, fidelización con canje de puntos, ruleta de premios y SuperAdmin maestro con control efectivo de planes, vigencias, accesos y pagos SaaS, además de onboarding, Mercado Pago, WhatsApp, PrintNode y almacenamiento S3/R2.
 
 ## Inicio local con Docker
 

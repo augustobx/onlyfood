@@ -35,7 +35,7 @@ interface ProductCustomizerModalProps {
   isOpen: boolean;
   onClose: () => void;
   categoryProducts?: any[];
-  theme?: "URBAN_DARK" | "FAST_NEO" | "CLEAN_BOUTIQUE" | "NEXO" | "ORIGINAL" | "FRESH_MARKET" | "RETRO_DINER";
+  theme?: "URBAN_DARK" | "FAST_NEO" | "CLEAN_BOUTIQUE" | "NEXO" | "ORIGINAL" | "FRESH_MARKET" | "RETRO_DINER" | "COMIC_FOOD_POP" | "ARCADE_KITCHEN";
   loyaltyEnabled?: boolean;
 }
 
@@ -96,8 +96,10 @@ export function ProductCustomizerModal({
 
   if (!product) return null;
 
-  const isDark = theme === "URBAN_DARK";
+  const isDark = theme === "URBAN_DARK" || theme === "ARCADE_KITCHEN";
   const isClean = theme === "CLEAN_BOUTIQUE";
+  const isComic = theme === "COMIC_FOOD_POP";
+  const isArcade = theme === "ARCADE_KITCHEN";
 
   const halfSiblings = categoryProducts.filter(
     (p: any) => p.id !== product.id && p.allowHalf
@@ -174,7 +176,11 @@ export function ProductCustomizerModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={`w-[94vw] sm:max-w-lg max-h-[88dvh] p-0 rounded-3xl border shadow-2xl flex flex-col overflow-hidden outline-none ${
-          isDark
+          isArcade
+            ? "rounded-none border-2 border-cyan-300 bg-[#15113b] text-white shadow-[8px_8px_0_#ec4899]"
+            : isComic
+            ? "rounded-2xl border-[3px] border-[#17121f] bg-[#fff7db] text-[#17121f] shadow-[8px_8px_0_#17121f]"
+            : isDark
             ? "bg-[#11141c] text-white border-slate-800"
             : isClean
             ? "bg-[#faf8f5] text-slate-900 border-stone-200"
@@ -477,13 +483,13 @@ export function ProductCustomizerModal({
         {/* Barra Fija Inferior */}
         <div
           className={`p-3.5 sm:p-4 border-t shrink-0 flex items-center gap-2.5 ${
-            isDark ? "bg-[#0d1017] border-slate-800" : "bg-white border-slate-200"
+            isArcade ? "bg-[#090625] border-cyan-300" : isComic ? "bg-[#fff7db] border-[#17121f]" : isDark ? "bg-[#0d1017] border-slate-800" : "bg-white border-slate-200"
           }`}
         >
           {/* Selector de Cantidad */}
           <div
             className={`flex items-center gap-1 p-1 rounded-2xl border shrink-0 ${
-              isDark ? "bg-slate-900 border-slate-800" : "bg-slate-100 border-slate-200"
+              isArcade ? "rounded-none bg-[#15113b] border-cyan-300" : isComic ? "bg-white border-[#17121f] border-2" : isDark ? "bg-slate-900 border-slate-800" : "bg-slate-100 border-slate-200"
             }`}
           >
             <Button
@@ -512,7 +518,8 @@ export function ProductCustomizerModal({
           <Button
             type="button"
             onClick={handleAddToCart}
-            className="flex-1 h-12 rounded-2xl font-black text-xs sm:text-sm bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-700 hover:to-amber-600 text-white shadow-lg shadow-orange-600/30 transition-all active:scale-[0.98]"
+            className={`flex-1 h-12 font-black text-xs sm:text-sm text-white transition-all active:scale-[0.98] ${isArcade ? "rounded-none border-2 border-yellow-200 bg-fuchsia-600 shadow-[4px_4px_0_#32f5ff]" : isComic ? "rounded-xl border-2 border-[#17121f] shadow-[4px_4px_0_#17121f]" : "rounded-2xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-700 hover:to-amber-600 shadow-lg shadow-orange-600/30"}`}
+            style={isComic ? { backgroundColor: "var(--brand-primary)" } : undefined}
           >
             <span>Agregar al Pedido</span>
             <span className="mx-1">•</span>

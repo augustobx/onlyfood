@@ -830,6 +830,26 @@ export function SettingsForm({
                     <span className="block text-base font-black uppercase">Retro Diner Pop</span>
                     <span className="mt-1 block text-xs leading-relaxed opacity-70">Amarillo manteca, rojo cereza, bordes gráficos y tipografía contundente para hamburgueserías, pizzas, helados y fast food.</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateField('storeTheme', 'COMIC_FOOD_POP')}
+                    className={`relative overflow-hidden rounded-3xl border-[3px] p-4 text-left transition-all ${cfg.storeTheme === 'COMIC_FOOD_POP' ? 'border-[#17121f] bg-[#fff7db] text-[#17121f] shadow-[7px_7px_0_#17121f]' : 'border-slate-200 bg-white text-slate-800 hover:border-slate-400'}`}
+                  >
+                    <div className="mb-2 flex items-center justify-between"><span className="rotate-[-2deg] rounded-lg border-2 border-[#17121f] bg-[#ff4d7d] px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-white">💥 Comic Food Pop</span>{cfg.storeTheme === 'COMIC_FOOD_POP' && <span className="text-xs font-black">ACTIVO ✓</span>}</div>
+                    <span className="block text-base font-black uppercase">Comic Food Pop</span>
+                    <span className="mt-1 block text-xs leading-relaxed opacity-70">Experiencia de historieta con viñetas, tramas, stickers, titulares explosivos, movimiento y Club VIP integrado.</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateField('storeTheme', 'ARCADE_KITCHEN')}
+                    className={`relative overflow-hidden rounded-3xl border-2 p-4 text-left transition-all ${cfg.storeTheme === 'ARCADE_KITCHEN' ? 'border-cyan-300 bg-[#090625] text-white shadow-[7px_7px_0_#ec4899] ring-2 ring-cyan-300/40' : 'border-slate-200 bg-white text-slate-800 hover:border-slate-400'}`}
+                  >
+                    <div className="mb-2 flex items-center justify-between"><span className="border border-yellow-200 bg-fuchsia-600 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-white">🎮 Arcade Kitchen</span>{cfg.storeTheme === 'ARCADE_KITCHEN' && <span className="text-xs font-black text-cyan-200">ACTIVO ✓</span>}</div>
+                    <span className="block text-base font-black uppercase tracking-wide">Arcade Kitchen</span>
+                    <span className="mt-1 block text-xs leading-relaxed opacity-70">Menú como videojuego: niveles, power-ups, XP, HUD del carrito, perfil VIP y efectos pixelados accesibles.</span>
+                  </button>
                 </div>
               </div>
 

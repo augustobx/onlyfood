@@ -55,8 +55,14 @@ export default async function StoreLayout({
   const isFastNeo = theme === "FAST_NEO";
   const isFreshMarket = theme === "FRESH_MARKET";
   const isRetroDiner = theme === "RETRO_DINER";
+  const isComicFood = theme === "COMIC_FOOD_POP";
+  const isArcadeKitchen = theme === "ARCADE_KITCHEN";
 
-  const themeBgClass = isFreshMarket
+  const themeBgClass = isComicFood
+    ? "bg-[#fff7db] text-[#17121f]"
+    : isArcadeKitchen
+    ? "bg-[#090625] text-white"
+    : isFreshMarket
     ? "bg-[#f4f0e6] text-[#173b2c]"
     : isRetroDiner
     ? "bg-[#f8d84a] text-[#251a32]"
@@ -116,7 +122,11 @@ export default async function StoreLayout({
       </main>
       <footer
         className={`store-footer w-full py-6 mt-12 border-t ${
-          isUrbanDark
+          isComicFood
+            ? "bg-[#fff7db] text-[#17121f] border-[#17121f] border-t-[3px]"
+            : isArcadeKitchen
+            ? "bg-[#090625] text-cyan-200 border-cyan-300/60"
+            : isUrbanDark
             ? "bg-[#060810] text-slate-600 border-slate-800/50"
             : isCleanBoutique
             ? "bg-[#f0ede6] text-stone-500 border-stone-300/50"

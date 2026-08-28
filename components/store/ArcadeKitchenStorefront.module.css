@@ -1,0 +1,50 @@
+.root {
+  --arcade-bg: #090625;
+  --arcade-panel: #15113b;
+  --arcade-cyan: #32f5ff;
+  --arcade-yellow: #ffe95c;
+  background-color: var(--arcade-bg);
+  background-image:
+    linear-gradient(rgba(50,245,255,.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(50,245,255,.055) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+.screen {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 110%, color-mix(in srgb, var(--brand-primary) 42%, transparent), transparent 52%),
+    linear-gradient(180deg, #1b1552 0%, #0d092e 100%);
+  box-shadow: 0 0 0 3px #050316, 0 0 0 6px var(--arcade-cyan), 0 22px 65px rgba(50,245,255,.18);
+}
+
+.screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,.028) 0 1px, transparent 1px 4px);
+  mix-blend-mode: screen;
+}
+
+.title { text-shadow: 4px 4px 0 #050316, 0 0 18px color-mix(in srgb, var(--brand-primary) 75%, transparent); }
+.blink { animation: arcade-blink 1.2s steps(2, end) infinite; }
+.float { animation: arcade-float 2.8s ease-in-out infinite; }
+.card {
+  box-shadow: 0 0 0 2px #050316, 0 0 0 4px rgba(50,245,255,.72), 8px 8px 0 rgba(236,72,153,.62);
+  transition: transform .16s steps(2, end), box-shadow .16s steps(2, end);
+}
+.card:hover { transform: translate(-3px, -4px); box-shadow: 0 0 0 2px #050316, 0 0 0 4px var(--arcade-yellow), 12px 12px 0 rgba(236,72,153,.72); }
+.pixels { image-rendering: pixelated; }
+.progress { animation: arcade-progress 2.5s ease-in-out infinite; }
+
+@keyframes arcade-blink { 50% { opacity: .32; } }
+@keyframes arcade-float { 50% { transform: translateY(-7px); } }
+@keyframes arcade-progress { 50% { filter: brightness(1.45); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .blink, .float, .progress { animation: none; }
+  .card { transition: none; }
+  .card:hover { transform: none; }
+}

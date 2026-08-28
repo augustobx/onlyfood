@@ -16,7 +16,7 @@ const configSchema = z.object({
   appName: z.string().trim().min(1).max(80),
   isStoreOpen: z.boolean(), closedMessage: z.string().trim().min(1).max(500),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/), secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  storeTheme: z.enum(["ORIGINAL", "NEXO", "URBAN_DARK", "FAST_NEO", "CLEAN_BOUTIQUE", "FRESH_MARKET", "RETRO_DINER"]),
+  storeTheme: z.enum(["ORIGINAL", "NEXO", "URBAN_DARK", "FAST_NEO", "CLEAN_BOUTIQUE", "FRESH_MARKET", "RETRO_DINER", "COMIC_FOOD_POP", "ARCADE_KITCHEN"]),
   splashEnabled: z.boolean(), splashDuration: z.number().int().min(0).max(30),
   splashType: z.enum(["IMAGE", "VIDEO"]),
   welcomeBalloonEnabled: z.boolean(), welcomeBalloonText: z.string().max(500), welcomeBalloonDuration: z.number().int().min(0).max(60),

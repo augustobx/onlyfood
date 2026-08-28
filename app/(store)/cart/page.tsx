@@ -26,6 +26,54 @@ function useStoreTheme() {
 // Theme palettes
 function getThemeClasses(theme: string) {
   switch (theme) {
+    case "COMIC_FOOD_POP":
+      return {
+        page: "bg-[#fff7db] text-[#17121f]",
+        card: "bg-white border-[3px] border-[#17121f] shadow-[5px_5px_0_#17121f]",
+        cardHover: "hover:-translate-y-1",
+        heading: "text-[#17121f] uppercase",
+        subtext: "text-[#4d4357] font-semibold",
+        mutedText: "text-[#6d6374]",
+        accent: "text-[#17121f]",
+        accentBg: "bg-[var(--brand-primary)] border-2 border-[#17121f] shadow-[4px_4px_0_#17121f]",
+        accentBgHover: "hover:brightness-105",
+        summary: "bg-[#8ef0d0] border-[3px] border-[#17121f] shadow-[6px_6px_0_#17121f]",
+        backBtn: "bg-white border-2 border-[#17121f] text-[#17121f] shadow-[3px_3px_0_#17121f]",
+        qtyBg: "bg-[#fff7db] border-2 border-[#17121f]",
+        qtyBtn: "text-[#17121f] hover:bg-[#ffe45e]",
+        removeBg: "text-red-700 hover:bg-red-100",
+        imgBg: "bg-[#f4ebff]",
+        divider: "border-[#17121f]/25",
+        notesBg: "bg-[#fff7db] border-2 border-[#17121f]/40",
+        tag: { green: "bg-[#8ef0d0] text-[#17121f]", red: "bg-red-100 text-red-800", purple: "bg-[#eee1ff] text-purple-900" },
+        emptyBg: "bg-[#ffe45e] border-[3px] border-[#17121f] shadow-[6px_6px_0_#17121f]",
+        emptyIcon: "text-[#17121f]",
+        trustText: "text-[#6d6374]",
+      };
+    case "ARCADE_KITCHEN":
+      return {
+        page: "bg-[#090625] text-white",
+        card: "bg-[#15113b] border-2 border-cyan-300 shadow-[5px_5px_0_#ec4899]",
+        cardHover: "hover:-translate-y-1",
+        heading: "text-white uppercase tracking-wide",
+        subtext: "text-violet-200/70 font-mono",
+        mutedText: "text-violet-300/50",
+        accent: "text-cyan-300",
+        accentBg: "bg-fuchsia-600 border-2 border-yellow-200 shadow-[4px_4px_0_#32f5ff]",
+        accentBgHover: "hover:brightness-110",
+        summary: "bg-[#15113b] border-2 border-cyan-300 shadow-[6px_6px_0_#ec4899]",
+        backBtn: "bg-[#15113b] border-2 border-cyan-300 text-cyan-200 shadow-[3px_3px_0_#ec4899]",
+        qtyBg: "bg-[#090625] border-cyan-300",
+        qtyBtn: "text-cyan-200 hover:bg-cyan-300/10",
+        removeBg: "text-rose-300 hover:bg-rose-500/10",
+        imgBg: "bg-[#090625]",
+        divider: "border-cyan-300/25",
+        notesBg: "bg-[#090625] border-cyan-300/30",
+        tag: { green: "bg-emerald-400/15 text-emerald-300", red: "bg-rose-400/15 text-rose-300", purple: "bg-fuchsia-400/15 text-fuchsia-200" },
+        emptyBg: "bg-[#15113b] border-2 border-cyan-300 shadow-[6px_6px_0_#ec4899]",
+        emptyIcon: "text-yellow-200",
+        trustText: "text-violet-300/50",
+      };
     case "URBAN_DARK":
       return {
         page: "bg-[#080a0f] text-slate-100",

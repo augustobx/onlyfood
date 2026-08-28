@@ -41,6 +41,62 @@ interface TrackOrderClientProps {
 
 function getThemeStyles(theme: string) {
   switch (theme) {
+    case "COMIC_FOOD_POP":
+      return {
+        page: "bg-[#fff7db] text-[#17121f] min-h-[100dvh]",
+        header: "bg-[#fff7db]/95 border-b-[3px] border-[#17121f] text-[#17121f]",
+        backBtn: "bg-white border-2 border-[#17121f] text-[#17121f] shadow-[3px_3px_0_#17121f]",
+        card: "bg-white border-[3px] border-[#17121f] text-[#17121f] shadow-[6px_6px_0_#17121f]",
+        cardInner: "bg-[#fff7db] border-2 border-[#17121f]/30",
+        heading: "text-[#17121f] uppercase",
+        subtext: "text-[#5e5368] font-semibold",
+        mutedText: "text-[#7a6f82]",
+        accent: "text-[#17121f]",
+        accentBg: "bg-[var(--brand-primary)] border-2 border-[#17121f] text-white shadow-[4px_4px_0_#17121f]",
+        secondaryBtn: "bg-white border-2 border-[#17121f] text-[#17121f] shadow-[3px_3px_0_#17121f]",
+        badgeActive: "bg-[#ffe45e] border-2 border-[#17121f] text-[#17121f] font-black",
+        badgePending: "bg-white border-2 border-[#17121f]/30 text-[#6d6374]",
+        stepCompleted: "bg-[#8ef0d0] text-[#17121f] border-2 border-[#17121f] shadow-[3px_3px_0_#17121f]",
+        stepCurrent: "bg-[#ffe45e] text-[#17121f] border-2 border-[#17121f] shadow-[4px_4px_0_#17121f] scale-105",
+        stepPending: "bg-white text-[#82778a] border-2 border-[#17121f]/30",
+        stepLine: "bg-[#17121f]/20",
+        stepLineFilled: "bg-[#17121f]",
+        divider: "border-[#17121f]/25",
+        totalText: "text-[#17121f] font-black",
+        tagGreen: "bg-[#8ef0d0] text-[#17121f] border-2 border-[#17121f]",
+        tagOrange: "bg-[#ffe45e] text-[#17121f] border-2 border-[#17121f]",
+        tagPurple: "bg-[#eee1ff] text-purple-950 border-2 border-[#17121f]",
+        messengerCard: "bg-[#8ef0d0] border-[#17121f] text-[#17121f]",
+        messengerBadge: "bg-white text-[#17121f] border border-[#17121f]",
+      };
+    case "ARCADE_KITCHEN":
+      return {
+        page: "bg-[#090625] text-white min-h-[100dvh]",
+        header: "bg-[#090625]/95 border-b-2 border-cyan-300/70 text-white",
+        backBtn: "bg-[#15113b] border-2 border-cyan-300 text-cyan-200 shadow-[3px_3px_0_#ec4899]",
+        card: "bg-[#15113b] border-2 border-cyan-300 text-white shadow-[6px_6px_0_#ec4899]",
+        cardInner: "bg-[#090625] border border-cyan-300/30",
+        heading: "text-white uppercase tracking-wide",
+        subtext: "text-violet-200/65 font-mono",
+        mutedText: "text-violet-300/45",
+        accent: "text-cyan-300",
+        accentBg: "bg-fuchsia-600 border-2 border-yellow-200 text-white shadow-[4px_4px_0_#32f5ff]",
+        secondaryBtn: "bg-[#090625] border-2 border-cyan-300 text-cyan-200",
+        badgeActive: "bg-yellow-200 border-2 border-yellow-200 text-[#090625] font-black",
+        badgePending: "bg-[#090625] border border-violet-400/40 text-violet-300",
+        stepCompleted: "bg-cyan-300 text-[#090625] border-2 border-cyan-100 shadow-[3px_3px_0_#ec4899]",
+        stepCurrent: "bg-yellow-200 text-[#090625] border-2 border-yellow-100 shadow-[4px_4px_0_#ec4899] scale-105",
+        stepPending: "bg-[#090625] text-violet-400 border border-violet-400/35",
+        stepLine: "bg-violet-400/20",
+        stepLineFilled: "bg-gradient-to-r from-cyan-300 to-fuchsia-500",
+        divider: "border-cyan-300/25",
+        totalText: "text-yellow-200 font-black",
+        tagGreen: "bg-emerald-300/15 text-emerald-200 border border-emerald-300/40",
+        tagOrange: "bg-yellow-200/15 text-yellow-100 border border-yellow-200/40",
+        tagPurple: "bg-fuchsia-300/15 text-fuchsia-200 border border-fuchsia-300/40",
+        messengerCard: "bg-cyan-300/10 border-cyan-300/40 text-white",
+        messengerBadge: "bg-cyan-300/15 text-cyan-200",
+      };
     case "URBAN_DARK":
       return {
         page: "bg-[#080a0f] text-slate-100 font-sans min-h-[100dvh]",
@@ -733,7 +789,11 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
       ══════════════════════════════════════════════════════════ */}
       <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md md:hidden">
         <div className={`p-2 rounded-2xl border shadow-2xl backdrop-blur-xl flex items-center justify-between gap-2 ${
-          theme === "URBAN_DARK"
+          theme === "COMIC_FOOD_POP"
+            ? "bg-[#fff7db]/95 border-[#17121f] text-[#17121f] shadow-[6px_6px_0_#17121f]"
+            : theme === "ARCADE_KITCHEN"
+            ? "bg-[#15113b]/95 border-cyan-300 text-white shadow-[6px_6px_0_#ec4899]"
+            : theme === "URBAN_DARK"
             ? "bg-[#0c101a]/95 border-white/10 text-white"
             : theme === "CLEAN_BOUTIQUE"
             ? "bg-white/95 border-stone-300 text-stone-900"
@@ -749,7 +809,11 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
           <Link
             href="/profile"
             className={`h-11 px-4 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 ${
-              theme === "URBAN_DARK"
+              theme === "COMIC_FOOD_POP"
+                ? "bg-white border-[#17121f] text-[#17121f]"
+                : theme === "ARCADE_KITCHEN"
+                ? "bg-[#090625] border-cyan-300 text-cyan-200"
+                : theme === "URBAN_DARK"
                 ? "bg-white/10 border-white/10 text-slate-200"
                 : theme === "CLEAN_BOUTIQUE"
                 ? "bg-stone-100 border-stone-300 text-stone-800"

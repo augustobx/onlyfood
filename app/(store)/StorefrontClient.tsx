@@ -11,6 +11,8 @@ import { UrbanDarkStorefront } from "@/components/store/UrbanDarkStorefront";
 import { FastNeoStorefront } from "@/components/store/FastNeoStorefront";
 import { CleanBoutiqueStorefront } from "@/components/store/CleanBoutiqueStorefront";
 import { SignatureStorefront } from "@/components/store/SignatureStorefront";
+import { ComicFoodStorefront } from "@/components/store/ComicFoodStorefront";
+import { ArcadeKitchenStorefront } from "@/components/store/ArcadeKitchenStorefront";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -699,6 +701,42 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
     return (
       <>
         <SignatureStorefront categories={categories} combos={combos} config={config} theme={config.storeTheme} loyaltyEnabled={loyaltyEnabled} />
+        {renderSharedModals()}
+      </>
+    );
+  }
+
+  if (config?.storeTheme === "COMIC_FOOD_POP") {
+    return (
+      <>
+        <ComicFoodStorefront
+          categories={categories}
+          combos={combos}
+          config={config}
+          loggedClient={loggedClient}
+          currentPoints={currentPoints}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenPointsModal={() => setIsPointsModalOpen(true)}
+          loyaltyEnabled={loyaltyEnabled}
+        />
+        {renderSharedModals()}
+      </>
+    );
+  }
+
+  if (config?.storeTheme === "ARCADE_KITCHEN") {
+    return (
+      <>
+        <ArcadeKitchenStorefront
+          categories={categories}
+          combos={combos}
+          config={config}
+          loggedClient={loggedClient}
+          currentPoints={currentPoints}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenPointsModal={() => setIsPointsModalOpen(true)}
+          loyaltyEnabled={loyaltyEnabled}
+        />
         {renderSharedModals()}
       </>
     );

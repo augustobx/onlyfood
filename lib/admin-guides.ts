@@ -184,7 +184,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
       { title: "Negocio", detail: "Configurá nombre, estado abierto/cerrado, mensaje de cierre y tipos de pedido aceptados." },
       { title: "Horarios", detail: "Definí apertura automática, anticipación, tiempo estimado y cupos de entrega o retiro." },
       { title: "Pagos y envíos", detail: "Elegí efectivo o Mercado Pago, costo fijo de envío y descuento global si corresponde." },
-      { title: "Diseño y comunicación", detail: "Seleccioná uno de los seis temas (incluidos Fresh Market y Retro Diner), logo, colores, fondo, splash y bienvenida. WhatsApp e impresoras solo aparecen si el plan los habilita." },
+      { title: "Diseño y comunicación", detail: "Seleccioná uno de los ocho temas, incluidos Comic Food Pop y Arcade Kitchen con experiencias, animaciones y Club VIP propios. También podés configurar logo, colores, fondo, splash y bienvenida. WhatsApp e impresoras solo aparecen si el plan los habilita." },
     ],
     tips: ["Guardá y probá la tienda después de cada cambio importante.", "Un descuento global se aplica a todo el menú: usalo con cuidado."],
     keywords: ["configuración", "horario", "diseño", "tema", "envío", "abierto", "splash"],
