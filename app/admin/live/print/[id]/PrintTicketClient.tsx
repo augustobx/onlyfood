@@ -18,6 +18,7 @@ function TicketLogo({ src, appName }: { src: string; appName: string }) {
 
 export function PrintTicketClient({ order, config }: { order: any; config: any }) {
   const paperWidth = config?.printerCounterSize === "58mm" ? "58mm" : "80mm";
+  const paperWidthMm = paperWidth === "58mm" ? 58 : 80;
   const logoUrl = config?.logoUrl || null;
 
   useEffect(() => {
@@ -51,10 +52,17 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
 
       // Chromium usa 96 px por pulgada. El alto real evita que la impresora
       // complete una hoja larga agregando papel en blanco antes del ticket.
-      const heightMm = Math.max(40, Math.ceil(ticket.getBoundingClientRect().height / (96 / 25.4)) + 2);
+      const heightPx = Math.max(ticket.scrollHeight, ticket.getBoundingClientRect().height);
+      const heightMm = Math.max(40, Math.ceil(heightPx / (96 / 25.4)) + 1);
       const pageStyle = document.createElement("style");
       pageStyle.dataset.ticketPageSize = "true";
-      pageStyle.textContent = `@page { size: ${paperWidth} ${heightMm}mm; margin: 0; }`;
+      pageStyle.textContent = `
+        @page ticket { size: ${paperWidthMm}mm ${heightMm}mm; margin: 0; }
+        @media print {
+          html, body { width: ${paperWidthMm}mm !important; }
+          body { page: ticket; }
+        }
+      `;
       document.head.appendChild(pageStyle);
 
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -66,7 +74,7 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
       cancelled = true;
       document.querySelector("style[data-ticket-page-size]")?.remove();
     };
-  }, [paperWidth]);
+  }, [paperWidth, paperWidthMm]);
 
   return (
     <>
@@ -82,6 +90,8 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
             width: ${paperWidth} !important;
             height: auto !important;
             overflow: visible !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
           }
           [data-print-ticket] {
             width: ${paperWidth} !important;

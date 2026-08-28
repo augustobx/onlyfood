@@ -84,7 +84,7 @@ export function SettingsForm({
       noticeBoardDuration: Number(cfg.noticeBoardDuration) || 8,
       paymentCash: cfg.paymentCash,
       paymentMp: cfg.paymentMp,
-      autoPrintTickets: printNodeEnabled ? cfg.autoPrintTickets : false,
+      autoPrintTickets: Boolean(cfg.autoPrintTickets),
       printingMode: printNodeEnabled ? (cfg.printingMode || "BROWSER") : "BROWSER",
       printNodeCounterPrinterId: cfg.printNodeCounterPrinterId ? Number(cfg.printNodeCounterPrinterId) : null,
       printNodeKitchenPrinterId: cfg.printNodeKitchenPrinterId ? Number(cfg.printNodeKitchenPrinterId) : null,
@@ -214,7 +214,7 @@ export function SettingsForm({
           {whatsappEnabled && <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-2" /> WhatsApp</TabsTrigger>}
           <TabsTrigger value="marketing"><Megaphone className="w-4 h-4 mr-2" /> Splash</TabsTrigger>
           <TabsTrigger value="theme"><Palette className="w-4 h-4 mr-2" /> Diseño</TabsTrigger>
-          {printNodeEnabled && <TabsTrigger value="printers"><Printer className="w-4 h-4 mr-2" /> Impresoras</TabsTrigger>}
+          <TabsTrigger value="printers"><Printer className="w-4 h-4 mr-2" /> Impresoras</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4 mt-4">
@@ -920,7 +920,7 @@ export function SettingsForm({
         </TabsContent>
 
         {/* PESTAÑA IMPRESORAS */}
-        {printNodeEnabled && <TabsContent value="printers" className="space-y-4 mt-4">
+        <TabsContent value="printers" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Configuración de Impresoras Físicas</CardTitle>
@@ -935,17 +935,24 @@ export function SettingsForm({
                     <SelectTrigger className="bg-white"><SelectValue>{cfg.printingMode === "PRINTNODE" ? "PrintNode — impresión directa" : "Navegador — confirmar manualmente"}</SelectValue></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="BROWSER">Navegador — confirmar manualmente</SelectItem>
-                      <SelectItem value="PRINTNODE">PrintNode — impresión directa</SelectItem>
+                      {printNodeEnabled && <SelectItem value="PRINTNODE">PrintNode — impresión directa</SelectItem>}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     {cfg.printingMode === "PRINTNODE" ? "El servidor enviará los tickets directamente a las impresoras configuradas." : "Se abrirá el diálogo del navegador para confirmar la impresión."}
                   </p>
                 </div>
-                <div className={`rounded-xl border p-4 ${printNodeApiKeyConfigured ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-                  <p className="font-bold">Clave API de PrintNode</p>
-                  <p className="mt-1 text-sm">{printNodeApiKeyConfigured ? "Configurada de forma segura en el servidor." : "Falta PRINTNODE_API_KEY en .env.docker."}</p>
-                </div>
+                {printNodeEnabled && cfg.printingMode === "PRINTNODE" ? (
+                  <div className={`rounded-xl border p-4 ${printNodeApiKeyConfigured ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                    <p className="font-bold">Clave API de PrintNode</p>
+                    <p className="mt-1 text-sm">{printNodeApiKeyConfigured ? "Configurada de forma segura en el servidor." : "Falta PRINTNODE_API_KEY en .env.docker."}</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950">
+                    <p className="font-bold">Impresión térmica desde el navegador</p>
+                    <p className="mt-1 text-sm">OnlyFood ajustará el ticket al ancho elegido y calculará su largo real. En la primera impresión elegí la ticketera, márgenes “Ninguno”, escala 100 %, sin encabezados ni pies y respetar el tamaño CSS. El navegador suele recordar esas opciones.</p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between border-2 border-orange-200 rounded-xl p-4 bg-orange-50">
@@ -1032,7 +1039,7 @@ export function SettingsForm({
 
             </CardContent>
           </Card>
-        </TabsContent>}
+        </TabsContent>
 
       </Tabs>
     </div>
