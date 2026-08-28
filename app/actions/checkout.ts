@@ -82,7 +82,13 @@ const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100)
 
 export async function fetchConfig() {
   const tenant = await getTenantContext();
-  return getPublicConfig(tenant.id);
+  const config = await getPublicConfig(tenant.id);
+  return config
+    ? {
+        ...config,
+        whatsappOptInEnabled: tenant.features.has("whatsapp") && config.whatsappNotificationsEnabled,
+      }
+    : null;
 }
 
 export async function previewQuantityDiscountAction(input: unknown) {
@@ -186,16 +192,17 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         allowImmediateOrders: true,
         allowScheduledTomorrow: true,
         allowAdvanceOrders: true,
+        whatsappNotificationsEnabled: false,
         paymentCash: true,
         paymentMp: true,
         globalDiscount: 0,
         deliveryCost: 0,
-        asapEstimatedMinutes: 40,
         mpAccessToken: null,
         autoScheduleEnabled: false,
         businessHours: null,
       };
       if (!config) throw new Error("STORE_UNAVAILABLE");
+      const whatsappOptIn = tenant.features.has("whatsapp") && config.whatsappNotificationsEnabled && data.whatsappOptIn;
 
       if (!adminDirectPaid) {
         if (data.orderType === "IMMEDIATE") {
@@ -216,30 +223,30 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         if (data.paymentMethod === "MP" && (!config.paymentMp || !mpCreds?.accessToken)) throw new Error("PAYMENT_DISABLED");
       }
 
-      let deliveryTimeDisplay = data.scheduledTime || "ASAP";
+      let deliveryTimeDisplay = data.scheduledTime || "Horario del turno";
       let finalSlotId: string | null = null;
 
-      if (data.deliverySlotId) {
+      if (data.orderType === "IMMEDIATE") {
+        if (!data.deliverySlotId) throw new Error("SLOT_REQUIRED");
+        const slot = await tx.deliveryTimeSlot.findFirst({
+          where: { id: data.deliverySlotId, isActive: true },
+        });
+        if (!slot) throw new Error("SLOT_UNAVAILABLE");
+        const reserved = await tx.deliveryTimeSlot.updateMany({
+          where: { id: slot.id, isActive: true, available: { gt: 0 } },
+          data: { available: { decrement: 1 } },
+        });
+        if (reserved.count !== 1) throw new Error("SLOT_UNAVAILABLE");
+        finalSlotId = slot.id;
+        deliveryTimeDisplay = slot.time;
+      } else if (data.deliverySlotId) {
         const slot = await tx.deliveryTimeSlot.findFirst({
           where: { id: data.deliverySlotId, isActive: true },
         });
         if (slot) {
-          if (data.orderType === "IMMEDIATE") {
-            const reserved = await tx.deliveryTimeSlot.updateMany({
-              where: { id: slot.id, isActive: true, available: { gt: 0 } },
-              data: { available: { decrement: 1 } },
-            });
-            if (reserved.count === 1) {
-              finalSlotId = slot.id;
-              deliveryTimeDisplay = slot.time;
-            }
-          } else {
-            finalSlotId = slot.id;
-            deliveryTimeDisplay = slot.time;
-          }
+          finalSlotId = slot.id;
+          deliveryTimeDisplay = slot.time;
         }
-      } else if (data.orderType === "IMMEDIATE" && !data.scheduledTime) {
-        deliveryTimeDisplay = `Inmediato (~${config.asapEstimatedMinutes || 40} min)`;
       }
 
       const now = new Date();
@@ -660,8 +667,8 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             trackingTokenHash: tracking.tokenHash,
             clientName: data.clientName,
             clientPhone: data.clientPhone,
-            whatsappOptIn: data.whatsappOptIn,
-            whatsappOptInAt: data.whatsappOptIn ? new Date() : null,
+            whatsappOptIn,
+            whatsappOptInAt: whatsappOptIn ? new Date() : null,
             needsDelivery: data.needsDelivery,
             deliveryAddress: data.needsDelivery ? data.deliveryAddress : null,
             deliveryTime: groupDeliveryTime,
@@ -839,6 +846,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       ADVANCE_ORDERS_DISABLED: "Los pedidos por encargo no están habilitados actualmente.",
       PAYMENT_DISABLED: "Ese medio de pago no está disponible.",
       SLOT_UNAVAILABLE: "El horario seleccionado acaba de agotarse.",
+      SLOT_REQUIRED: "Seleccioná uno de los horarios disponibles para hoy.",
       PRODUCT_UNAVAILABLE: "Uno de los productos ya no está disponible.",
       INVALID_HALF: "Combinación de mitades no permitida.",
       INVALID_EXTRA: "Uno de los agregados seleccionados no es válido.",

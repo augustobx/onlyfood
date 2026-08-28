@@ -14,8 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  addCategory, toggleCategory, deleteCategory,
-  upsertProduct, toggleProduct, toggleProductImage, deleteProduct, reorderProducts,
+  addCategory, toggleCategory, renameCategory,
+  upsertProduct, toggleProduct, toggleProductImage, reorderProducts,
   addIngredient, toggleIngredient, deleteIngredient, restockIngredient,
   upsertExtra, toggleExtra, deleteExtra
 } from "@/app/actions/admin-catalog";
@@ -47,6 +47,8 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
   };
 
   const [newCatName, setNewCatName] = useState("");
+  const [categoryToRename, setCategoryToRename] = useState<{ id: string; name: string } | null>(null);
+  const [categoryName, setCategoryName] = useState("");
   const [newExtra, setNewExtra] = useState({
     id: undefined as string | undefined,
     name: "",
@@ -88,6 +90,16 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
     else { toast.error("Error", { description: res.error }); }
   };
   const handleToggleCategory = async (id: string, current: boolean) => await toggleCategory(id, !current);
+
+  const handleRenameCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryToRename || !categoryName.trim()) return;
+    const res = await renameCategory(categoryToRename.id, categoryName);
+    if (!res.success) return toast.error("No se pudo renombrar", { description: res.error });
+    toast.success("Nombre de categoría actualizado");
+    setCategoryToRename(null);
+    setCategoryName("");
+  };
 
   const handleMoveProduct = async (products: any[], productId: string, direction: -1 | 1, categoryId?: string, isCombo = false) => {
     const currentIndex = products.findIndex((product) => product.id === productId);
@@ -215,20 +227,6 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
 
   const handleToggleProduct = async (id: string, current: boolean) => await toggleProduct(id, !current);
   const handleToggleImage = async (id: string, current: boolean) => await toggleProductImage(id, !current);
-
-  const handleDeleteProduct = async (id: string) => {
-    if (confirm("¿Estás seguro de eliminar este producto/combo permanentemente?")) {
-      const res = await deleteProduct(id);
-      if (res.success) toast.success("Eliminado correctamente");
-    }
-  };
-
-  const handleDeleteCategory = async (id: string) => {
-    if (confirm("¿Estás seguro de eliminar esta categoría y todos sus productos?")) {
-      const res = await deleteCategory(id);
-      if (res.success) toast.success("Eliminada correctamente");
-    }
-  };
 
   const handleDeleteIngredient = async (id: string) => {
     if (confirm("¿Eliminar este ingrediente?")) {
@@ -409,9 +407,6 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                     }}>
                       <Pen className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50" onClick={() => handleDeleteProduct(combo.id)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -446,8 +441,11 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
               </div>
               <div className="flex items-center gap-4">
                 <Switch checked={cat.isActive} onCheckedChange={() => handleToggleCategory(cat.id, cat.isActive)} />
-                <Button size="icon" variant="ghost" className="text-red-500 hover:bg-red-50 h-8 w-8" onClick={() => handleDeleteCategory(cat.id)}>
-                  <Trash2 className="w-4 h-4" />
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Cambiar nombre" onClick={() => {
+                  setCategoryToRename({ id: cat.id, name: cat.name });
+                  setCategoryName(cat.name);
+                }}>
+                  <Pen className="w-4 h-4" />
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => {
                   setNewProduct({ id: undefined, name: "", basePrice: "", points: "0", description: "", categoryId: cat.id, imageUrl: "", ingredientsData: [], extraIds: [], allowHalf: false, onlyHalf: false, allowRemoveIngredients: true, availableDays: [], isCombo: false, comboItemsData: [] });
@@ -706,9 +704,6 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                           }}>
                             <Pen className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 h-8 w-8" onClick={() => handleDeleteProduct(prod.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
                         </div>
                       </div>
                     </div>
@@ -719,6 +714,30 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
           </Card>
         ))}
       </TabsContent>
+
+      <Dialog open={Boolean(categoryToRename)} onOpenChange={(open) => {
+        if (!open) {
+          setCategoryToRename(null);
+          setCategoryName("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cambiar nombre de categoría</DialogTitle>
+            <DialogDescription>Los productos y el historial conservan su relación con la categoría.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRenameCategory} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="category-name">Nombre</Label>
+              <Input id="category-name" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} maxLength={250} autoFocus required />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCategoryToRename(null)}>Cancelar</Button>
+              <Button type="submit">Guardar nombre</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <TabsContent value="ingredients" className="space-y-6 animate-in fade-in">
         <Card className="bg-slate-50 border-dashed border-2">

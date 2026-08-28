@@ -60,7 +60,7 @@ function kitchenBlocks(order: PrintableOrder): TextBlock[] {
   const blocks: TextBlock[] = [
     { text: "COCINA", size: 14, bold: true, align: "center" },
     { text: `#${orderCode(order)}`, size: 14, bold: true, align: "center" },
-    { text: order.deliveryTime || "LO ANTES POSIBLE", size: 14, bold: true, align: "center", after: 1 },
+    { text: order.deliveryTime || "HORARIO NO INFORMADO", size: 14, bold: true, align: "center", after: 1 },
     { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 10, bold: true, align: "center", after: 1 },
     { text: order.needsDelivery ? "ENVIO" : "RETIRO", size: 10, bold: true, align: "center", after: 1 },
     { type: "separator", after: 1 },
@@ -98,7 +98,7 @@ function counterBlocks(order: PrintableOrder, columns: number): TextBlock[] {
     { text: `Cliente: ${order.clientName}`, bold: true },
     { text: `Telefono: ${order.clientPhone}` },
     ...(order.needsDelivery && order.deliveryAddress ? [{ text: `Direccion: ${order.deliveryAddress}`, bold: true } satisfies TextBlock] : []),
-    { text: `Horario: ${order.deliveryTime || "Lo antes posible"}`, bold: true },
+    { text: `Horario: ${order.deliveryTime || "Horario no informado"}`, bold: true },
     { type: "separator", before: 1 },
     { text: "DETALLE", bold: true, align: "center" },
   ];

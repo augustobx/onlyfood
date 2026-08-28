@@ -94,7 +94,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
       { title: "Creá categorías", detail: "Organizá el menú con nombres que el cliente entienda: hamburguesas, bebidas, postres u otros." },
       { title: "Cargá productos", detail: "Definí nombre, precio, descripción, imagen, días disponibles, puntos, ingredientes y extras." },
       { title: "Ordená la exhibición", detail: "Usá las flechas para subir o bajar productos dentro de su categoría y combos en su listado." },
-      { title: "Gestioná stock y opciones", detail: "Actualizá ingredientes, costos, cantidades y extras. Pausá un producto antes de eliminarlo si volverá a venderse." },
+      { title: "Gestioná stock y opciones", detail: "Actualizá ingredientes, costos, cantidades y extras. Para conservar los historiales, los productos, combos y categorías se pausan en lugar de eliminarse." },
     ],
     tips: ["Usá fotos livianas y claras.", "Probá cada producto con extras y mitades antes de publicarlo.", "El orden guardado se refleja en la tienda."],
     keywords: ["producto", "combo", "ingrediente", "extra", "stock", "precio", "orden", "categoría"],

@@ -192,7 +192,7 @@ export function OrderDetailModal({
             )}
             {(!order.orderType || order.orderType === "IMMEDIATE") && (
               <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold text-xs py-0.5">
-                <Zap className="w-3 h-3 mr-1 text-emerald-400" /> Inmediato: {order.deliveryTime || "Lo antes posible"}
+                <Zap className="w-3 h-3 mr-1 text-emerald-400" /> Hoy: {order.deliveryTime || "Horario no informado"}
               </Badge>
             )}
 

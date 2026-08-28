@@ -40,9 +40,9 @@ export const publicConfigSelect = {
   allowImmediateOrders: true,
   allowScheduledTomorrow: true,
   allowAdvanceOrders: true,
+  whatsappNotificationsEnabled: true,
   advanceOrderMinDays: true,
   advanceOrderMaxDays: true,
-  asapEstimatedMinutes: true,
   businessHours: true,
   autoScheduleEnabled: true,
 } as const;

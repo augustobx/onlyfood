@@ -40,6 +40,22 @@ export async function toggleCategory(id: string, isActive: boolean) {
   } catch (error) { return { success: false, error: "Error al actualizar categoría" }; }
 }
 
+export async function renameCategory(id: string, name: string) {
+  await requireAdmin();
+  await requireOrdersModule();
+  const parsed = z.object({ id: idSchema, name: nameSchema }).safeParse({ id, name });
+  if (!parsed.success) return { success: false, error: "Nombre de categoría inválido" };
+  try {
+    const db = await getTenantDb();
+    await db.category.update({ where: { id: parsed.data.id }, data: { name: parsed.data.name } });
+    revalidatePath("/admin/catalog");
+    revalidatePath("/");
+    return { success: true };
+  } catch {
+    return { success: false, error: "No se pudo cambiar el nombre de la categoría" };
+  }
+}
+
 export async function upsertProduct(data: {
   id?: string,
   name: string,
@@ -355,30 +371,6 @@ export async function toggleExtra(id: string, isActive: boolean) {
     revalidatePath("/admin/catalog"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al actualizar extra" }; }
-}
-
-export async function deleteCategory(id: string) {
-  await requireAdmin();
-  await requireOrdersModule();
-  if (!idSchema.safeParse(id).success) return { success: false, error: "ID invalido" };
-  try {
-    const db = await getTenantDb();
-    await db.category.delete({ where: { id } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
-    return { success: true };
-  } catch (error) { return { success: false, error: "Error al eliminar categoría. Verifica si tiene productos." }; }
-}
-
-export async function deleteProduct(id: string) {
-  await requireAdmin();
-  await requireOrdersModule();
-  if (!idSchema.safeParse(id).success) return { success: false, error: "ID invalido" };
-  try {
-    const db = await getTenantDb();
-    await db.product.delete({ where: { id } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
-    return { success: true };
-  } catch (error) { return { success: false, error: "Error al eliminar producto." }; }
 }
 
 export async function deleteIngredient(id: string) {

@@ -268,15 +268,15 @@ export function SettingsForm({
                 <Clock className="w-5 h-5 text-orange-600" /> Reglas de Pedidos Anticipados y Tiempos
               </CardTitle>
               <CardDescription>
-                Configuración para pedidos inmediatos, para el día siguiente y por encargo.
+                Configuración para pedidos de hoy, para el día siguiente y por encargo.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center justify-between border rounded-2xl p-4 bg-slate-50">
                   <div className="space-y-0.5">
-                    <Label className="text-sm font-bold text-slate-800">⚡ Pedidos al momento</Label>
-                    <p className="text-xs text-muted-foreground">Recepción inmediata para cocina / despacho de hoy.</p>
+                    <Label className="text-sm font-bold text-slate-800">📅 Pedidos para hoy</Label>
+                    <p className="text-xs text-muted-foreground">Usa únicamente los horarios configurados y disponibles.</p>
                   </div>
                   <Switch
                     checked={cfg.allowImmediateOrders ?? true}
@@ -307,19 +307,7 @@ export function SettingsForm({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t pt-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold">Tiempo estimado pedido inmediato (minutos)</Label>
-                  <Input
-                    type="number"
-                    min={5}
-                    max={180}
-                    value={cfg.asapEstimatedMinutes || 40}
-                    onChange={(e) => updateField("asapEstimatedMinutes", e.target.value)}
-                  />
-                  <p className="text-[11px] text-muted-foreground">Se muestra en la opción "Para el momento".</p>
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold">Mínimo días de anticipación (Encargo)</Label>
                   <Input

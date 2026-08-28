@@ -61,6 +61,12 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
         setCatalog(data);
         setCategoryId(data.combos.length > 0 ? "combos" : data.categories[0]?.id ?? null);
         setSlotId(data.slots[0]?.id ?? "");
+        setWhatsappOptIn((current) => data.whatsappOptInEnabled && current);
+        setOrderType(data.allowImmediateOrders
+          ? "IMMEDIATE"
+          : data.allowScheduledTomorrow
+            ? "SCHEDULED_TOMORROW"
+            : "CUSTOM_DATE");
       })
       .catch(() => toast.error("No se pudo cargar el catálogo"))
       .finally(() => setLoadingCatalog(false));
@@ -130,6 +136,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
     if (!/^\+?[0-9]{8,15}$/.test(clientPhone.trim())) return toast.error("Ingresá un teléfono válido");
     if (!cart.length) return toast.error("Agregá al menos un producto");
     if (orderType === "CUSTOM_DATE" && !scheduledDate) return toast.error("Seleccioná la fecha para el pedido por encargo");
+    if (orderType === "IMMEDIATE" && !slotId) return toast.error("Seleccioná un horario disponible para hoy");
     if (needsDelivery && deliveryAddress.trim().length < 5) return toast.error("Ingresá la dirección de entrega");
 
     setSubmitting(true);
@@ -143,7 +150,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
         deliverySlotId: slotId || null,
         orderType,
         scheduledDate: orderType === "CUSTOM_DATE" ? scheduledDate : null,
-        scheduledTime: catalog?.slots.find((s) => s.id === slotId)?.time || (orderType === "IMMEDIATE" ? "Inmediato" : "Horario del turno"),
+        scheduledTime: catalog?.slots.find((s) => s.id === slotId)?.time || "Horario del turno",
         paymentMethod: "CASH",
         rouletteWinId: null,
         items: cart.map((item) => ({
@@ -217,9 +224,9 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
               <div className="grid gap-3">
                 {/* Selector de tipo */}
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 text-center text-xs font-bold">
-                  <button type="button" onClick={() => setOrderType("IMMEDIATE")} className={`rounded-lg py-1.5 transition ${orderType === "IMMEDIATE" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Hoy / Inmediato</button>
-                  <button type="button" onClick={() => setOrderType("SCHEDULED_TOMORROW")} className={`rounded-lg py-1.5 transition ${orderType === "SCHEDULED_TOMORROW" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Mañana</button>
-                  <button type="button" onClick={() => setOrderType("CUSTOM_DATE")} className={`rounded-lg py-1.5 transition ${orderType === "CUSTOM_DATE" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Encargo</button>
+                  <button type="button" disabled={!catalog.allowImmediateOrders} onClick={() => setOrderType("IMMEDIATE")} className={`rounded-lg py-1.5 transition disabled:cursor-not-allowed disabled:opacity-40 ${orderType === "IMMEDIATE" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Hoy</button>
+                  <button type="button" disabled={!catalog.allowScheduledTomorrow} onClick={() => setOrderType("SCHEDULED_TOMORROW")} className={`rounded-lg py-1.5 transition disabled:cursor-not-allowed disabled:opacity-40 ${orderType === "SCHEDULED_TOMORROW" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Mañana</button>
+                  <button type="button" disabled={!catalog.allowAdvanceOrders} onClick={() => setOrderType("CUSTOM_DATE")} className={`rounded-lg py-1.5 transition disabled:cursor-not-allowed disabled:opacity-40 ${orderType === "CUSTOM_DATE" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Encargo</button>
                 </div>
 
                 {orderType === "CUSTOM_DATE" && (
@@ -228,17 +235,19 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
 
                 <Input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nombre del cliente" maxLength={100} />
                 <Input value={clientPhone} onChange={(event) => setClientPhone(event.target.value.replace(/[^+\d]/g, ""))} placeholder="Teléfono" inputMode="tel" maxLength={16} />
-                <label className="flex cursor-pointer items-start gap-2 rounded-xl border bg-slate-50 p-3 text-xs text-slate-700">
-                  <Checkbox checked={whatsappOptIn} onCheckedChange={(checked) => setWhatsappOptIn(checked === true)} />
-                  El cliente autorizó recibir confirmación y estados de este pedido por WhatsApp.
-                </label>
+                {catalog.whatsappOptInEnabled && (
+                  <label className="flex cursor-pointer items-start gap-2 rounded-xl border bg-slate-50 p-3 text-xs text-slate-700">
+                    <Checkbox checked={whatsappOptIn} onCheckedChange={(checked) => setWhatsappOptIn(checked === true)} />
+                    El cliente autorizó recibir confirmación y estados de este pedido por WhatsApp.
+                  </label>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => setNeedsDelivery(false)} className={`rounded-xl border p-3 text-sm font-black ${!needsDelivery ? "border-orange-500 bg-orange-50 text-orange-700" : "text-slate-500"}`}>Retira</button>
                   <button type="button" onClick={() => setNeedsDelivery(true)} className={`rounded-xl border p-3 text-sm font-black ${needsDelivery ? "border-orange-500 bg-orange-50 text-orange-700" : "text-slate-500"}`}>Envío</button>
                 </div>
                 {needsDelivery && <Input value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} placeholder="Dirección de entrega" maxLength={250} />}
                 <select value={slotId} onChange={(event) => setSlotId(event.target.value)} className="h-10 rounded-md border bg-white px-3 text-sm">
-                  <option value="">{orderType === "IMMEDIATE" ? "⚡ Lo antes posible (Inmediato)" : "Seleccionar franja horaria"}</option>
+                  <option value="" disabled>Seleccionar franja horaria</option>
                   {catalog.slots.map((slot) => <option key={slot.id} value={slot.id}>{slot.time} · {slot.available} cupos</option>)}
                 </select>
                 <div className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 px-4 py-3"><span className="text-xs font-bold text-green-800">Estado del pago</span><span className="rounded-full bg-green-600 px-3 py-1 text-[10px] font-black uppercase text-white">Pagado</span></div>

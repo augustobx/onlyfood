@@ -77,6 +77,7 @@ const adminOrderProductSelect = {
 export async function getAdminOrderCatalog() {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   await requireOrdersModule();
+  const tenant = await getTenantContext();
   const db = await getTenantDb();
   const [categories, combos, slots, config] = await Promise.all([
     db.category.findMany({
@@ -102,7 +103,14 @@ export async function getAdminOrderCatalog() {
       orderBy: { sequence: "asc" },
       select: { id: true, time: true, available: true },
     }),
-    db.systemConfig.findFirst({ select: { deliveryCost: true, globalDiscount: true } }),
+    db.systemConfig.findFirst({ select: {
+      deliveryCost: true,
+      globalDiscount: true,
+      allowImmediateOrders: true,
+      allowScheduledTomorrow: true,
+      allowAdvanceOrders: true,
+      whatsappNotificationsEnabled: true,
+    } }),
   ]);
 
   return {
@@ -111,6 +119,10 @@ export async function getAdminOrderCatalog() {
     slots,
     deliveryCost: Math.max(0, config?.deliveryCost ?? 0),
     globalDiscount: Math.min(100, Math.max(0, config?.globalDiscount ?? 0)),
+    allowImmediateOrders: config?.allowImmediateOrders !== false,
+    allowScheduledTomorrow: config?.allowScheduledTomorrow !== false,
+    allowAdvanceOrders: config?.allowAdvanceOrders !== false,
+    whatsappOptInEnabled: tenant.features.has("whatsapp") && Boolean(config?.whatsappNotificationsEnabled),
   };
 }
 

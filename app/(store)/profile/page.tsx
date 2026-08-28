@@ -266,7 +266,7 @@ export default async function ProfilePage() {
                      {order.items.map(i => `${i.quantity}x ${i.product.name}`).join(", ")}
                    </p>
                    <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
-                     <span className="text-slate-500 font-medium">Franja: {order.scheduledTime ? `${order.scheduledTime} hs` : "Lo antes posible"}</span>
+                     <span className="text-slate-500 font-medium">Franja: {order.scheduledTime ? `${order.scheduledTime} hs` : "Horario no informado"}</span>
                      <div className="flex items-center gap-2">
                        <span className="font-black text-slate-900 text-sm">${order.total.toLocaleString('es-AR')}</span>
                        <span className="text-orange-600 font-black text-xs group-hover:translate-x-0.5 transition-transform flex items-center">Seguimiento <ChevronRight className="w-3.5 h-3.5" /></span>

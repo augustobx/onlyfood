@@ -275,6 +275,7 @@ export default function CheckoutPage() {
     fetchConfig().then((cfg) => {
       setConfig(cfg);
       if (cfg) {
+        if (!cfg.whatsappOptInEnabled) setFormData((p) => ({ ...p, whatsappOptIn: false }));
         if (!cfg.paymentCash && cfg.paymentMp) setFormData((p) => ({ ...p, paymentMethod: "MP" }));
         if (cfg.paymentCash && !cfg.paymentMp) setFormData((p) => ({ ...p, paymentMethod: "CASH" }));
 
@@ -383,6 +384,10 @@ export default function CheckoutPage() {
     }
     if (formData.orderType === "CUSTOM_DATE" && !formData.scheduledDate) {
       toast.error("Fecha requerida", { description: "Por favor, seleccioná la fecha de encargo." });
+      return;
+    }
+    if (formData.orderType === "IMMEDIATE" && !formData.deliverySlotId) {
+      toast.error("Horario requerido", { description: "Seleccioná uno de los horarios disponibles para hoy." });
       return;
     }
 
@@ -569,7 +574,7 @@ export default function CheckoutPage() {
                     }`}
                   >
                     <Zap className="w-4 h-4" />
-                    Ahora
+                    Hoy
                     {!isImmediateAllowed && (
                       <span className="text-[8px] font-black bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
                         {schedule.hasScheduledProducts ? "Programado" : "Pausado"}
@@ -656,10 +661,12 @@ export default function CheckoutPage() {
                   value={formData.clientPhone}
                   onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
                 />
-                <label className={`mt-2 flex cursor-pointer items-start gap-2 rounded-xl border p-2.5 text-xs ${t.switchBg}`}>
-                  <Switch checked={formData.whatsappOptIn} onCheckedChange={(checked) => setFormData({ ...formData, whatsappOptIn: checked })} aria-label="Recibir avisos del pedido por WhatsApp" />
-                  <span className={t.switchLabel}>Quiero recibir por WhatsApp únicamente la confirmación y los cambios operativos de este pedido.</span>
-                </label>
+                {config?.whatsappOptInEnabled && (
+                  <label className={`mt-2 flex cursor-pointer items-start gap-2 rounded-xl border p-2.5 text-xs ${t.switchBg}`}>
+                    <Switch checked={formData.whatsappOptIn} onCheckedChange={(checked) => setFormData({ ...formData, whatsappOptIn: checked })} aria-label="Recibir avisos del pedido por WhatsApp" />
+                    <span className={t.switchLabel}>Quiero recibir por WhatsApp únicamente la confirmación y los cambios operativos de este pedido.</span>
+                  </label>
+                )}
               </div>
             </div>
 
@@ -714,7 +721,6 @@ export default function CheckoutPage() {
                     });
                   }}
                 >
-                  {formData.orderType === "IMMEDIATE" && <option value="">⚡ Lo antes posible (~{config?.asapEstimatedMinutes || 40} min)</option>}
                   {slots.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.time} hs {formData.orderType === "IMMEDIATE" ? `(${s.available} cupos)` : ""}
@@ -724,7 +730,7 @@ export default function CheckoutPage() {
               ) : (
                 <div className={`text-[11px] p-2.5 rounded-xl border font-medium ${t.switchBg} ${t.subtext}`}>
                   {formData.orderType === "IMMEDIATE"
-                    ? `Preparación inmediata (~${config?.asapEstimatedMinutes || 40} min).`
+                    ? "No hay horarios disponibles para hoy."
                     : "Horario estándar del turno."}
                 </div>
               )}
