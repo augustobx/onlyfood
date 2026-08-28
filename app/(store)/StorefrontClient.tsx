@@ -57,7 +57,7 @@ function getAvailableQuantity(product: any, secondHalf: any, removedIngredients:
 // Componente ExpandableProductCard (sin cambios)
 function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled = false }: { product: any, categoryProducts?: any[], loyaltyEnabled?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { addItem } = useCartStore();
+  const addItem = useCartStore((state) => state.addItem);
 
   const [quantity, setQuantity] = useState(1);
   const [removedIngredients, setRemovedIngredients] = useState<string[]>([]);
@@ -129,19 +129,19 @@ function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled 
     visible: {
       height: 'auto',
       opacity: 1,
-      overflow: 'visible',
+      overflow: 'hidden',
       transition: { duration: 0.3, ease: 'easeOut' }
     }
   };
 
   return (
-    <div className={`product-card overflow-hidden transition-all duration-300 border-b last:border-0 ${isExpanded ? 'product-card-expanded bg-slate-50 border-orange-200' : 'bg-white hover:bg-slate-50'}`}>
+    <div className={`product-card overflow-hidden transition-colors duration-300 border-b last:border-0 ${isExpanded ? 'product-card-expanded bg-slate-50 border-orange-200' : 'bg-white hover:bg-slate-50'}`}>
       {/* Closed Header (Preview) */}
       <div
         className="p-4 flex gap-4 cursor-pointer relative items-center"
         onClick={handleToggleExpand}
       >
-        <div className={`product-image w-24 h-24 relative rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden transition-all ${isExpanded ? 'shadow-md ring-2 ring-orange-500 ring-offset-2' : ''} ${product.isCombo ? 'bg-purple-100' : 'bg-orange-100'}`}>
+        <div className={`product-image w-24 h-24 relative rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden transition-[box-shadow] duration-300 ${isExpanded ? 'shadow-md ring-2 ring-orange-500 ring-offset-2' : ''} ${product.isCombo ? 'bg-purple-100' : 'bg-orange-100'}`}>
           {product.imageUrl && product.showImage ? (
             <Image src={product.imageUrl} alt={product.name} fill className="object-cover" sizes="96px" />
           ) : (
@@ -183,6 +183,7 @@ function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled 
             animate="visible"
             exit="hidden"
             variants={expandVariants}
+            style={{ willChange: "height, opacity" }}
           >
             <div className="px-4 pb-6 pt-2 space-y-6">
               {product.availableDays && !isDailyProduct(product.availableDays) && (() => {
@@ -852,7 +853,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
 
             {/* Combos Accordion */}
             {combos.length > 0 && (
-              <motion.div id="category-combos" layout className="store-category bg-white/95 backdrop-blur-sm rounded-3xl shadow-sm border overflow-hidden border-purple-200 scroll-mt-36" transition={{ duration: 0.3 }}>
+              <motion.div id="category-combos" className="store-category bg-white/95 backdrop-blur-sm rounded-3xl shadow-sm border overflow-hidden border-purple-200 scroll-mt-36">
                 <button
                   onClick={() => handleToggleCategory('combos')}
                   className="w-full p-5 flex items-center justify-between text-left focus:outline-none focus-visible:bg-slate-50 transition-colors"
@@ -879,6 +880,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.3 }}
                       className="border-t"
+                      style={{ willChange: "height, opacity" }}
                     >
                       {combos.map(product => (
                         <ExpandableProductCard key={product.id} product={product} loyaltyEnabled={loyaltyEnabled} />
@@ -891,7 +893,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
 
             {/* Standard Categories */}
             {categories.filter(c => c.products?.length > 0).map(category => (
-              <motion.div id={`category-${category.id}`} layout key={category.id} className="store-category bg-white/95 backdrop-blur-sm rounded-3xl shadow-sm border overflow-hidden scroll-mt-36" transition={{ duration: 0.3 }}>
+              <motion.div id={`category-${category.id}`} key={category.id} className="store-category bg-white/95 backdrop-blur-sm rounded-3xl shadow-sm border overflow-hidden scroll-mt-36">
                 <button
                   onClick={() => handleToggleCategory(category.id)}
                   className="w-full p-5 flex items-center justify-between text-left focus:outline-none focus-visible:bg-slate-50 transition-colors"
@@ -918,6 +920,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.3 }}
                       className="border-t"
+                      style={{ willChange: "height, opacity" }}
                     >
                       {category.products.map((product: any) => (
                         <ExpandableProductCard key={product.id} product={product} categoryProducts={category.products} loyaltyEnabled={loyaltyEnabled} />

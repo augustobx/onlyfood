@@ -65,6 +65,7 @@
   border-radius: 1.75rem;
   background: rgba(255,255,255,.9);
   box-shadow: 0 14px 45px rgba(15, 23, 42, .055);
+  contain: paint;
 }
 .theme-nexo .store-category > button { padding: 1.25rem 1.4rem; }
 .theme-nexo .store-category > button h2 { letter-spacing: -.035em; color: var(--nexo-ink); }
@@ -72,7 +73,12 @@
   border-color: rgba(15, 23, 42, .06);
 }
 .theme-nexo .store-category > div > div > div:hover { background: #fffaf1; }
-.theme-nexo .product-card { position: relative; }
+.theme-nexo .product-card {
+  position: relative;
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 8.5rem;
+}
 .theme-nexo .product-card > div:first-child { min-height: 8.5rem; padding: 1.15rem 1.25rem; }
 .theme-nexo .product-card .product-image {
   width: 7rem;
@@ -208,6 +214,7 @@
   .theme-nexo .store-content { padding-inline: .5rem; }
   .theme-nexo .store-search { top: 5.25rem; }
   .theme-nexo .product-card > div:first-child { min-height: 7.25rem; padding: 1rem; gap: .85rem; }
+  .theme-nexo .product-card { contain-intrinsic-block-size: auto 7.25rem; }
   .theme-nexo .product-card .product-image { width: 5.75rem; height: 5.75rem; border-radius: 1.1rem; }
   .theme-nexo .product-card .product-title { font-size: 1rem; }
   .theme-nexo .cart-item { padding: 1rem; }
