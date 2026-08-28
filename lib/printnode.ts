@@ -315,21 +315,57 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
 
   const tenantId = options.tenantId || order.tenantId;
   if (!tenantId) return { success: false, skipped: true, jobs: [], error: "Pedido sin comercio asociado." };
+  const config: any = await prisma.systemConfig.findUnique({ where: { tenantId } });
+  if (!config || config.printingMode === "BROWSER" || (!config.autoPrintTickets && !options.force)) {
+    return { success: true, skipped: true, jobs: [] as Array<{ kind: PrintKind; success: boolean; error?: string }> };
+  }
+
+  if (config.printingMode === "NANOLABS_AGENT") {
+    const { enqueuePrintAgentJob } = await import("@/lib/print-agent");
+    const targets = [
+      { kind: "KITCHEN" as const, rollSize: config.printerKitchenSize },
+      { kind: "COUNTER" as const, rollSize: config.printerCounterSize },
+    ];
+    const jobs: Array<{ kind: PrintKind; success: boolean; jobId?: string; error?: string }> = [];
+    for (const target of targets) {
+      const existing = await prisma.printDispatch.findUnique({ where: { orderId_kind: { orderId, kind: target.kind } } });
+      if (existing?.status === "SENT" && !options.force) {
+        jobs.push({ kind: target.kind, success: true });
+        continue;
+      }
+      const attempt = (existing?.attempts || 0) + 1;
+      await prisma.printDispatch.upsert({
+        where: { orderId_kind: { orderId, kind: target.kind } },
+        create: { orderId, kind: target.kind, status: "PENDING", attempts: 1, tenantId },
+        update: { status: "PENDING", attempts: { increment: 1 }, error: null },
+      });
+      try {
+        const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl);
+        const idempotencyKey = options.force ? `onlyfood-agent-${orderId}-${target.kind}-manual-${attempt}` : `onlyfood-agent-${orderId}-${target.kind}-auto`;
+        const queued = await enqueuePrintAgentJob({ tenantId, orderId, destination: target.kind, title: `${config.appName} #${orderCode(order)} ${target.kind}`, payload: rawTicket, widthMm: target.rollSize === "58mm" ? 58 : 80, idempotencyKey });
+        jobs.push({ kind: target.kind, success: true, jobId: queued.id });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "No se pudo encolar la impresión.";
+        await prisma.printDispatch.update({ where: { orderId_kind: { orderId, kind: target.kind } }, data: { status: "FAILED", error: message } });
+        jobs.push({ kind: target.kind, success: false, error: message });
+      }
+    }
+    return { success: jobs.every((job) => job.success), skipped: false, jobs };
+  }
+
   const { hasTenantFeature } = await import("@/lib/features");
   if (!(await hasTenantFeature(tenantId, "printNode"))) {
     return { success: true, skipped: true, jobs: [] as Array<{ kind: PrintKind; success: boolean; error?: string }> };
   }
-  let config: any = null;
   let customApiKey: string | undefined;
 
   if (tenantId) {
     const { getTenantIntegration } = await import("@/lib/tenant-integrations");
     const creds = await getTenantIntegration<any>(tenantId, "PRINTNODE");
     if (creds?.apiKey) customApiKey = creds.apiKey;
-    config = await prisma.systemConfig.findUnique({ where: { tenantId } });
   }
 
-  if (!config || config.printingMode !== "PRINTNODE" || (!config.autoPrintTickets && !options.force)) {
+  if (config.printingMode !== "PRINTNODE") {
     return { success: true, skipped: true, jobs: [] as Array<{ kind: PrintKind; success: boolean; error?: string }> };
   }
 

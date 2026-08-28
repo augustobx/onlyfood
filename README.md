@@ -1,6 +1,6 @@
 # NanoLabs OnlyFood SaaS
 
-Plataforma gastronómica multi-tenant construida con Next.js 16, TypeScript, Prisma 7, MariaDB 11.8, Docker Compose y Caddy. Incluye storefront con ocho temas visuales completos —incluidos Comic Food Pop y Arcade Kitchen—, Club VIP, tablón de noticias tematizado, catálogo ordenable, pedido rápido administrativo con productos y combos, puesta en marcha verificable, centro de guías autoservicio, caja diaria, promociones automáticas por cantidad, fidelización con canje de puntos, ruleta de premios y SuperAdmin maestro con control efectivo de planes, vigencias, accesos y pagos SaaS, además de onboarding, Mercado Pago, WhatsApp, PrintNode y almacenamiento S3/R2.
+Plataforma gastronómica multi-tenant construida con Next.js 16, TypeScript, Prisma 7, MariaDB 11.8, Docker Compose y Caddy. Incluye storefront con ocho temas visuales completos —incluidos Comic Food Pop y Arcade Kitchen—, Club VIP, tablón de noticias tematizado, catálogo ordenable, pedido rápido administrativo con productos y combos, puesta en marcha verificable, centro de guías autoservicio, caja diaria, promociones automáticas por cantidad, fidelización con canje de puntos, ruleta de premios y SuperAdmin maestro con control efectivo de planes, vigencias, accesos y pagos SaaS, además de onboarding, Mercado Pago, WhatsApp, NanoLabs Print Agent, compatibilidad con PrintNode y almacenamiento S3/R2.
 
 ## Inicio local con Docker
 
@@ -72,6 +72,8 @@ Usá `.env.docker.example` como plantilla. En producción son obligatorios:
 `SEED_DEMO_DATA=false` evita crear Beats y Roma. El arranque usa `prisma migrate deploy`; nunca `prisma db push`.
 
 La guía operativa completa está en [docs/deployment.md](./docs/deployment.md). La auditoría y el estado verificable están en [docs/production-readiness.md](./docs/production-readiness.md).
+
+La instalación y operación del agente propio de impresión está documentada en [docs/nanolabs-print-agent.md](./docs/nanolabs-print-agent.md).
 
 ## Seguridad y multi-tenancy
 

@@ -219,16 +219,17 @@ export const ADMIN_GUIDES: AdminGuide[] = [
   },
   {
     id: "impresion", title: "Impresión de tickets", category: "Automatización", href: "/admin/settings", icon: "printer", minutes: 8,
-    summary: "Impresión térmica desde navegador o automática mediante PrintNode.",
+    summary: "Impresión térmica desde navegador, NanoLabs Print Agent o PrintNode.",
     purpose: "Enviar comandas a mostrador y cocina con menos intervención operativa.",
     steps: [
-      { title: "Elegí el modo", detail: "Navegador funciona sin servicios externos y abre el diálogo del equipo. PrintNode queda como alternativa para envío silencioso." },
+      { title: "Elegí el modo", detail: "Navegador abre el diálogo, NanoLabs Print Agent imprime en silencio con infraestructura propia y PrintNode queda como compatibilidad opcional." },
+      { title: "Vinculá el agente", detail: "Instalá NanoLabs Print Agent en la caja, generá un código de 10 minutos y asigná allí cocina, mostrador o una impresora predeterminada." },
       { title: "Configurá el rollo", detail: "Elegí 58 u 80 mm. En el diálogo del navegador usá márgenes Ninguno, escala 100 %, sin encabezados ni pies y respetá el tamaño CSS." },
       { title: "Activá autoimpresión", detail: "En modo navegador, OnlyFood abre el ticket al llegar un pedido. La confirmación final sigue protegida por el navegador." },
       { title: "Hacé pedidos de prueba", detail: "Probá ambos medios de pago y verificá contenido, destino y ausencia de duplicados." },
     ],
-    tips: ["Configurá la ticketera como impresora predeterminada en el equipo de caja.", "El navegador no puede cambiar silenciosamente el controlador del sistema operativo.", "PrintNode requiere configuración de infraestructura por NanoLabs."],
-    keywords: ["impresora", "ticket", "printnode", "navegador", "térmica", "58mm", "80mm", "cocina", "mostrador", "papel"],
+    tips: ["NanoLabs Print Agent debe quedar iniciado en el equipo que tiene las impresoras.", "Podés vincular más de un equipo por comercio para redundancia.", "El navegador no puede cambiar silenciosamente el controlador del sistema operativo."],
+    keywords: ["impresora", "ticket", "nanolabs print agent", "printnode", "navegador", "térmica", "58mm", "80mm", "cocina", "mostrador", "papel"],
   },
   {
     id: "sucursales", title: "Múltiples sucursales", category: "Configuración", href: "/admin/settings", icon: "locations", feature: "multipleLocations", minutes: 6,

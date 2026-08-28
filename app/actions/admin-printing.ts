@@ -16,15 +16,15 @@ export async function printOrderNow(orderId: string) {
   await requireTenantFeature(tenant.id, "orders");
   const db = await getTenantDb();
   const config = await db.systemConfig.findFirst({ select: { printingMode: true } });
-  if (config?.printingMode !== "PRINTNODE") {
+  if (!config || config.printingMode === "BROWSER") {
     return { success: true, mode: "BROWSER" as const, url: `/admin/live/print/${orderId}` };
   }
-  await requireTenantFeature(tenant.id, "printNode");
+  if (config.printingMode === "PRINTNODE") await requireTenantFeature(tenant.id, "printNode");
   const result = await dispatchOrderPrint(orderId, { force: true, tenantId: tenant.id });
   if (!result.success) {
-    return { success: false, mode: "PRINTNODE" as const, error: result.jobs.filter((job) => !job.success).map((job) => job.error).join(" ") || result.error };
+    return { success: false, mode: config.printingMode as "PRINTNODE" | "NANOLABS_AGENT", error: result.jobs.filter((job) => !job.success).map((job) => job.error).join(" ") || result.error };
   }
-  return { success: true, mode: "PRINTNODE" as const };
+  return { success: true, mode: config.printingMode as "PRINTNODE" | "NANOLABS_AGENT" };
 }
 
 export async function testConfiguredPrinter(kind: "KITCHEN" | "COUNTER", printerId: number, rollSize: "58mm" | "80mm") {

@@ -44,7 +44,7 @@ model SystemConfig {
   paymentCash               Boolean @default(true)
   paymentMp                 Boolean @default(true)
   autoPrintTickets          Boolean @default(true)
-  printingMode              String  @default("BROWSER") // BROWSER, PRINTNODE
+  printingMode              String  @default("BROWSER") // BROWSER, PRINTNODE, NANOLABS_AGENT
   printNodeCounterPrinterId Int?
   printNodeKitchenPrinterId Int?
 
@@ -437,6 +437,65 @@ model PrintDispatch {
   @@index([status, updatedAt])
 }
 
+model PrintAgentPairingCode {
+  id        String    @id @default(uuid())
+  tenantId  String
+  codeHash  String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, expiresAt])
+}
+
+model PrintAgentDevice {
+  id         String    @id @default(uuid())
+  tenantId   String
+  name       String
+  tokenHash  String    @unique
+  platform   String
+  version    String
+  printers   Json?
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, revokedAt])
+  @@index([lastSeenAt])
+}
+
+model PrintAgentJob {
+  id             String    @id @default(uuid())
+  tenantId       String
+  orderId        String?
+  destination    String
+  title          String
+  contentType    String    @default("RAW_BASE64")
+  payload        String    @db.LongText
+  copies         Int       @default(1)
+  widthMm        Int       @default(80)
+  status         String    @default("PENDING") // PENDING, LEASED, PRINTED, FAILED
+  leasedById     String?
+  leaseUntil     DateTime?
+  attempts       Int       @default(0)
+  error          String?   @db.Text
+  idempotencyKey String    @unique
+  printedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, createdAt])
+  @@index([leasedById, leaseUntil])
+  @@index([orderId, destination])
+}
+
 model PaymentRecord {
   id                String   @id @default(uuid())
   tenantId          String
@@ -699,31 +758,34 @@ model Tenant {
   auditLogs    PlatformAuditLog[]
 
   // Relaciones con entidades del negocio
-  systemConfigs         SystemConfig[]
-  categories            Category[]
-  products              Product[]
-  ingredients           Ingredient[]
-  extras                Extra[]
-  orders                Order[]
-  clients               Client[]
-  tiers                 CustomerTier[]
-  rewards               PointReward[]
-  redemptions           PointRedemption[]
-  roulettePrizes        RoulettePrize[]
-  rouletteWins          RouletteWin[]
-  deliveryTimeSlots     DeliveryTimeSlot[]
-  messengers            Messenger[]
-  mediaAssets           MediaAsset[]
-  pushSubscriptions     PushSubscription[]
-  whatsappSessions      WhatsAppSession[]
-  whatsappNotifications WhatsAppNotification[]
-  sessions              Session[]
-  paymentRecords        PaymentRecord[]
-  printDispatches       PrintDispatch[]
-  cashSessions          CashSession[]
-  cashMovements         CashMovement[]
-  quantityDiscounts     QuantityDiscount[]
-  saasPayments          SaaSPayment[]
+  systemConfigs          SystemConfig[]
+  categories             Category[]
+  products               Product[]
+  ingredients            Ingredient[]
+  extras                 Extra[]
+  orders                 Order[]
+  clients                Client[]
+  tiers                  CustomerTier[]
+  rewards                PointReward[]
+  redemptions            PointRedemption[]
+  roulettePrizes         RoulettePrize[]
+  rouletteWins           RouletteWin[]
+  deliveryTimeSlots      DeliveryTimeSlot[]
+  messengers             Messenger[]
+  mediaAssets            MediaAsset[]
+  pushSubscriptions      PushSubscription[]
+  whatsappSessions       WhatsAppSession[]
+  whatsappNotifications  WhatsAppNotification[]
+  sessions               Session[]
+  paymentRecords         PaymentRecord[]
+  printDispatches        PrintDispatch[]
+  printAgentPairingCodes PrintAgentPairingCode[]
+  printAgentDevices      PrintAgentDevice[]
+  printAgentJobs         PrintAgentJob[]
+  cashSessions           CashSession[]
+  cashMovements          CashMovement[]
+  quantityDiscounts      QuantityDiscount[]
+  saasPayments           SaaSPayment[]
 
   @@index([status])
 }
@@ -960,7 +1022,7 @@ model TenantSettings {
   paymentCash               Boolean @default(true)
   paymentMp                 Boolean @default(true)
   autoPrintTickets          Boolean @default(true)
-  printingMode              String  @default("BROWSER")
+  printingMode              String  @default("BROWSER") // BROWSER, PRINTNODE, NANOLABS_AGENT
   printNodeCounterPrinterId Int?
   printNodeKitchenPrinterId Int?
   printerCounterName        String? @default("")

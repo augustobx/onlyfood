@@ -28,7 +28,7 @@ const configSchema = z.object({
   deliveryCost: z.number().min(0).max(10_000_000), globalDiscount: z.number().min(0).max(100),
   splashUrl: optionalAssetUrl, splashVideoUrl: optionalAssetUrl, logoUrl: optionalAssetUrl, backgroundUrl: optionalAssetUrl, backgroundBlur: z.boolean(),
   paymentCash: z.boolean(), paymentMp: z.boolean(), autoPrintTickets: z.boolean(),
-  printingMode: z.enum(["BROWSER", "PRINTNODE"]),
+  printingMode: z.enum(["BROWSER", "PRINTNODE", "NANOLABS_AGENT"]),
   printNodeCounterPrinterId: z.number().int().positive().nullable(),
   printNodeKitchenPrinterId: z.number().int().positive().nullable(),
   mpAccessToken: z.string().trim().max(1000).nullable().optional(), mpPublicKey: z.string().trim().max(1000).nullable().optional(),

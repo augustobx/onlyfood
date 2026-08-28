@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parseBusinessHours, DaySchedule } from "@/lib/business-hours";
 import { MediaPickerInput } from "@/components/admin/MediaPickerInput";
+import { PrintAgentManager } from "@/components/admin/PrintAgentManager";
 
 export function SettingsForm({
   initialConfig,
@@ -85,7 +86,7 @@ export function SettingsForm({
       paymentCash: cfg.paymentCash,
       paymentMp: cfg.paymentMp,
       autoPrintTickets: Boolean(cfg.autoPrintTickets),
-      printingMode: printNodeEnabled ? (cfg.printingMode || "BROWSER") : "BROWSER",
+      printingMode: cfg.printingMode === "PRINTNODE" && !printNodeEnabled ? "BROWSER" : (cfg.printingMode || "BROWSER"),
       printNodeCounterPrinterId: cfg.printNodeCounterPrinterId ? Number(cfg.printNodeCounterPrinterId) : null,
       printNodeKitchenPrinterId: cfg.printNodeKitchenPrinterId ? Number(cfg.printNodeKitchenPrinterId) : null,
       backgroundUrl: cfg.backgroundUrl,
@@ -928,18 +929,21 @@ export function SettingsForm({
             </CardHeader>
             <CardContent className="space-y-8">
 
+              {cfg.printingMode === "NANOLABS_AGENT" && <PrintAgentManager />}
+
               <div className="grid gap-4 rounded-xl border-2 border-slate-200 bg-slate-50 p-5 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-base font-bold text-slate-800">Modo de impresión</Label>
                   <Select value={cfg.printingMode || "BROWSER"} onValueChange={value => updateField("printingMode", value)}>
-                    <SelectTrigger className="bg-white"><SelectValue>{cfg.printingMode === "PRINTNODE" ? "PrintNode — impresión directa" : "Navegador — confirmar manualmente"}</SelectValue></SelectTrigger>
+                    <SelectTrigger className="bg-white"><SelectValue>{cfg.printingMode === "PRINTNODE" ? "PrintNode — impresión directa" : cfg.printingMode === "NANOLABS_AGENT" ? "NanoLabs Print Agent — impresión silenciosa" : "Navegador — confirmar manualmente"}</SelectValue></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="BROWSER">Navegador — confirmar manualmente</SelectItem>
+                      <SelectItem value="NANOLABS_AGENT">NanoLabs Print Agent — impresión silenciosa</SelectItem>
                       {printNodeEnabled && <SelectItem value="PRINTNODE">PrintNode — impresión directa</SelectItem>}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {cfg.printingMode === "PRINTNODE" ? "El servidor enviará los tickets directamente a las impresoras configuradas." : "Se abrirá el diálogo del navegador para confirmar la impresión."}
+                    {cfg.printingMode === "PRINTNODE" ? "El servidor enviará los tickets mediante PrintNode." : cfg.printingMode === "NANOLABS_AGENT" ? "El agente local recibirá la cola y elegirá las impresoras de cocina y mostrador." : "Se abrirá el diálogo del navegador para confirmar la impresión."}
                   </p>
                 </div>
                 {printNodeEnabled && cfg.printingMode === "PRINTNODE" ? (
@@ -971,7 +975,9 @@ export function SettingsForm({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    {cfg.printingMode === "PRINTNODE" ? (
+                    {cfg.printingMode === "NANOLABS_AGENT" ? (
+                      <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-950">La impresora de mostrador se asigna por nombre dentro de NanoLabs Print Agent.</div>
+                    ) : cfg.printingMode === "PRINTNODE" ? (
                       <>
                         <Label>ID PrintNode — Mostrador</Label>
                         <Input type="number" min={1} placeholder="Ej: 742113" value={cfg.printNodeCounterPrinterId || ""} onChange={e => updateField("printNodeCounterPrinterId", e.target.value)} />
@@ -1008,7 +1014,9 @@ export function SettingsForm({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    {cfg.printingMode === "PRINTNODE" ? (
+                    {cfg.printingMode === "NANOLABS_AGENT" ? (
+                      <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-950">La impresora de cocina se asigna por nombre dentro de NanoLabs Print Agent.</div>
+                    ) : cfg.printingMode === "PRINTNODE" ? (
                       <>
                         <Label>ID PrintNode — Cocina</Label>
                         <Input type="number" min={1} placeholder="Ej: 742114" value={cfg.printNodeKitchenPrinterId || ""} onChange={e => updateField("printNodeKitchenPrinterId", e.target.value)} />

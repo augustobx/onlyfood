@@ -153,7 +153,7 @@ export default function LiveDashboardPage() {
 
         if (configRes.ok) {
           const nextConfig = await configRes.json();
-          autoPrintRef.current = Boolean(nextConfig.autoPrintTickets && nextConfig.printingMode !== "PRINTNODE");
+          autoPrintRef.current = Boolean(nextConfig.autoPrintTickets && nextConfig.printingMode === "BROWSER");
           setIsStoreOpen(Boolean(nextConfig.isStoreOpen));
           setModuleStates({
             allowImmediateOrders: nextConfig.allowImmediateOrders !== false,
