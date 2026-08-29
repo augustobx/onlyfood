@@ -98,6 +98,20 @@ docker compose -f compose.npm.yaml --env-file .env.docker logs --tail=200 databa
 
 En Nginx Proxy Manager, el Proxy Host debe reenviar HTTP al IP del servidor en el puerto configurado, habilitar Websockets y usar un certificado válido para el dominio. Para `onlyfood.nanolabs.online` y los subdominios de tenants se puede usar un certificado wildcard `*.nanolabs.online`; cada dominio personalizado necesita su propio certificado.
 
+En el VPS productivo de NanoLabs, instalar el actualizador canónico una sola vez:
+
+```bash
+install -m 0755 /opt/onlyfood-saas/scripts/deploy-production.sh /usr/local/bin/deploy-onlyfood
+```
+
+Desde entonces, cada actualización se realiza únicamente con:
+
+```bash
+deploy-onlyfood
+```
+
+El script usa siempre `compose.npm.yaml`, conserva un dump y una imagen de rollback, construye sin detener la versión activa, aplica las migraciones one-shot y reemplaza exclusivamente `onlyfood-saas-app-1` después de validar la base. No inicia Caddy, no publica MariaDB, no usa `--remove-orphans` y no modifica otros proyectos Docker. No sustituirlo por un `docker compose up` sobre `compose.yaml` en producción.
+
 Durante una sustitución de plataforma, levantar y validar primero `onlyfood-saas`. El stack anterior se detiene por nombre únicamente después de comprobar healthcheck, acceso HTTPS, autenticación y carga de archivos. No reutilizar sus volúmenes ni ejecutar `down -v`.
 
 ## Rollback
@@ -114,10 +128,12 @@ No uses `prisma db push`, no ejecutes seeds históricos sobre datos reales y no 
 
 ## Operación
 
+En producción con Nginx Proxy Manager, toda operación manual debe declarar `compose.npm.yaml`. Para una actualización normal se usa exclusivamente `deploy-onlyfood`.
+
 ```bash
-docker compose --env-file .env.docker logs -f app db proxy
-docker compose --env-file .env.docker restart app proxy
-docker compose --env-file .env.docker down
+docker compose -p onlyfood-saas -f compose.npm.yaml --env-file .env.docker ps -a
+docker compose -p onlyfood-saas -f compose.npm.yaml --env-file .env.docker logs -f app db database-init
+docker compose -p onlyfood-saas -f compose.npm.yaml --env-file .env.docker restart app
 ```
 
-`down` conserva los volúmenes. La opción `-v` los elimina y no forma parte del procedimiento normal.
+No ejecutar `compose.yaml`, el servicio `proxy`, `--remove-orphans`, `down` ni `down -v` como parte de una actualización productiva. La variante NPM publica solamente `3007:3000`; Nginx Proxy Manager continúa siendo el único dueño de `80/443`.
