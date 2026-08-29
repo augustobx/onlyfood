@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
 
 function TicketLogo({ src, appName }: { src: string; appName: string }) {
   return (
@@ -20,6 +21,9 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
   const paperWidth = config?.printerCounterSize === "58mm" ? "58mm" : "80mm";
   const paperWidthMm = paperWidth === "58mm" ? 58 : 80;
   const logoUrl = config?.logoUrl || null;
+  const pattyCount = config?.kitchenPattyCountEnabled
+    ? countOrderPatties(order.items, config.kitchenPattyKeywords)
+    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +143,12 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
               </div>
             ))}
           </div>
+
+          {pattyCount !== null && (
+            <div className="ticket-section mb-4 border-y-2 border-black py-2 text-center text-xl font-black">
+              TOTAL MEDALLONES: {formatPattyCount(pattyCount)}
+            </div>
+          )}
         </section>
 
         <div className="mx-3 border-t-2 border-dashed border-black py-2 text-center text-[9px] font-bold">CORTE AQUÍ</div>

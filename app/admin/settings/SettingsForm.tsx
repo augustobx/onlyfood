@@ -86,6 +86,8 @@ export function SettingsForm({
       paymentCash: cfg.paymentCash,
       paymentMp: cfg.paymentMp,
       autoPrintTickets: Boolean(cfg.autoPrintTickets),
+      kitchenPattyCountEnabled: Boolean(cfg.kitchenPattyCountEnabled),
+      kitchenPattyKeywords: cfg.kitchenPattyKeywords || "medallón,medallon",
       printingMode: cfg.printingMode === "PRINTNODE" && !printNodeEnabled ? "BROWSER" : (cfg.printingMode || "BROWSER"),
       printNodeCounterPrinterId: cfg.printNodeCounterPrinterId ? Number(cfg.printNodeCounterPrinterId) : null,
       printNodeKitchenPrinterId: cfg.printNodeKitchenPrinterId ? Number(cfg.printNodeKitchenPrinterId) : null,
@@ -953,6 +955,28 @@ export function SettingsForm({
                   <p className="text-sm text-muted-foreground">{cfg.printingMode === "PRINTNODE" ? "Los pedidos en efectivo se envían al crearse y los de Mercado Pago al acreditarse." : "La app abrirá el ticket y el diálogo del navegador cuando ingrese un pedido nuevo."}</p>
                 </div>
                 <Switch checked={cfg.autoPrintTickets} onCheckedChange={v => updateField('autoPrintTickets', v)} />
+              </div>
+
+              <div className="space-y-4 rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-base font-bold text-slate-800">Total de medallones en comanda</Label>
+                    <p className="text-sm text-muted-foreground">Muestra al final del ticket de cocina cuántos medallones requiere el pedido, incluidos productos, combos y extras.</p>
+                  </div>
+                  <Switch checked={Boolean(cfg.kitchenPattyCountEnabled)} onCheckedChange={v => updateField("kitchenPattyCountEnabled", v)} />
+                </div>
+                {cfg.kitchenPattyCountEnabled && (
+                  <div className="space-y-2">
+                    <Label>Palabras que identifican un medallón</Label>
+                    <Input
+                      value={cfg.kitchenPattyKeywords || ""}
+                      onChange={event => updateField("kitchenPattyKeywords", event.target.value)}
+                      placeholder="medallón, carne, smash"
+                      className="bg-white"
+                    />
+                    <p className="text-xs text-muted-foreground">Separalas con comas. Se comparan con los nombres de ingredientes y extras; la cantidad definida en la receta se respeta.</p>
+                  </div>
+                )}
               </div>
 
               {/* Impresora Mostrador */}

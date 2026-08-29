@@ -44,6 +44,8 @@ model SystemConfig {
   paymentCash               Boolean @default(true)
   paymentMp                 Boolean @default(true)
   autoPrintTickets          Boolean @default(true)
+  kitchenPattyCountEnabled  Boolean @default(false)
+  kitchenPattyKeywords      String  @default("medallón,medallon")
   printingMode              String  @default("BROWSER") // BROWSER, PRINTNODE, NANOLABS_AGENT
   printNodeCounterPrinterId Int?
   printNodeKitchenPrinterId Int?
@@ -1022,6 +1024,8 @@ model TenantSettings {
   paymentCash               Boolean @default(true)
   paymentMp                 Boolean @default(true)
   autoPrintTickets          Boolean @default(true)
+  kitchenPattyCountEnabled  Boolean @default(false)
+  kitchenPattyKeywords      String  @default("medallón,medallon")
   printingMode              String  @default("BROWSER") // BROWSER, PRINTNODE, NANOLABS_AGENT
   printNodeCounterPrinterId Int?
   printNodeKitchenPrinterId Int?

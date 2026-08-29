@@ -28,6 +28,8 @@ const configSchema = z.object({
   deliveryCost: z.number().min(0).max(10_000_000), globalDiscount: z.number().min(0).max(100),
   splashUrl: optionalAssetUrl, splashVideoUrl: optionalAssetUrl, logoUrl: optionalAssetUrl, backgroundUrl: optionalAssetUrl, backgroundBlur: z.boolean(),
   paymentCash: z.boolean(), paymentMp: z.boolean(), autoPrintTickets: z.boolean(),
+  kitchenPattyCountEnabled: z.boolean(),
+  kitchenPattyKeywords: z.string().trim().min(1).max(250),
   printingMode: z.enum(["BROWSER", "PRINTNODE", "NANOLABS_AGENT"]),
   printNodeCounterPrinterId: z.number().int().positive().nullable(),
   printNodeKitchenPrinterId: z.number().int().positive().nullable(),

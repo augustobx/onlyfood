@@ -69,4 +69,6 @@ NanoLabs OnlyFood es una plataforma SaaS Multi-Tenant diseñada para operar cien
 
 `SystemConfig.logoUrl` es la única fuente de identidad gráfica del comercio. Cuando existe, se utiliza en la navegación, seguimiento, pestaña del navegador, instalación PWA, previews sociales, notificaciones push y tickets. Cuando está vacío no se publica ni se dibuja un logo alternativo: se conserva únicamente el nombre textual del comercio.
 
+La operación en vivo ordena cada etapa por `Order.deliveryTime`, manteniendo al final los pedidos sin un horario reconocible. El despacho permite segmentar en memoria por `needsDelivery` sin cambiar el estado ni el historial. Para cocina, `SystemConfig.kitchenPattyCountEnabled` gobierna la salida del total de medallones tanto en impresión de navegador como en PrintNode y NanoLabs Print Agent; `kitchenPattyKeywords` identifica ingredientes y extras, mientras que las cantidades se toman de las recetas persistidas.
+
 El manifiesto y los metadatos se resuelven en cada request según el hostname del tenant. No deben agregarse `favicon.ico`, `apple-icon.png`, manifiestos estáticos ni imágenes de marca genéricas en `app/` o `public/`, porque las convenciones de archivos de Next.js tienen prioridad sobre los metadatos dinámicos.

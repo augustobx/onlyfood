@@ -22,7 +22,7 @@ export default defineConfig({
     fileParallelism: false,
     include: process.env.RUN_DB_TESTS === "true"
       ? ["tests/**/*.test.ts"]
-      : ["tests/security-unit.test.ts", "tests/tenant-branding.test.ts", "tests/quantity-discounts.test.ts", "tests/whatsapp-notifications.test.ts"],
+      : ["tests/security-unit.test.ts", "tests/tenant-branding.test.ts", "tests/quantity-discounts.test.ts", "tests/whatsapp-notifications.test.ts", "tests/patty-count.test.ts"],
     alias: {
       'server-only': path.resolve(import.meta.dirname, './tests/mocks/server-only.ts'),
       '@': path.resolve(import.meta.dirname, './'),

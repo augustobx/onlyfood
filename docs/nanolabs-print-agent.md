@@ -15,7 +15,7 @@ NanoLabs Print Agent reemplaza la dependencia obligatoria de PrintNode con un ag
 
 El agente consulta la cola cada tres segundos. Cada trabajo queda reservado durante 60 segundos, se confirma al imprimir y puede reintentarse hasta tres veces. Si el equipo se apaga, los trabajos pendientes permanecen en el servidor.
 
-Los tickets de OnlyFood se envían como ESC/POS RAW, incluyendo ancho de 58/80 mm, logo monocromático y corte. No se abre el diálogo del navegador.
+Los tickets de OnlyFood se envían como ESC/POS RAW, incluyendo ancho de 58/80 mm, logo monocromático y corte. No se abre el diálogo del navegador. Si se activa **Total de medallones en comanda** en `Configuración > Impresoras`, el ticket de cocina agrega al final el total calculado desde las recetas, combos y extras del pedido. Las palabras configuradas allí determinan qué ingredientes y extras se consideran medallones.
 
 ## Seguridad
 

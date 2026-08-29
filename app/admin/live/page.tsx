@@ -77,6 +77,22 @@ function getTimeElapsed(createdAt: string | Date): { text: string; isUrgent: boo
   };
 }
 
+function deliveryTimeInMinutes(value: unknown) {
+  if (typeof value !== "string") return Number.POSITIVE_INFINITY;
+  const match = value.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function compareByDeliveryTime(a: any, b: any) {
+  const timeDifference = deliveryTimeInMinutes(a.deliveryTime) - deliveryTimeInMinutes(b.deliveryTime);
+  if (Number.isFinite(timeDifference) && timeDifference !== 0) return timeDifference;
+  if (Number.isFinite(deliveryTimeInMinutes(a.deliveryTime)) !== Number.isFinite(deliveryTimeInMinutes(b.deliveryTime))) {
+    return Number.isFinite(deliveryTimeInMinutes(a.deliveryTime)) ? -1 : 1;
+  }
+  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+}
+
 export default function LiveDashboardPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [messengers, setMessengers] = useState<any[]>([]);
@@ -93,6 +109,7 @@ export default function LiveDashboardPage() {
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isCancelledOpen, setIsCancelledOpen] = useState(false);
+  const [dispatchFilter, setDispatchFilter] = useState<"ALL" | "DELIVERY" | "PICKUP">("ALL");
 
   const [moduleStates, setModuleStates] = useState<{
     allowImmediateOrders: boolean;
@@ -354,7 +371,7 @@ export default function LiveDashboardPage() {
 
   // Apply search query
   const filteredTodayOrders = useMemo(() => {
-    if (!searchQuery.trim()) return todayOrders;
+    if (!searchQuery.trim()) return [...todayOrders].sort(compareByDeliveryTime);
     const q = searchQuery.toLowerCase();
     return todayOrders.filter((o: any) => {
       return (
@@ -363,13 +380,18 @@ export default function LiveDashboardPage() {
         o.id?.toLowerCase().includes(q) ||
         o.items?.some((it: any) => it.product?.name?.toLowerCase().includes(q))
       );
-    });
+    }).sort(compareByDeliveryTime);
   }, [todayOrders, searchQuery]);
 
   // Operational Stages Categorization (4 distinct streams)
   const stageNew = filteredTodayOrders.filter((o: any) => o.status === "NEW");
   const stageInPrep = filteredTodayOrders.filter((o: any) => o.status === "IN_PROCESS");
   const stageReadyOrDelivery = filteredTodayOrders.filter((o: any) => o.status === "PENDING_DELIVERY" || o.status === "OUT_FOR_DELIVERY" || o.status === "FINISHED");
+  const dispatchDeliveryCount = stageReadyOrDelivery.filter((o: any) => Boolean(o.needsDelivery)).length;
+  const dispatchPickupCount = stageReadyOrDelivery.length - dispatchDeliveryCount;
+  const visibleDispatchOrders = stageReadyOrDelivery.filter((o: any) => (
+    dispatchFilter === "ALL" || (dispatchFilter === "DELIVERY" ? Boolean(o.needsDelivery) : !o.needsDelivery)
+  ));
   const stageCompleted = filteredTodayOrders.filter((o: any) => o.status === "DELIVERED");
   const stageCancelled = filteredTodayOrders.filter((o: any) => o.status === "CANCELLED");
 
@@ -468,6 +490,11 @@ export default function LiveDashboardPage() {
                 </span>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-black text-slate-800">
+            <Clock className="h-3.5 w-3.5 text-purple-600" />
+            <span>Entrega: {order.deliveryTime || "Sin horario"}</span>
           </div>
 
           {/* Delivery address if applicable */}
@@ -833,24 +860,43 @@ export default function LiveDashboardPage() {
 
         {/* STAGE 3: 🛵 En Reparto / Listos */}
         <div className="bg-purple-50/40 rounded-3xl border border-purple-200/80 p-3.5 flex flex-col min-h-[600px] shadow-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-purple-200 mb-3 px-1">
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-purple-500" />
-              <h2 className="font-black text-sm text-purple-950 uppercase tracking-tight">Despacho / En Reparto</h2>
+          <div className="space-y-2.5 border-b border-purple-200 px-1 pb-3 mb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-purple-500" />
+                <h2 className="font-black text-sm text-purple-950 uppercase tracking-tight">Despacho / En Reparto</h2>
+              </div>
+              <Badge className="bg-purple-600 text-white font-black text-xs px-2 py-0.5 rounded-full">
+                {visibleDispatchOrders.length}
+              </Badge>
             </div>
-            <Badge className="bg-purple-600 text-white font-black text-xs px-2 py-0.5 rounded-full">
-              {stageReadyOrDelivery.length}
-            </Badge>
+            <div className="grid grid-cols-3 gap-1 rounded-xl bg-purple-100/80 p-1">
+              {([
+                ["ALL", "Todos", stageReadyOrDelivery.length],
+                ["DELIVERY", "Envío", dispatchDeliveryCount],
+                ["PICKUP", "Retiro", dispatchPickupCount],
+              ] as const).map(([value, label, count]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setDispatchFilter(value)}
+                  aria-pressed={dispatchFilter === value}
+                  className={`rounded-lg px-1.5 py-1.5 text-[10px] font-black transition-colors ${dispatchFilter === value ? "bg-white text-purple-800 shadow-sm" : "text-purple-700 hover:bg-white/60"}`}
+                >
+                  {label} <span className="ml-0.5 rounded-full bg-purple-200 px-1.5 py-0.5 text-[9px]">{count}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-3 flex-1 overflow-y-auto">
-            {stageReadyOrDelivery.length === 0 ? (
+            {visibleDispatchOrders.length === 0 ? (
               <div className="text-center py-16 text-slate-400 text-xs font-semibold space-y-1">
                 <Truck className="w-6 h-6 mx-auto text-purple-300" />
-                <p>Sin pedidos en despacho</p>
+                <p>{stageReadyOrDelivery.length === 0 ? "Sin pedidos en despacho" : "No hay pedidos de este tipo"}</p>
               </div>
             ) : (
-              stageReadyOrDelivery.map((order) => renderOrderCard(order, "READY_DELIVERY"))
+              visibleDispatchOrders.map((order) => renderOrderCard(order, "READY_DELIVERY"))
             )}
           </div>
         </div>

@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
+import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
 
 export type PrintKind = "KITCHEN" | "COUNTER";
 
@@ -29,12 +30,13 @@ const GS = 0x1d;
 const orderInclude = {
   items: {
     include: {
-      product: true,
+      product: { include: { ingredients: { include: { ingredient: true } } } },
+      secondHalfProduct: { include: { ingredients: { include: { ingredient: true } } } },
       addedExtras: { include: { extra: true } },
       removedIngredients: { include: { ingredient: true } },
       comboItems: {
         include: {
-          product: true,
+          product: { include: { ingredients: { include: { ingredient: true } } } },
           removedIngredients: { include: { ingredient: true } },
         },
       },
@@ -56,7 +58,12 @@ function orderCode(order: PrintableOrder) {
   return order.id.slice(-5).toUpperCase();
 }
 
-function kitchenBlocks(order: PrintableOrder): TextBlock[] {
+type KitchenPattyOptions = {
+  enabled?: boolean;
+  keywords?: string | null;
+};
+
+function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions = {}): TextBlock[] {
   const blocks: TextBlock[] = [
     { text: "COCINA", size: 14, bold: true, align: "center" },
     { text: `#${orderCode(order)}`, size: 14, bold: true, align: "center" },
@@ -78,6 +85,13 @@ function kitchenBlocks(order: PrintableOrder): TextBlock[] {
     }
     if (item.notes) blocks.push({ text: `NOTA: ${item.notes.toUpperCase()}`, size: 10, bold: true, before: 1, after: 1 });
   });
+  if (pattyOptions.enabled) {
+    const pattyCount = countOrderPatties(order.items, pattyOptions.keywords);
+    blocks.push(
+      { type: "separator", before: 1, after: 1 },
+      { text: `TOTAL MEDALLONES: ${formatPattyCount(pattyCount)}`, size: 14, bold: true, align: "center", after: 1 },
+    );
+  }
   blocks.push({ type: "separator", before: 1 }, { text: `PEDIDO #${orderCode(order)}`, bold: true, align: "center" });
   return blocks;
 }
@@ -191,9 +205,9 @@ async function rasterLogo(logoUrl: string | null, rollSize: string | null) {
   ]);
 }
 
-async function createTicketRaw(order: PrintableOrder, kind: PrintKind, rollSize: string | null, logoUrl: string | null) {
+async function createTicketRaw(order: PrintableOrder, kind: PrintKind, rollSize: string | null, logoUrl: string | null, pattyOptions: KitchenPattyOptions = {}) {
   const normalColumns = rollSize === "58mm" ? 32 : 42;
-  const blocks = kind === "KITCHEN" ? kitchenBlocks(order) : counterBlocks(order, normalColumns);
+  const blocks = kind === "KITCHEN" ? kitchenBlocks(order, pattyOptions) : counterBlocks(order, normalColumns);
   const chunks: Buffer[] = [
     Buffer.from([ESC, 0x40]), // Inicializar impresora.
     Buffer.from([ESC, 0x32]), // Interlineado normal.
@@ -340,7 +354,10 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
         update: { status: "PENDING", attempts: { increment: 1 }, error: null },
       });
       try {
-        const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl);
+        const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl, {
+          enabled: config.kitchenPattyCountEnabled,
+          keywords: config.kitchenPattyKeywords,
+        });
         const idempotencyKey = options.force ? `onlyfood-agent-${orderId}-${target.kind}-manual-${attempt}` : `onlyfood-agent-${orderId}-${target.kind}-auto`;
         const queued = await enqueuePrintAgentJob({ tenantId, orderId, destination: target.kind, title: `${config.appName} #${orderCode(order)} ${target.kind}`, payload: rawTicket, widthMm: target.rollSize === "58mm" ? 58 : 80, idempotencyKey });
         jobs.push({ kind: target.kind, success: true, jobId: queued.id });
@@ -392,7 +409,10 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
       update: { status: "PROCESSING", attempts: { increment: 1 }, error: null },
     });
     try {
-      const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl);
+      const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl, {
+        enabled: config.kitchenPattyCountEnabled,
+        keywords: config.kitchenPattyKeywords,
+      });
       const key = options.force ? `onlyfood-raw-${orderId}-${target.kind}-manual-${attempt}` : `onlyfood-raw-${orderId}-${target.kind}-auto`;
       const jobId = await submitPrintNodeJob(target.printerId, `${config.appName} #${orderCode(order)} ${target.kind}`, rawTicket, key, customApiKey);
       await prisma.printDispatch.update({

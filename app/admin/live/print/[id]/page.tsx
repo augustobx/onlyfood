@@ -26,9 +26,16 @@ export default async function PrintTicketPage({
     include: {
       items: {
         include: {
-          product: true,
+          product: { include: { ingredients: { include: { ingredient: true } } } },
+          secondHalfProduct: { include: { ingredients: { include: { ingredient: true } } } },
           addedExtras: { include: { extra: true } },
-          removedIngredients: { include: { ingredient: true } }
+          removedIngredients: { include: { ingredient: true } },
+          comboItems: {
+            include: {
+              product: { include: { ingredients: { include: { ingredient: true } } } },
+              removedIngredients: { include: { ingredient: true } },
+            },
+          },
         }
       }
     }
