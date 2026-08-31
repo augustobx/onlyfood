@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup de MariaDB de OnlyFood
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/apps/onlyfood/scripts/backup-production.sh db
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

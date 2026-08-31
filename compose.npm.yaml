@@ -1,8 +1,8 @@
-name: onlyfood-saas
+name: onlyfood
 
 services:
   db:
-    image: mariadb:11.8
+    image: mariadb:11.8.9@sha256:2439dcd7d14010ecd1ff7a4e1c5abe8e208c34fe35290744deeeaac3569043c3
     restart: unless-stopped
     environment:
       MARIADB_DATABASE: ${DB_NAME:-onlyfood}
@@ -13,6 +13,8 @@ services:
     command: ["--log-bin=mysql-bin", "--binlog-format=ROW", "--expire-logs-days=7", "--server-id=1"]
     volumes:
       - mariadb_data:/var/lib/mysql
+    networks:
+      - onlyfood-internal
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
@@ -20,39 +22,41 @@ services:
       retries: 20
       start_period: 10s
     logging:
+      driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
   database-init:
+    profiles: ["migration"]
+    image: onlyfood-database-init:latest
     build:
       context: .
-      target: database-init
+      target: database-migrate
     environment:
       DATABASE_URL: mysql://${DB_USER:-onlyfood}:${DB_PASSWORD}@db:3306/${DB_NAME:-onlyfood}
-      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
-      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
-      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-}
-      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
-      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
     depends_on:
       db: { condition: service_healthy }
+    networks:
+      - onlyfood-internal
     restart: "no"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   app:
+    image: onlyfood-app:latest
     build:
       context: .
       target: runner
       args:
-        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?Definir NEXT_SERVER_ACTIONS_ENCRYPTION_KEY en .env.docker}
+        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
     restart: unless-stopped
-    ports:
-      - "${APP_PORT:-3007}:3000"
     environment:
       DATABASE_URL: mysql://${DB_USER:-onlyfood}:${DB_PASSWORD}@db:3306/${DB_NAME:-onlyfood}
-      AUTH_SALT: ${AUTH_SALT:?Definir AUTH_SALT en .env.docker}
+      AUTH_SALT: ${AUTH_SALT:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-${ENCRYPTION_MASTER_KEY:-}}
-      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?Definir NEXT_SERVER_ACTIONS_ENCRYPTION_KEY en .env.docker}
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
       BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
-      BASE_URL: ${BASE_URL:?Definir BASE_URL en .env.docker}
+      BASE_URL: ${BASE_URL:-}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
       ALLOW_LOCAL_STORAGE: ${ALLOW_LOCAL_STORAGE:-false}
       R2_ENDPOINT: ${R2_ENDPOINT:-}
@@ -70,11 +74,14 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       TZ: ${TZ:-America/Argentina/Buenos_Aires}
-    volumes:
-      - ./public/uploads:/app/public/uploads
+      BUSINESS_TIME_ZONE: ${BUSINESS_TIME_ZONE:-America/Argentina/Buenos_Aires}
+    networks:
+      proxy:
+        aliases:
+          - onlyfood-app
+      onlyfood-internal:
     depends_on:
       db: { condition: service_healthy }
-      database-init: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
@@ -83,7 +90,16 @@ services:
       start_period: 20s
     stop_grace_period: 30s
     logging:
+      driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
 volumes:
   mariadb_data:
+    name: onlyfood_mariadb_data
+
+networks:
+  proxy:
+    external: true
+  onlyfood-internal:
+    name: onlyfood_internal
+    internal: true

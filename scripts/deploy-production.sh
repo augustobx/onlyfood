@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ONLYFOOD_PROJECT_DIR="${ONLYFOOD_PROJECT_DIR:-/opt/onlyfood-saas}"
-ONLYFOOD_PROJECT_NAME="onlyfood-saas"
+ONLYFOOD_PROJECT_DIR="${ONLYFOOD_PROJECT_DIR:-/opt/apps/onlyfood}"
+ONLYFOOD_PROJECT_NAME="onlyfood"
 ONLYFOOD_COMPOSE_FILE="$ONLYFOOD_PROJECT_DIR/compose.npm.yaml"
 ONLYFOOD_ENV_FILE="$ONLYFOOD_PROJECT_DIR/.env.docker"
-ONLYFOOD_BACKUP_DIR="${ONLYFOOD_BACKUP_DIR:-/root/onlyfood-backups}"
-ONLYFOOD_APP_PORT="${APP_PORT:-3007}"
+ONLYFOOD_BACKUP_SCRIPT="$ONLYFOOD_PROJECT_DIR/scripts/backup-production.sh"
+ONLYFOOD_RUN_MIGRATIONS=false
+
+if [[ "${1:-}" == "--migrate" ]]; then
+  ONLYFOOD_RUN_MIGRATIONS=true
+  shift
+fi
+[[ $# -eq 0 ]] || {
+  printf 'Uso: %s [--migrate]\n' "$0" >&2
+  exit 2
+}
 
 compose() {
   docker compose \
@@ -21,72 +30,107 @@ fail() {
   exit 1
 }
 
+env_value() {
+  local key="$1"
+  sed -n "s/^${key}=//p" "$ONLYFOOD_ENV_FILE" | tail -n 1
+}
+
+require_env() {
+  local key="$1"
+  [[ -n "$(env_value "$key")" ]] || fail "Falta $key en .env.docker."
+}
+
+validate_runtime_env() {
+  require_env DB_PASSWORD
+  require_env DB_ROOT_PASSWORD
+  require_env AUTH_SALT
+  require_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+  require_env BASE_DOMAIN
+  require_env BASE_URL
+  require_env R2_ENDPOINT
+  require_env R2_BUCKET
+  require_env R2_ACCESS_KEY_ID
+  require_env R2_SECRET_ACCESS_KEY
+  require_env R2_PUBLIC_URL
+  if [[ -z "$(env_value ENCRYPTION_KEY)" && -z "$(env_value ENCRYPTION_MASTER_KEY)" ]]; then
+    fail "Falta ENCRYPTION_KEY o ENCRYPTION_MASTER_KEY en .env.docker."
+  fi
+  [[ "$(env_value STORAGE_PROVIDER)" == "r2" ]] || fail "STORAGE_PROVIDER debe ser r2 en producción."
+  [[ "$(env_value ALLOW_LOCAL_STORAGE)" == "false" ]] || fail "ALLOW_LOCAL_STORAGE debe ser false en producción."
+  [[ "$(env_value SEED_DEMO_DATA)" == "false" ]] || fail "SEED_DEMO_DATA debe ser false en producción."
+}
+
 [[ -d "$ONLYFOOD_PROJECT_DIR/.git" ]] || fail "No existe el repositorio en $ONLYFOOD_PROJECT_DIR."
 [[ -f "$ONLYFOOD_COMPOSE_FILE" ]] || fail "Falta compose.npm.yaml."
 [[ -f "$ONLYFOOD_ENV_FILE" ]] || fail "Falta .env.docker."
+[[ -f "$ONLYFOOD_BACKUP_SCRIPT" ]] || fail "Falta el script de backup."
 
 cd "$ONLYFOOD_PROJECT_DIR"
-
-printf '== Validando topología Nginx Proxy Manager ==\n'
+validate_runtime_env
 compose config --quiet
-if compose config --services | grep -qx 'proxy'; then
-  fail "La configuración de producción no debe incluir Caddy/proxy."
-fi
 
-printf '== Creando respaldo de MariaDB ==\n'
-mkdir -p "$ONLYFOOD_BACKUP_DIR"
-ONLYFOOD_BACKUP_FILE="$ONLYFOOD_BACKUP_DIR/onlyfood-$(date +%Y%m%d-%H%M%S).sql.gz"
-compose exec -T db sh -c 'mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' | gzip > "$ONLYFOOD_BACKUP_FILE"
-[[ -s "$ONLYFOOD_BACKUP_FILE" ]] || fail "El respaldo quedó vacío."
-ls -lh "$ONLYFOOD_BACKUP_FILE"
+[[ "$(git branch --show-current)" == "main" ]] || fail "El checkout productivo debe estar en main."
+[[ -z "$(git status --porcelain)" ]] || fail "El checkout productivo contiene cambios locales."
 
-printf '== Actualizando código desde GitHub ==\n'
 git fetch origin main
-git pull --ff-only origin main
-ONLYFOOD_COMMIT="$(git rev-parse --short HEAD)"
+git merge-base --is-ancestor HEAD origin/main || fail "origin/main no es un avance directo del checkout productivo."
 
+ONLYFOOD_PREVIOUS_COMMIT="$(git rev-parse HEAD)"
+ONLYFOOD_TARGET_COMMIT="$(git rev-parse origin/main)"
 ONLYFOOD_ROLLBACK_TAG=""
-ONLYFOOD_CURRENT_IMAGE="$(docker inspect --format '{{.Image}}' onlyfood-saas-app-1 2>/dev/null || true)"
-if [[ -n "$ONLYFOOD_CURRENT_IMAGE" ]]; then
-  ONLYFOOD_ROLLBACK_TAG="onlyfood-saas-app:rollback-$(date +%Y%m%d-%H%M%S)"
-  docker image tag "$ONLYFOOD_CURRENT_IMAGE" "$ONLYFOOD_ROLLBACK_TAG"
-  printf 'Rollback conservado: %s\n' "$ONLYFOOD_ROLLBACK_TAG"
+
+ONLYFOOD_DB_CONTAINER="$(compose ps -q db 2>/dev/null || true)"
+if [[ -n "$ONLYFOOD_DB_CONTAINER" ]] && [[ "$(docker inspect --format '{{.State.Running}}' "$ONLYFOOD_DB_CONTAINER")" == "true" ]]; then
+  bash "$ONLYFOOD_BACKUP_SCRIPT" db
+else
+  printf 'MariaDB todavía no está en ejecución; no hay datos que respaldar.\n'
 fi
 
-printf '== Construyendo app e inicializador ==\n'
+ONLYFOOD_APP_CONTAINER="$(compose ps -q app 2>/dev/null || true)"
+if [[ -n "$ONLYFOOD_APP_CONTAINER" ]]; then
+  ONLYFOOD_CURRENT_IMAGE="$(docker inspect --format '{{.Image}}' "$ONLYFOOD_APP_CONTAINER")"
+  ONLYFOOD_ROLLBACK_TAG="onlyfood-app:rollback-$(date -u +%Y%m%dT%H%M%SZ)"
+  docker image tag "$ONLYFOOD_CURRENT_IMAGE" "$ONLYFOOD_ROLLBACK_TAG"
+fi
+
+if [[ "$ONLYFOOD_PREVIOUS_COMMIT" != "$ONLYFOOD_TARGET_COMMIT" ]]; then
+  git merge --ff-only origin/main
+fi
+
 compose build app database-init
+compose up -d --no-build db
 
-printf '== Aplicando migraciones ==\n'
-compose up -d --no-build db database-init
-ONLYFOOD_INIT_CONTAINER="$(compose ps -a -q database-init)"
-[[ -n "$ONLYFOOD_INIT_CONTAINER" ]] || fail "No se creó database-init."
-docker wait "$ONLYFOOD_INIT_CONTAINER" >/dev/null
-ONLYFOOD_INIT_EXIT="$(docker inspect --format '{{.State.ExitCode}}' "$ONLYFOOD_INIT_CONTAINER")"
-[[ "$ONLYFOOD_INIT_EXIT" == "0" ]] || fail "database-init terminó con código $ONLYFOOD_INIT_EXIT. Revisá sus logs."
+if [[ "$ONLYFOOD_RUN_MIGRATIONS" == "true" ]]; then
+  printf 'Aplicando únicamente migraciones Prisma pendientes. No se ejecutan seeds.\n'
+  compose --profile migration run --rm database-init
+else
+  printf 'Migraciones omitidas. Usá --migrate sólo después de revisar la base restaurada.\n'
+fi
 
-printf '== Reemplazando únicamente la aplicación ==\n'
 compose up -d --no-build --no-deps app
+ONLYFOOD_APP_CONTAINER="$(compose ps -q app)"
+[[ -n "$ONLYFOOD_APP_CONTAINER" ]] || fail "No se creó el contenedor de la aplicación."
 
-printf '== Esperando healthcheck en puerto %s ==\n' "$ONLYFOOD_APP_PORT"
 ONLYFOOD_HEALTHY=false
-for _ in $(seq 1 30); do
-  if curl --fail --silent --show-error --max-time 3 "http://127.0.0.1:${ONLYFOOD_APP_PORT}/api/health" >/dev/null; then
+for _ in $(seq 1 45); do
+  ONLYFOOD_HEALTH="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ONLYFOOD_APP_CONTAINER")"
+  if [[ "$ONLYFOOD_HEALTH" == "healthy" ]]; then
     ONLYFOOD_HEALTHY=true
     break
   fi
+  [[ "$ONLYFOOD_HEALTH" != "unhealthy" ]] || break
   sleep 2
 done
 
 if [[ "$ONLYFOOD_HEALTHY" != "true" ]]; then
   compose logs --tail=150 app >&2 || true
   if [[ -n "$ONLYFOOD_ROLLBACK_TAG" ]]; then
-    printf 'Healthcheck falló; restaurando imagen anterior.\n' >&2
-    docker image tag "$ONLYFOOD_ROLLBACK_TAG" onlyfood-saas-app:latest
+    docker image tag "$ONLYFOOD_ROLLBACK_TAG" onlyfood-app:latest
     compose up -d --no-build --no-deps --force-recreate app
   fi
-  fail "La versión nueva no superó el healthcheck."
+  fail "La aplicación no superó el healthcheck."
 fi
 
-printf '%s\n' "$ONLYFOOD_COMMIT" > "$ONLYFOOD_PROJECT_DIR/.deployed-commit"
+git rev-parse HEAD > "$ONLYFOOD_PROJECT_DIR/.deployed-commit"
 compose ps -a
-printf '== OnlyFood %s desplegado y saludable ==\n' "$ONLYFOOD_COMMIT"
+printf 'OnlyFood %s desplegado y saludable.\n' "$(git rev-parse --short HEAD)"

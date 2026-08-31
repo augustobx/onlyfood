@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup de MariaDB de OnlyFood cada 6 horas
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:15:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=onlyfood-backup-db.service
+
+[Install]
+WantedBy=timers.target

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:22-bookworm-slim AS base
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN apt-get update \
@@ -23,12 +23,17 @@ COPY . .
 RUN ./node_modules/.bin/prisma generate \
     && npm run build
 
-# Used by Compose to apply versioned, repeatable database migrations.
-FROM base AS database-init
+# Production migration image. It never runs seeds and is not part of the
+# default production Compose startup.
+FROM base AS database-migrate
 ENV NODE_ENV=production
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json prisma.config.ts ./
 COPY prisma ./prisma
+CMD ["sh", "-c", "./node_modules/.bin/prisma generate && ./node_modules/.bin/prisma migrate deploy"]
+
+# Local Docker initialization preserves the project's existing opt-in seed.
+FROM database-migrate AS database-init
 COPY scripts ./scripts
 CMD ["sh", "-c", "./node_modules/.bin/prisma generate && ./node_modules/.bin/prisma migrate deploy && node scripts/seed-saas.mjs"]
 

@@ -71,7 +71,7 @@ Antes del primer arranque:
 
 1. Configurar DNS para que el dominio base, subdominios y dominios personalizados lleguen al proxy. El Caddyfile productivo usa On-Demand TLS y consulta `/api/internal/caddy/ask`; solo el dominio base o un tenant activo con dominio válido puede obtener certificado. La plantilla local monta `Caddyfile.local` y usa HTTP.
 2. Copiar `.env.docker.example` a `.env.docker` y reemplazar todos los placeholders.
-3. Mantener `SEED_DEMO_DATA=false`, `ALLOW_LOCAL_STORAGE=false` y object storage configurado.
+3. Mantener `SEED_DEMO_DATA=false`, `STORAGE_PROVIDER=r2`, `ALLOW_LOCAL_STORAGE=false` y Cloudflare R2 configurado con los secretos productivos originales.
 4. Crear y verificar un backup restaurable de la base anterior.
 5. Validar la migración primero sobre un clon de producción.
 6. Ejecutar:
@@ -87,21 +87,27 @@ docker compose --env-file .env.docker logs --tail=200 database-init app db proxy
 
 ### Servidor con Nginx Proxy Manager
 
-Si el servidor ya publica `80/443` mediante Nginx Proxy Manager, usar `compose.npm.yaml` en lugar de `compose.yaml`. Esta variante no inicia Caddy, no publica MariaDB en el host y expone únicamente la aplicación en `APP_PORT` (3007 por defecto):
+Si el servidor ya publica `80/443` mediante Nginx Proxy Manager, usar `compose.npm.yaml` en lugar de `compose.yaml`. Esta variante no inicia Caddy, no publica MariaDB ni la aplicación en el host y conecta la aplicación directamente a la red Docker externa `proxy`:
 
 ```bash
 docker compose -f compose.npm.yaml --env-file .env.docker build
-docker compose -f compose.npm.yaml --env-file .env.docker up -d
+docker compose -f compose.npm.yaml --env-file .env.docker up -d db app
 docker compose -f compose.npm.yaml --env-file .env.docker ps -a
 docker compose -f compose.npm.yaml --env-file .env.docker logs --tail=200 database-init db app
 ```
 
-En Nginx Proxy Manager, el Proxy Host debe reenviar HTTP al IP del servidor en el puerto configurado, habilitar Websockets y usar un certificado válido para el dominio. Para `onlyfood.nanolabs.online` y los subdominios de tenants se puede usar un certificado wildcard `*.nanolabs.online`; cada dominio personalizado necesita su propio certificado.
+En Nginx Proxy Manager, el Proxy Host debe reenviar HTTP a `onlyfood-app:3000` mediante la red Docker externa `proxy`, conservar el host original, habilitar Websockets y usar un certificado válido para el dominio. El alias es exclusivo del stack y evita colisiones con otros servicios llamados `app`. No se publica ningún puerto de la aplicación ni de MariaDB en el host. Para el dominio base y los subdominios de tenants se puede usar un certificado wildcard; cada dominio personalizado necesita su propio certificado.
+
+`database-init` pertenece al perfil manual `migration`. El arranque normal no ejecuta migraciones ni seeds. Después de restaurar y revisar `_prisma_migrations`, aplicar exclusivamente las migraciones pendientes con:
+
+```bash
+docker compose -p onlyfood -f compose.npm.yaml --env-file .env.docker --profile migration run --rm database-init
+```
 
 En el VPS productivo de NanoLabs, instalar el actualizador canónico una sola vez:
 
 ```bash
-install -m 0755 /opt/onlyfood-saas/scripts/deploy-production.sh /usr/local/bin/deploy-onlyfood
+install -m 0755 /opt/apps/onlyfood/scripts/deploy-production.sh /usr/local/bin/deploy-onlyfood
 ```
 
 Desde entonces, cada actualización se realiza únicamente con:
@@ -110,9 +116,9 @@ Desde entonces, cada actualización se realiza únicamente con:
 deploy-onlyfood
 ```
 
-El script usa siempre `compose.npm.yaml`, conserva un dump y una imagen de rollback, construye sin detener la versión activa, aplica las migraciones one-shot y reemplaza exclusivamente `onlyfood-saas-app-1` después de validar la base. No inicia Caddy, no publica MariaDB, no usa `--remove-orphans` y no modifica otros proyectos Docker. No sustituirlo por un `docker compose up` sobre `compose.yaml` en producción.
+El script usa siempre `compose.npm.yaml`, conserva un dump y una imagen de rollback, construye sin detener la versión activa y reemplaza exclusivamente la aplicación. No ejecuta migraciones por defecto. `deploy-onlyfood --migrate` se usa sólo después de revisar la base y confirmar que existen migraciones pendientes. Ninguno de los modos ejecuta seeds. No inicia Caddy, no publica puertos de la app o MariaDB, no usa `--remove-orphans` y no modifica otros proyectos Docker.
 
-Durante una sustitución de plataforma, levantar y validar primero `onlyfood-saas`. El stack anterior se detiene por nombre únicamente después de comprobar healthcheck, acceso HTTPS, autenticación y carga de archivos. No reutilizar sus volúmenes ni ejecutar `down -v`.
+Durante una sustitución de plataforma, levantar y validar primero `onlyfood`. El stack anterior se detiene por nombre únicamente después de comprobar healthcheck, acceso HTTPS, autenticación y carga de archivos. No reutilizar sus volúmenes ni ejecutar `down -v`.
 
 ## Rollback
 
@@ -131,9 +137,9 @@ No uses `prisma db push`, no ejecutes seeds históricos sobre datos reales y no 
 En producción con Nginx Proxy Manager, toda operación manual debe declarar `compose.npm.yaml`. Para una actualización normal se usa exclusivamente `deploy-onlyfood`.
 
 ```bash
-docker compose -p onlyfood-saas -f compose.npm.yaml --env-file .env.docker ps -a
-docker compose -p onlyfood-saas -f compose.npm.yaml --env-file .env.docker logs -f app db database-init
-docker compose -p onlyfood-saas -f compose.npm.yaml --env-file .env.docker restart app
+docker compose -p onlyfood -f compose.npm.yaml --env-file .env.docker ps -a
+docker compose -p onlyfood -f compose.npm.yaml --env-file .env.docker logs -f app db
+docker compose -p onlyfood -f compose.npm.yaml --env-file .env.docker restart app
 ```
 
-No ejecutar `compose.yaml`, el servicio `proxy`, `--remove-orphans`, `down` ni `down -v` como parte de una actualización productiva. La variante NPM publica solamente `3007:3000`; Nginx Proxy Manager continúa siendo el único dueño de `80/443`.
+No ejecutar `compose.yaml`, el servicio Caddy, `--remove-orphans`, `down` ni `down -v` como parte de una actualización productiva. La variante NPM conecta `onlyfood-app:3000` directamente a la red externa `proxy`; Nginx Proxy Manager continúa siendo el único dueño de `80/443`.

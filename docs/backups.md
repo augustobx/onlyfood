@@ -1,32 +1,29 @@
 # Backups y recuperación
 
-Compose habilita binary logs MariaDB en formato ROW, `server-id=1` y retención de siete días. Esto habilita la base técnica para PITR, pero el repositorio no programa ni exporta backups: el operador debe configurar esa automatización fuera del stack.
+Compose habilita binary logs MariaDB en formato ROW, `server-id=1` y retención de siete días. `scripts/backup-production.sh` genera dumps consistentes y la unidad en `docker/systemd` programa la base cada seis horas.
 
 Por eso los objetivos RPO/RTO son metas operativas, no garantías verificadas. No publicar hasta ejecutar al menos una restauración completa en un entorno aislado.
 
-## Dump consistente
+## Backup automatizado
 
-Ejecutar desde el host con variables protegidas y un directorio fuera del repositorio:
+Los backups se guardan en `/opt/backups/onlyfood`, usan bloqueo contra solapamientos, archivo temporal, compresión, verificación y checksum. La retención local predeterminada es de 14 días.
 
 ```bash
-docker compose --env-file .env.docker exec -T db mariadb-dump \
-  -u onlyfood -p"$DB_PASSWORD" \
-  --single-transaction --quick --routines --triggers \
-  onlyfood | gzip > /backups/onlyfood_$(date +%Y%m%d_%H%M%S).sql.gz
+bash /opt/apps/onlyfood/scripts/backup-production.sh db
 ```
 
-No pasar contraseñas por una terminal con historial compartido; en operación real usar un archivo de credenciales o secret manager.
+Las credenciales se leen dentro del contenedor de MariaDB y no se pasan como argumentos del host.
 
 ## Restauración
 
-Sobre una base vacía y aislada:
+La restauración productiva se realiza sobre la base definitiva sólo después de comprobar archivo, checksum, versión de MariaDB, destino y estado de `_prisma_migrations`. El stack debe permanecer sin tráfico durante la restauración.
 
 ```bash
-gunzip -c /backups/onlyfood_FECHA.sql.gz | \
-  docker compose --env-file .env.docker exec -T db mariadb -u onlyfood -p"$DB_PASSWORD" onlyfood
+sha256sum -c /opt/backups/onlyfood/db/onlyfood-db-FECHA.sql.gz.sha256
+gzip -t /opt/backups/onlyfood/db/onlyfood-db-FECHA.sql.gz
 ```
 
-Luego iniciar la versión de aplicación compatible, ejecutar `prisma migrate deploy` y hacer smoke tests. No restaurar encima de una base en servicio.
+El comando de importación se define al recuperar NOVA según el formato y la versión real del dump. Después se revisan y ejecutan únicamente las migraciones pendientes mediante el perfil manual `migration`. Nunca se ejecutan seeds.
 
 ## PITR
 
@@ -42,8 +39,9 @@ La disponibilidad de `mariadb-binlog` dentro de la imagen y el procedimiento ext
 
 ## Storage y secretos
 
-- R2/S3: habilitar versionado, lifecycle y una copia off-site acorde a retención legal.
-- Storage local: respaldar `public/uploads`; no es la opción recomendada en producción.
+- Cloudflare R2 contiene los objetos productivos; no se duplican en el backup local del servidor. Su protección y retención se gestionan en Cloudflare.
+- Los archivos de `public/uploads` versionados en Git forman parte de la imagen de aplicación, no de la persistencia mutable del servidor.
+- Si al recuperar NOVA aparece una persistencia local no versionada, debe identificarse y copiarse explícitamente antes del corte.
 - Respaldar la clave de cifrado en el gestor de secretos. Sin ella, las integraciones cifradas del dump no se pueden recuperar.
 
 ## Checklist mensual
