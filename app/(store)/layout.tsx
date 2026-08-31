@@ -1,14 +1,28 @@
 import { Navbar } from "@/components/Navbar";
-import { getTenantContext } from "@/lib/tenant-context";
+import { getTenantContext, normalizeHostname } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
 import { publicConfigSelect } from "@/lib/public-config";
 import type { Metadata } from "next";
 import { buildTenantMetadata } from "@/lib/tenant-branding";
+import { isPlatformHostname } from "@/lib/platform-host";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
+async function isPlatformRequest() {
+  const requestHeaders = await headers();
+  const hostname = normalizeHostname(
+    requestHeaders.get("x-forwarded-host") || requestHeaders.get("host"),
+  );
+  return isPlatformHostname(hostname, process.env.BASE_DOMAIN, process.env.BASE_URL);
+}
+
 export async function generateMetadata(): Promise<Metadata> {
+  if (await isPlatformRequest()) {
+    return { title: "OnlyFood", description: "Administración de la plataforma OnlyFood" };
+  }
   const tenant = await getTenantContext();
   const branding = await createTenantDb(tenant.id).systemConfig.findFirst({
     select: { appName: true, logoUrl: true },
@@ -21,6 +35,8 @@ export default async function StoreLayout({
 }: {
   children: React.ReactNode;
 }) {
+  if (await isPlatformRequest()) redirect("/superadmin");
+
   const tenant = await getTenantContext();
 
   // FASE 8: Verificación estricta de estado de suscripción del Tenant

@@ -1,22 +1,11 @@
 import { createTenantDb } from "@/lib/tenant-db";
-import { getTenantContext, normalizeHostname } from "@/lib/tenant-context";
+import { getTenantContext } from "@/lib/tenant-context";
 import { StorefrontClient } from "./StorefrontClient";
 import { getLoggedClient } from "@/lib/auth";
 import { calculateOrderRequirements } from "@/lib/inventory";
 import { publicConfigSelect } from "@/lib/public-config";
-import { isPlatformHostname } from "@/lib/platform-host";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
 export default async function StorePage() {
-  const requestHeaders = await headers();
-  const hostname = normalizeHostname(
-    requestHeaders.get("x-forwarded-host") || requestHeaders.get("host"),
-  );
-  if (isPlatformHostname(hostname, process.env.BASE_DOMAIN, process.env.BASE_URL)) {
-    redirect("/superadmin");
-  }
-
   const tenant = await getTenantContext();
   const db = createTenantDb(tenant.id);
   const config = await db.systemConfig.findFirst({ select: publicConfigSelect });
