@@ -38,8 +38,8 @@ Obligatorias para la aplicación:
 | `AUTH_SALT` | Compatibilidad de hashes heredados; mínimo 32 caracteres. |
 | `ENCRYPTION_KEY` o `ENCRYPTION_MASTER_KEY` | Cifrado AES-256-GCM; mínimo 32 caracteres. |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Base64 de 16, 24 o 32 bytes; debe ser la misma durante build y ejecución para conservar Server Actions válidas. |
-| `BASE_DOMAIN` | Zona base para subdominios de tenants, por ejemplo `nanolabs.online` produce `comercio.nanolabs.online`. |
-| `BASE_URL` | URL pública dedicada de plataforma, SuperAdmin y webhooks, por ejemplo `https://onlyfood.nanolabs.online`. |
+| `BASE_DOMAIN` | Zona base para subdominios de tenants, por ejemplo `nanoapps.ar` produce `comercio.nanoapps.ar`. |
+| `BASE_URL` | URL pública dedicada de plataforma, SuperAdmin y webhooks, por ejemplo `https://onlyfood.nanoapps.ar`. |
 
 Inicialización opcional:
 

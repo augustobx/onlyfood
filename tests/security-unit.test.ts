@@ -30,10 +30,10 @@ describe("security primitives", () => {
   });
 
   it("authorizes a dedicated platform host outside the tenant wildcard", () => {
-    expect(getPlatformHostname("https://onlyfood.nanolabs.online")).toBe("onlyfood.nanolabs.online");
-    expect(isPlatformHostname("onlyfood.nanolabs.online", "nanolabs.online", "https://onlyfood.nanolabs.online")).toBe(true);
-    expect(isPlatformHostname("comercio.nanolabs.online", "nanolabs.online", "https://onlyfood.nanolabs.online")).toBe(false);
-    expect(isPlatformHostname("attacker.example", "nanolabs.online", "not-a-url")).toBe(false);
+    expect(getPlatformHostname("https://onlyfood.nanoapps.ar")).toBe("onlyfood.nanoapps.ar");
+    expect(isPlatformHostname("onlyfood.nanoapps.ar", "nanoapps.ar", "https://onlyfood.nanoapps.ar")).toBe(true);
+    expect(isPlatformHostname("comercio.nanoapps.ar", "nanoapps.ar", "https://onlyfood.nanoapps.ar")).toBe(false);
+    expect(isPlatformHostname("attacker.example", "nanoapps.ar", "not-a-url")).toBe(false);
   });
 
   it("keeps the self-service guide catalog complete and internally valid", () => {

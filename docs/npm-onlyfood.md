@@ -4,12 +4,12 @@
 
 Solicitar en Nginx Proxy Manager un certificado Let's Encrypt para:
 
-- `onlyfood.nanolabs.online`
-- `*.nanolabs.online`
+- `onlyfood.nanoapps.ar`
+- `*.nanoapps.ar`
 
 Usar DNS Challenge con el proveedor Cloudflare. El token debe llamarse, por
 convención, `onlyfood-npm-acme-nanolabs-online` y limitarse a la zona
-`nanolabs.online` con permisos `Zone DNS Edit` y `Zone Read`. Las credenciales
+`nanoapps.ar` con permisos `Zone DNS Edit` y `Zone Read`. Las credenciales
 se cargan en Nginx Proxy Manager, no en el repositorio ni en `.env.docker`:
 
 ```text
@@ -21,7 +21,7 @@ servidor.
 
 ## Proxy Host definitivo
 
-- Domain Names: `onlyfood.nanolabs.online`, `*.nanolabs.online`
+- Domain Names: `onlyfood.nanoapps.ar`, `*.nanoapps.ar`
 - Scheme: `http`
 - Forward Hostname: `onlyfood-app`
 - Forward Port: `3000`

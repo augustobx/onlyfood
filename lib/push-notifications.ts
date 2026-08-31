@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 function configure(publicKey: string, privateKey: string) {
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:soporte@nanolabs.online",
+    process.env.VAPID_SUBJECT || "mailto:soporte@nanoapps.ar",
     publicKey,
     privateKey,
   );
