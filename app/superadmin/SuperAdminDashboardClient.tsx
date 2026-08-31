@@ -37,6 +37,7 @@ export default function SuperAdminDashboardClient({
   initialTenants,
   initialPlans,
 }: SuperAdminDashboardProps) {
+  const activePlans = initialPlans.filter((plan) => plan.isActive);
   const [metrics] = useState(initialMetrics);
   const [tenants] = useState(initialTenants);
   const [search, setSearch] = useState("");
@@ -49,7 +50,7 @@ export default function SuperAdminDashboardClient({
   const [formName, setFormName] = useState("");
   const [formSlug, setFormSlug] = useState("");
   const [formDomain, setFormDomain] = useState("");
-  const [formPlan, setFormPlan] = useState("PRO");
+  const [formPlan, setFormPlan] = useState(activePlans[0]?.code || "");
   const [formEmail, setFormEmail] = useState("");
   const [formOwnerName, setFormOwnerName] = useState("");
   const [formPassword, setFormPassword] = useState("");
@@ -64,6 +65,10 @@ export default function SuperAdminDashboardClient({
 
   const handleCreateTenant = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formPlan) {
+      setFormError("No hay un plan activo disponible para asignar al comercio.");
+      return;
+    }
     setCreateLoading(true);
     setFormError(null);
 
@@ -478,7 +483,7 @@ export default function SuperAdminDashboardClient({
                     onChange={(e) => setFormPlan(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
                   >
-                    {initialPlans.filter((plan) => plan.isActive).map((plan) => (
+                    {activePlans.map((plan) => (
                       <option key={plan.id} value={plan.code}>
                         {plan.code} — {plan.name} ({plan.maxLocations} suc., {plan.maxProducts} productos)
                       </option>
@@ -561,7 +566,7 @@ export default function SuperAdminDashboardClient({
                 </button>
                 <button
                   type="submit"
-                  disabled={createLoading}
+                  disabled={createLoading || !formPlan}
                   className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold flex items-center gap-1.5 disabled:opacity-50"
                 >
                   {createLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Crear y Provisionar"}

@@ -109,7 +109,6 @@ export async function getLoggedUser(): Promise<AuthenticatedUser | null> {
     if (session) {
       await prisma.userSession.delete({ where: { id: session.id } });
     }
-    cookieStore.delete(USER_SESSION_COOKIE);
     return null;
   }
 

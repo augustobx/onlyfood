@@ -257,7 +257,9 @@ export async function createTenantAction(input: ProvisionTenantInput) {
         : error.message === "OWNER_PASSWORD_WEAK"
         ? "La contraseña del propietario debe tener al menos 12 caracteres."
         : error.message === "SLUG_INVALID"
-        ? "Slug inválido. Usá solo letras minúsculas, números y guiones."
+          ? "Slug inválido. Usá solo letras minúsculas, números y guiones."
+        : error.message === "PLAN_NOT_FOUND"
+          ? "El plan seleccionado ya no existe. Actualizá la página y elegí un plan activo."
         : "Error al crear comercio.";
     return { success: false, error: msg };
   }
