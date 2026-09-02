@@ -19,6 +19,7 @@ import {
   Lock,
   TrendingUp,
   Award,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -174,7 +175,7 @@ export function RewardsClient({
       description: reward.description || "",
       pointsCost: reward.pointsCost,
       type: reward.type,
-      value: reward.value || 0,
+      value: reward.value ?? (reward.type === "PRODUCT" || reward.type === "COMBO" ? 1 : 0),
       productId: reward.productId || products[0]?.id || "",
       badgeText: reward.badgeText || "",
       minTierId: reward.minTierId || "none",
@@ -195,7 +196,12 @@ export function RewardsClient({
         description: rewardForm.description || null,
         pointsCost: Number(rewardForm.pointsCost),
         type: rewardForm.type,
-        value: rewardForm.type === "PERCENT" || rewardForm.type === "AMOUNT" ? Number(rewardForm.value) : null,
+        value:
+          rewardForm.type === "PERCENT" || rewardForm.type === "AMOUNT"
+            ? Number(rewardForm.value)
+            : rewardForm.type === "PRODUCT" || rewardForm.type === "COMBO"
+              ? Math.max(1, Math.round(Number(rewardForm.value) || 1))
+              : null,
         productId: rewardForm.type === "PRODUCT" || rewardForm.type === "COMBO" ? rewardForm.productId : null,
         badgeText: rewardForm.badgeText || null,
         minTierId: rewardForm.minTierId === "none" ? null : rewardForm.minTierId,
@@ -519,6 +525,15 @@ export function RewardsClient({
                       </div>
                     ) : (
                       <div className="text-[11px] text-slate-400 font-medium">Disponible para todos los clientes</div>
+                    )}
+
+                    {(reward.type === "PRODUCT" || reward.type === "COMBO") && (
+                      <div className="flex items-center gap-1.5 p-2 rounded-xl bg-orange-50/80 border border-orange-200 text-xs text-orange-950 font-bold">
+                        <Package className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                        <span>
+                          Premio: <strong>{reward.value && reward.value > 1 ? `${reward.value}x ` : "1x "}{reward.product?.name || "Producto"}</strong>
+                        </span>
+                      </div>
                     )}
                   </div>
 
@@ -845,23 +860,41 @@ export function RewardsClient({
             )}
 
             {(rewardForm.type === "PRODUCT" || rewardForm.type === "COMBO") && (
-              <div>
-                <Label className="text-xs font-bold">Producto Asignado</Label>
-                <Select
-                  value={rewardForm.productId}
-                  onValueChange={(val: string | null) => setRewardForm({ ...rewardForm, productId: val ?? "" })}
-                >
-                  <SelectTrigger className="h-9 text-xs mt-1">
-                    <SelectValue placeholder="Seleccionar producto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} (${p.basePrice})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs font-bold">Producto Asignado</Label>
+                  <Select
+                    value={rewardForm.productId}
+                    onValueChange={(val: string | null) => setRewardForm({ ...rewardForm, productId: val ?? "" })}
+                  >
+                    <SelectTrigger className="h-9 text-xs mt-1">
+                      <SelectValue placeholder="Seleccionar producto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} (${p.basePrice})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs font-bold">Cantidad de Unidades del Premio</Label>
+                  <Input
+                    type="number"
+                    required
+                    min={1}
+                    max={50}
+                    value={rewardForm.value || 1}
+                    onChange={(e) => setRewardForm({ ...rewardForm, value: Math.max(1, Number(e.target.value)) })}
+                    placeholder="ej. 5 bowls, 2 burgers..."
+                    className="h-9 text-xs mt-1"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Se agregarán estas unidades como productos completos con costo $0 directamente al carrito del cliente.
+                  </p>
+                </div>
               </div>
             )}
 

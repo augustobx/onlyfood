@@ -230,7 +230,7 @@ export default function CheckoutPage() {
   const addressInputRef = useRef<HTMLInputElement>(null);
   const checkoutCompletedRef = useRef(false);
 
-  const { items, getTotal, clearCart, dailyPrize } = useCartStore();
+  const { items, getTotal, clearCart, dailyPrize, appliedCoupon } = useCartStore();
   const quantityDiscount = useQuantityDiscountPreview(items);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -332,9 +332,27 @@ export default function CheckoutPage() {
     fetchClientAvailableCoupons().then((coupons) => {
       if (coupons && coupons.length > 0) {
         setAvailableCoupons(coupons);
+        const rewardItem = items.find((i) => i.rewardRedemptionId);
+        const preselectedId = appliedCoupon?.id || rewardItem?.rewardRedemptionId;
+        if (preselectedId) {
+          const match = coupons.find((c: any) => c.id === preselectedId);
+          if (match) setSelectedCoupon(match);
+        }
       }
     });
-  }, []);
+  }, [appliedCoupon, items]);
+
+  useEffect(() => {
+    if (appliedCoupon && !selectedCoupon) {
+      setSelectedCoupon(appliedCoupon);
+    } else if (!selectedCoupon) {
+      const rewardItem = items.find((i) => i.rewardRedemptionId);
+      if (rewardItem?.rewardRedemptionId && availableCoupons.length > 0) {
+        const match = availableCoupons.find((c) => c.id === rewardItem.rewardRedemptionId);
+        if (match) setSelectedCoupon(match);
+      }
+    }
+  }, [appliedCoupon, availableCoupons, items, selectedCoupon]);
 
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -402,33 +420,28 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
+      const rewardRedemptionId = selectedCoupon?.id || items.find((i) => i.rewardRedemptionId)?.rewardRedemptionId || null;
       const result = await createOrder({
         ...formData,
         items,
         rouletteWinId: dailyPrize?.winId || null,
-        redemptionId: selectedCoupon?.id || null,
+        redemptionId: rewardRedemptionId,
       });
 
       if (result.success) {
-        if (formData.paymentMethod === "MP") {
+        if (formData.paymentMethod === "MP" && result.mpInitPoint) {
           toast.loading("Redirigiendo a Mercado Pago...", { duration: 3000 });
-
-          if (result.mpInitPoint) {
-            checkoutCompletedRef.current = true;
-            setIsSuccess(true);
-            clearCart();
-            window.location.assign(result.mpInitPoint);
-          } else {
-            checkoutCompletedRef.current = true;
-            setIsSuccess(true);
-            clearCart();
-            router.push(`/track/${result.orderId}?token=${encodeURIComponent(result.trackingToken || "")}`);
-          }
+          checkoutCompletedRef.current = true;
+          setIsSuccess(true);
+          clearCart();
+          window.location.assign(result.mpInitPoint);
         } else {
           checkoutCompletedRef.current = true;
           setIsSuccess(true);
           clearCart();
-          toast.success("¡Pedido enviado con éxito!", { description: "Tu pedido ya fue registrado en el sistema." });
+          toast.success("¡Pedido enviado con éxito!", {
+            description: total <= 0 ? "Tu pedido bonificado por tu premio ya fue registrado." : "Tu pedido ya fue registrado en el sistema.",
+          });
           try {
             const audio = new Audio("/sounds/dingdong.mp3");
             audio.play();
@@ -748,15 +761,22 @@ export default function CheckoutPage() {
             {/* PAYMENT */}
             <div className={`border-t pt-4 space-y-1.5 ${t.divider}`}>
               <Label className={`font-bold text-xs ml-0.5 ${t.label}`}>Método de pago</Label>
-              <select
-                required
-                className={`h-10 w-full rounded-xl border px-3 font-medium outline-none text-xs transition-colors ${t.selectBg}`}
-                value={formData.paymentMethod}
-                onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as "CASH" | "MP" })}
-              >
-                {config?.paymentCash !== false && <option value="CASH">Efectivo al recibir / retirar</option>}
-                {config?.paymentMp !== false && <option value="MP">MercadoPago (Transferencia / Tarjeta)</option>}
-              </select>
+              {total <= 0 ? (
+                <div className="p-3 rounded-xl border text-xs font-bold text-emerald-800 bg-emerald-50/80 border-emerald-200 flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Total $0 · Pedido bonificado al 100% por tu premio canjeado.</span>
+                </div>
+              ) : (
+                <select
+                  required
+                  className={`h-10 w-full rounded-xl border px-3 font-medium outline-none text-xs transition-colors ${t.selectBg}`}
+                  value={formData.paymentMethod}
+                  onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as "CASH" | "MP" })}
+                >
+                  {config?.paymentCash !== false && <option value="CASH">Efectivo al recibir / retirar</option>}
+                  {config?.paymentMp !== false && <option value="MP">MercadoPago (Transferencia / Tarjeta)</option>}
+                </select>
+              )}
             </div>
 
             {/* COUPONS */}
@@ -838,6 +858,12 @@ export default function CheckoutPage() {
                 <div className="flex justify-between text-purple-600 font-bold text-[11px]">
                   <span>✨ {dailyPrize.product?.name}</span>
                   <span className="text-green-600">GRATIS</span>
+                </div>
+              )}
+              {items.some((i) => i.isReward) && (
+                <div className="flex justify-between text-emerald-600 font-bold text-[11px]">
+                  <span>🎁 Premios canjeados ({items.filter((i) => i.isReward).reduce((s, i) => s + i.quantity, 0)} un.)</span>
+                  <span className="text-emerald-700 font-black">BONIFICADO ($0)</span>
                 </div>
               )}
               {selectedCoupon && couponDiscount > 0 && (

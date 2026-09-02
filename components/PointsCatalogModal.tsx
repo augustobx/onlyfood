@@ -24,9 +24,11 @@ import {
   Zap,
   Info,
   ShieldCheck,
+  ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchPublicRewards, redeemReward } from "@/app/actions/client-rewards";
+import { useCartStore } from "@/lib/store";
 
 interface PointsCatalogModalProps {
   isOpen: boolean;
@@ -62,6 +64,8 @@ export function PointsCatalogModal({
   const [loading, setLoading] = useState(false);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"CATALOG" | "COUPONS" | "TIERS_INFO">("CATALOG");
+
+  const { addItem, setAppliedCoupon, items, appliedCoupon } = useCartStore();
 
   useEffect(() => {
     if (isOpen) {
@@ -104,15 +108,38 @@ export function PointsCatalogModal({
     try {
       const res = await redeemReward(reward.id);
       if (res.success) {
-        toast.success(`¡Canjeaste "${reward.name}" con éxito!`, {
-          description: "Podrás aplicarlo en tu próximo pedido en el checkout.",
-        });
         if (res.newPoints !== undefined) {
           setCurrentPoints(res.newPoints);
           if (onPointsUpdate) onPointsUpdate(res.newPoints);
         }
         if (res.redemption) {
           setRedemptions((prev) => [res.redemption, ...prev]);
+
+          if (reward.type === "PRODUCT" || reward.type === "COMBO") {
+            const product = reward.product || res.redemption.reward?.product;
+            if (product) {
+              const qty = reward.value ? Math.max(1, Math.round(reward.value)) : 1;
+              addItem({
+                product,
+                quantity: qty,
+                removedIngredients: [],
+                addedExtras: [],
+                unitPrice: 0,
+                notes: `🎁 Premio Canjeado (${reward.name})`,
+                isReward: true,
+                rewardRedemptionId: res.redemption.id,
+              });
+              setAppliedCoupon(res.redemption);
+              toast.success(`¡Canjeaste "${reward.name}" con éxito!`, {
+                description: `Se agregaron ${qty > 1 ? `${qty} unidades` : "1 unidad"} de "${product.name}" directo a tu carrito ($0).`,
+              });
+            }
+          } else {
+            setAppliedCoupon(res.redemption);
+            toast.success(`¡Canjeaste "${reward.name}" con éxito!`, {
+              description: "El descuento se aplicó directo a tu carrito.",
+            });
+          }
         }
         setActiveTab("COUPONS");
       } else {
@@ -302,6 +329,13 @@ export function PointsCatalogModal({
                               {reward.pointsCost} Puntos
                             </span>
 
+                            {(reward.type === "PRODUCT" || reward.type === "COMBO") && (
+                              <span className="font-bold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                <Package className="w-3 h-3 text-orange-500" />
+                                {reward.value && reward.value > 1 ? `${reward.value} unidades` : "1 unidad"} gratis
+                              </span>
+                            )}
+
                             {isLockedByTier && (
                               <span className="text-[11px] font-bold text-purple-700 flex items-center gap-1">
                                 <Lock className="w-3 h-3 text-purple-600" /> Desbloquea al alcanzar {reward.minTier.name}
@@ -357,22 +391,79 @@ export function PointsCatalogModal({
               </div>
             ) : (
               <div className="space-y-3">
-                {redemptions.map((red) => (
-                  <div
-                    key={red.id}
-                    className="bg-emerald-50/70 border border-emerald-200 rounded-3xl p-4 flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div>
-                      <span className="font-black text-sm text-emerald-950 block">{red.reward?.name}</span>
-                      <span className="text-[11px] text-emerald-700 font-medium">
-                        ✓ Disponible para aplicar automáticamente en tu próximo checkout.
-                      </span>
+                {redemptions.map((red) => {
+                  const isProductReward = red.reward?.type === "PRODUCT" || red.reward?.type === "COMBO";
+                  const productInCart = items.find((i) => i.rewardRedemptionId === red.id);
+                  const isCouponApplied = appliedCoupon?.id === red.id;
+                  const qty = red.reward?.value ? Math.max(1, Math.round(red.reward.value)) : 1;
+
+                  return (
+                    <div
+                      key={red.id}
+                      className="bg-emerald-50/70 border border-emerald-200 rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div>
+                        <span className="font-black text-sm text-emerald-950 block">{red.reward?.name}</span>
+                        <span className="text-[11px] text-emerald-700 font-medium">
+                          {isProductReward
+                            ? `✓ ${qty > 1 ? `${qty} unidades de producto completo gratis` : "Producto completo gratis"} ($0)`
+                            : `✓ Descuento del ${red.reward?.type === "PERCENT" ? `${red.reward?.value}%` : `$${red.reward?.value}`}`}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isProductReward ? (
+                          productInCart ? (
+                            <Badge className="bg-emerald-700 text-white font-black text-[10px] px-3 py-1.5 rounded-xl shrink-0 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> En tu Carrito ({productInCart.quantity} un.)
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const prod = red.reward?.product;
+                                if (prod) {
+                                  addItem({
+                                    product: prod,
+                                    quantity: qty,
+                                    removedIngredients: [],
+                                    addedExtras: [],
+                                    unitPrice: 0,
+                                    notes: `🎁 Premio Canjeado (${red.reward.name})`,
+                                    isReward: true,
+                                    rewardRedemptionId: red.id,
+                                  });
+                                  setAppliedCoupon(red);
+                                  toast.success(`Se agregaron ${qty > 1 ? `${qty} unidades` : "1 unidad"} de "${prod.name}" a tu carrito.`);
+                                } else {
+                                  toast.error("El producto del premio no está disponible.");
+                                }
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs h-8 px-3.5 rounded-xl shadow-sm shrink-0"
+                            >
+                              <ShoppingBag className="w-3.5 h-3.5 mr-1" /> Agregar al Carrito ($0)
+                            </Button>
+                          )
+                        ) : isCouponApplied ? (
+                          <Badge className="bg-emerald-700 text-white font-black text-[10px] px-3 py-1.5 rounded-xl shrink-0 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Descuento Aplicado
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setAppliedCoupon(red);
+                              toast.success(`Se aplicó el cupón "${red.reward?.name}" al carrito.`);
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs h-8 px-3.5 rounded-xl shadow-sm shrink-0"
+                          >
+                            <Ticket className="w-3.5 h-3.5 mr-1" /> Aplicar al Carrito
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <Badge className="bg-emerald-600 text-white font-black text-[10px] px-2.5 py-1 rounded-xl shrink-0">
-                      Listo para usar
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )
           ) : (

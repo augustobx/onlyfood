@@ -14,12 +14,17 @@ export type CartItem = {
   isHalfAndHalf?: boolean;
   secondHalfProduct?: Product | any;
   comboRemovedIngredients?: Record<string, string[]>;
+  rewardRedemptionId?: string; // ID of PointRedemption if this item is a redeemed reward
+  isReward?: boolean;
 };
 
 interface CartState {
   items: CartItem[];
   dailyPrize: any | null;
+  appliedCoupon: any | null;
   setDailyPrize: (prize: any) => void;
+  setAppliedCoupon: (coupon: any | null) => void;
+  clearCoupon: () => void;
   addItem: (item: Omit<CartItem, 'id' | 'subtotal'>) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
@@ -32,24 +37,35 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       items: [],
       dailyPrize: null,
+      appliedCoupon: null,
       setDailyPrize: (prize) => set({ dailyPrize: prize }),
+      setAppliedCoupon: (coupon) => set({ appliedCoupon: coupon }),
+      clearCoupon: () => set({ appliedCoupon: null }),
       addItem: (item) => set((state) => {
-        const subtotal = item.unitPrice * item.quantity;
-        return { items: [...state.items, { ...item, id: crypto.randomUUID(), subtotal }] };
+        const unitPrice = item.isReward ? 0 : item.unitPrice;
+        const subtotal = unitPrice * item.quantity;
+        return { items: [...state.items, { ...item, unitPrice, id: crypto.randomUUID(), subtotal }] };
       }),
-      removeItem: (id) => set((state) => ({
-        items: state.items.filter((item) => item.id !== id)
-      })),
+      removeItem: (id) => set((state) => {
+        const removedItem = state.items.find((i) => i.id === id);
+        const shouldClearCoupon = removedItem?.rewardRedemptionId && state.appliedCoupon?.id === removedItem.rewardRedemptionId;
+        return {
+          items: state.items.filter((item) => item.id !== id),
+          ...(shouldClearCoupon ? { appliedCoupon: null } : {}),
+        };
+      }),
       updateQuantity: (id, quantity) => set((state) => ({
         items: state.items.map((item) => {
           if (item.id === id) {
-            return { ...item, quantity, subtotal: item.unitPrice * quantity };
+            const finalQty = item.isReward ? Math.min(item.quantity, quantity) : quantity;
+            const unitPrice = item.isReward ? 0 : item.unitPrice;
+            return { ...item, quantity: finalQty, subtotal: unitPrice * finalQty };
           }
           return item;
         })
       })),
-      clearCart: () => set({ items: [], dailyPrize: null }),
-      getTotal: () => get().items.reduce((total, item) => total + item.subtotal, 0),
+      clearCart: () => set({ items: [], dailyPrize: null, appliedCoupon: null }),
+      getTotal: () => get().items.reduce((total, item) => total + (item.isReward ? 0 : item.subtotal), 0),
     }),
     {
       name: 'nfood-cart',

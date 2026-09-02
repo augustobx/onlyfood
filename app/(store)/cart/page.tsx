@@ -175,7 +175,7 @@ function getThemeClasses(theme: string) {
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, removeItem, updateQuantity, getTotal, dailyPrize } = useCartStore();
+  const { items, removeItem, updateQuantity, getTotal, dailyPrize, appliedCoupon } = useCartStore();
   const quantityDiscount = useQuantityDiscountPreview(items);
   const theme = useStoreTheme();
   const t = getThemeClasses(theme);
@@ -239,16 +239,25 @@ export default function CartPage() {
                     <h3 className={`font-bold text-sm leading-tight ${t.heading} line-clamp-2`}>
                       {item.isHalfAndHalf ? `½ ${item.product.name} / ½ ${item.secondHalfProduct?.name}` : item.product.name}
                     </h3>
-                    <p className={`font-black text-sm whitespace-nowrap ${t.accent}`}>${item.subtotal.toLocaleString('es-AR')}</p>
+                    {item.isReward ? (
+                      <span className="font-black text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        🎁 GRATIS
+                      </span>
+                    ) : (
+                      <p className={`font-black text-sm whitespace-nowrap ${t.accent}`}>${item.subtotal.toLocaleString('es-AR')}</p>
+                    )}
                   </div>
 
-                  {item.quantity > 1 && (
+                  {item.quantity > 1 && !item.isReward && (
                     <p className={`text-[10px] font-medium ${t.mutedText} mt-0.5`}>${item.unitPrice.toLocaleString('es-AR')} c/u</p>
                   )}
 
                   {/* Tags */}
                   {((item.product.availableDays && !isDailyProduct(item.product.availableDays)) || item.removedIngredients.length > 0 || item.addedExtras.length > 0 || (item.comboRemovedIngredients && Object.keys(item.comboRemovedIngredients).length > 0)) && (
                     <div className="flex flex-wrap gap-1 mt-1">
+                      {item.isReward && (
+                        <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded ${t.tag.green}`}>🎁 Premio Canjeado</span>
+                      )}
                       {item.product.availableDays && !isDailyProduct(item.product.availableDays) && (
                         <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded ${t.tag.purple}`}>
                           <Calendar className="w-2.5 h-2.5" /> {getProductBadgeLabel(item.product.availableDays)}
@@ -278,7 +287,10 @@ export default function CartPage() {
                       <Minus className="w-3 h-3" />
                     </button>
                     <span className={`w-5 text-center text-xs font-black ${t.heading}`}>{item.quantity}</span>
-                    <button className={`w-7 h-7 flex items-center justify-center rounded-md ${t.qtyBtn}`} onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                    <button
+                      className={`w-7 h-7 flex items-center justify-center rounded-md ${t.qtyBtn} ${item.isReward ? "opacity-40 cursor-not-allowed" : ""}`}
+                      onClick={() => !item.isReward && updateQuantity(item.id, item.quantity + 1)}
+                    >
                       <Plus className="w-3 h-3" />
                     </button>
                   </div>
@@ -318,6 +330,19 @@ export default function CartPage() {
               <div className={`flex items-center justify-between font-bold text-[11px] p-2 rounded-xl ${t.tag.purple}`}>
                 <span>✨ Premio Ganado:</span>
                 <span>{dailyPrize.type === "PRODUCT" ? `+ ${dailyPrize.product?.name}` : dailyPrize.type === "PERCENT" ? `${dailyPrize.value}% OFF` : `-$${dailyPrize.value}`}</span>
+              </div>
+            )}
+
+            {appliedCoupon && (
+              <div className={`flex items-center justify-between font-bold text-[11px] p-2 rounded-xl ${t.tag.purple}`}>
+                <span>🎁 Cupón Canjeado ({appliedCoupon.reward?.name}):</span>
+                <span>
+                  {appliedCoupon.reward?.type === "PERCENT"
+                    ? `${appliedCoupon.reward?.value}% OFF`
+                    : appliedCoupon.reward?.type === "AMOUNT"
+                    ? `-$${appliedCoupon.reward?.value?.toLocaleString("es-AR")}`
+                    : `+ ${appliedCoupon.reward?.product?.name || "Producto gratis"}`}
+                </span>
               </div>
             )}
             <div className="flex items-center justify-between">

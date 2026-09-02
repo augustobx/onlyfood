@@ -96,7 +96,12 @@ export async function savePointReward(input: unknown) {
           description: data.description || null,
           pointsCost: data.pointsCost,
           type: data.type,
-          value: data.type === "PERCENT" || data.type === "AMOUNT" || data.type === "PROMO" ? data.value : null,
+          value:
+            data.type === "PERCENT" || data.type === "AMOUNT" || data.type === "PROMO"
+              ? data.value
+              : data.type === "PRODUCT" || data.type === "COMBO"
+                ? Math.max(1, Math.round(data.value || 1))
+                : null,
           productId: data.type === "PRODUCT" || data.type === "COMBO" ? data.productId : null,
           imageUrl: data.imageUrl || null,
           badgeText: data.badgeText || null,
@@ -113,7 +118,12 @@ export async function savePointReward(input: unknown) {
           description: data.description || null,
           pointsCost: data.pointsCost,
           type: data.type,
-          value: data.type === "PERCENT" || data.type === "AMOUNT" || data.type === "PROMO" ? data.value : null,
+          value:
+            data.type === "PERCENT" || data.type === "AMOUNT" || data.type === "PROMO"
+              ? data.value
+              : data.type === "PRODUCT" || data.type === "COMBO"
+                ? Math.max(1, Math.round(data.value || 1))
+                : null,
           productId: data.type === "PRODUCT" || data.type === "COMBO" ? data.productId : null,
           imageUrl: data.imageUrl || null,
           badgeText: data.badgeText || null,

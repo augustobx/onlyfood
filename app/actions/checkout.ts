@@ -51,7 +51,7 @@ const orderSchema = z.object({
   paymentMethod: z.enum(["CASH", "MP", "ADMIN"]).default("CASH"),
   paymentStatus: z.enum(["PAID", "PENDING"]).optional().nullable(),
   directDelivered: z.boolean().optional().default(false),
-  items: z.array(cartItemSchema).min(1).max(40),
+  items: z.array(cartItemSchema).max(40),
   rouletteWinId: idField.optional().nullable(),
   redemptionId: idField.optional().nullable(),
 });
@@ -173,6 +173,9 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       return { success: false, error: parsed.error?.issues[0]?.message || "Los datos del pedido no son válidos." };
     }
     const data = parsed.data;
+    if (data.items.length === 0 && !data.redemptionId && !data.rouletteWinId) {
+      return { success: false, error: "Tu carrito está vacío. Agregá productos para continuar." };
+    }
     if (data.needsDelivery && (!data.deliveryAddress || data.deliveryAddress.length < 5)) {
       return { success: false, error: "Ingresá una dirección de entrega válida." };
     }
@@ -406,10 +409,14 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       let consumedRedemptionId: string | null = null;
       let consumedRouletteWinId: string | null = null;
 
-      const addFreeProduct = (product: any) => {
+      const addFreeProduct = (product: any, qty: number = 1) => {
         if (!product?.isActive) throw new Error("INVALID_PRIZE");
         const reference = prepared[0];
-        if (!reference) throw new Error("INVALID_PRIZE");
+        const targetDateStr = reference ? reference.targetDateStr : todayStr;
+        const targetScheduledDate = reference ? reference.targetScheduledDate : now;
+        const targetOrderType = reference ? reference.targetOrderType : data.orderType;
+        const dayName = reference ? reference.dayName : "Hoy";
+
         const stockRequirements: InventoryRequirement[] = [];
         if (product.isCombo) {
           for (const comboItem of product.comboItemsConfig || []) {
@@ -417,7 +424,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
               stockRequirements.push({
                 ingredientId: usage.ingredientId,
                 name: usage.ingredient.name,
-                required: usage.quantity * comboItem.quantity,
+                required: usage.quantity * comboItem.quantity * qty,
                 available: usage.ingredient.stock,
               });
             }
@@ -427,33 +434,49 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             stockRequirements.push({
               ingredientId: usage.ingredientId,
               name: usage.ingredient.name,
-              required: usage.quantity,
+              required: usage.quantity * qty,
               available: usage.ingredient.stock,
             });
           }
         }
         prepared.push({
           productId: product.id,
-          quantity: 1,
+          quantity: qty,
           unitPrice: 0,
           subtotal: 0,
-          notes: "Beneficio aplicado",
+          notes: "🎁 Beneficio aplicado",
           isHalfAndHalf: false,
           secondHalfProductId: null,
           removedIngredientIds: [],
           extras: [],
-          comboItems: (product.comboItemsConfig || []).map((item: any) => ({ productId: item.productId, quantity: item.quantity, removedIngredientIds: [] })),
+          comboItems: (product.comboItemsConfig || []).map((item: any) => ({ productId: item.productId, quantity: item.quantity * qty, removedIngredientIds: [] })),
           stockRequirements,
           points: 0,
-          targetDateStr: reference.targetDateStr,
-          targetScheduledDate: reference.targetScheduledDate,
-          targetOrderType: reference.targetOrderType,
-          dayName: reference.dayName,
+          targetDateStr,
+          targetScheduledDate,
+          targetOrderType,
+          dayName,
         });
       };
 
       const applyPrize = (prize: any) => {
-        if (prize.type === "PRODUCT" || prize.type === "COMBO") addFreeProduct(prize.product);
+        if (prize.type === "PRODUCT" || prize.type === "COMBO") {
+          const qty = prize.value ? Math.max(1, Math.round(Number(prize.value))) : 1;
+          const matchingItem = prepared.find((item) => item.productId === prize.productId || (prize.product && item.productId === prize.product.id));
+          if (matchingItem && matchingItem.quantity >= qty) {
+            if (matchingItem.quantity === qty) {
+              matchingItem.unitPrice = 0;
+              matchingItem.subtotal = 0;
+              matchingItem.points = 0;
+              matchingItem.notes = matchingItem.notes || "🎁 Beneficio aplicado";
+            } else {
+              matchingItem.subtotal = roundMoney(matchingItem.unitPrice * (matchingItem.quantity - qty));
+              matchingItem.points = Math.round(matchingItem.points * ((matchingItem.quantity - qty) / matchingItem.quantity));
+            }
+          } else {
+            addFreeProduct(prize.product, qty);
+          }
+        }
         else if (prize.type === "PERCENT") benefitPercent = Math.min(100, benefitPercent + Math.max(0, Number(prize.value || 0)));
         else if (prize.type === "AMOUNT" || prize.type === "PROMO") benefitAmount += Math.max(0, Number(prize.value || 0));
         else throw new Error("INVALID_PRIZE");
@@ -777,7 +800,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
 
     const resolvedMpAccessToken = mpCreds?.accessToken;
 
-    if (primaryOrder.paymentMethod === "MP" && resolvedMpAccessToken) {
+    if (primaryOrder.paymentMethod === "MP" && resolvedMpAccessToken && result.totalGrand > 0) {
       const baseUrl = await getRequestOrigin();
       const webhookBaseUrl = process.env.BASE_URL;
       if (!webhookBaseUrl || (!webhookBaseUrl.startsWith("https://") && process.env.NODE_ENV === "production")) {
