@@ -313,10 +313,13 @@ export default function CheckoutPage() {
       });
   }, [schedule.hasScheduledProducts, schedule.targetDateInfo]);
 
+  const [loggedClient, setLoggedClient] = useState<any | null>(null);
+
   useEffect(() => {
     import("@/app/actions/auth").then(({ fetchCurrentClient }) => {
       fetchCurrentClient().then((client) => {
         if (client) {
+          setLoggedClient(client);
           setFormData((prev) => ({
             ...prev,
             clientName: client.name || prev.clientName,
@@ -346,6 +349,11 @@ export default function CheckoutPage() {
   const discountMultiplier = 1 - (config?.globalDiscount || 0) / 100;
   let discountedSubtotal = afterQuantityDiscount * discountMultiplier;
 
+  // VIP Tier Discount
+  const tierDiscountPercent = loggedClient?.tier?.discountPercent || 0;
+  const tierDiscountAmount = tierDiscountPercent > 0 ? (afterQuantityDiscount * (tierDiscountPercent / 100)) : 0;
+  discountedSubtotal = Math.max(0, discountedSubtotal - tierDiscountAmount);
+
   let prizeDiscount = 0;
   if (dailyPrize) {
     if (dailyPrize.type === "PERCENT") {
@@ -369,7 +377,8 @@ export default function CheckoutPage() {
   const deliveryCost = formData.needsDelivery ? config?.deliveryCost || 0 : 0;
   const total = discountedSubtotal + deliveryCost;
 
-  const totalEarnedPoints = items.reduce((sum, item) => sum + (item.product?.points || 0) * item.quantity, 0);
+  const pointsMultiplier = loggedClient?.tier?.pointsMultiplier || 1.0;
+  const totalEarnedPoints = Math.round(items.reduce((sum, item) => sum + (item.product?.points || 0) * item.quantity, 0) * pointsMultiplier);
 
   const validateAndSubmit = async () => {
     if (items.length === 0) return;
@@ -811,6 +820,12 @@ export default function CheckoutPage() {
                 <div className="flex justify-between text-green-600 font-bold text-[11px]">
                   <span>Descuento ({config.globalDiscount}%)</span>
                   <span>-${(afterQuantityDiscount * (config.globalDiscount / 100)).toLocaleString("es-AR")}</span>
+                </div>
+              )}
+              {tierDiscountPercent > 0 && (
+                <div className="flex justify-between text-purple-600 font-bold text-[11px]">
+                  <span>👑 Descuento VIP {loggedClient?.tier?.name} ({tierDiscountPercent}%)</span>
+                  <span>-${tierDiscountAmount.toLocaleString("es-AR")}</span>
                 </div>
               )}
               {dailyPrize && dailyPrize.type !== "PRODUCT" && (

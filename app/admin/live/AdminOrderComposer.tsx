@@ -1,11 +1,9 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Minus, Plus, Search, ShoppingBag, Trash2, X } from "lucide-react";
+import { Loader2, Minus, Plus, Search, ShoppingBag, Trash2, X, User, UserCheck, Crown, Coins, Check, CreditCard, Banknote, QrCode } from "lucide-react";
 import { toast } from "sonner";
 
 import { createAdminOrder } from "@/app/actions/checkout";
-import { getAdminOrderCatalog } from "@/app/actions/admin-orders";
+import { getAdminOrderCatalog, searchAdminClients } from "@/app/actions/admin-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +12,7 @@ import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 
 type CatalogData = Awaited<ReturnType<typeof getAdminOrderCatalog>>;
 type Product = CatalogData["combos"][number];
+type SearchedClient = Awaited<ReturnType<typeof searchAdminClients>>[number];
 
 type CartItem = {
   key: string;
@@ -43,8 +42,21 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
   const [addedExtraIds, setAddedExtraIds] = useState<string[]>([]);
   const [secondHalfId, setSecondHalfId] = useState<string | null>(null);
   const [comboRemoved, setComboRemoved] = useState<Record<string, string[]>>({});
+  
+  // Cliente
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [clientResults, setClientResults] = useState<SearchedClient[]>([]);
+  const [isSearchingClient, setIsSearchingClient] = useState(false);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<SearchedClient | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+
+  // Pagos y entrega
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "MP" | "ADMIN">("CASH");
+  const [paymentStatus, setPaymentStatus] = useState<"PAID" | "PENDING">("PAID");
+  const [directDelivered, setDirectDelivered] = useState(false);
+
   const [whatsappOptIn, setWhatsappOptIn] = useState(false);
   const [needsDelivery, setNeedsDelivery] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState("");
@@ -75,6 +87,44 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
   useEffect(() => {
     if (!open) setSelectedProduct(null);
   }, [open]);
+
+  // Debounced client search
+  useEffect(() => {
+    if (!clientSearchQuery || clientSearchQuery.trim().length < 2) {
+      setClientResults([]);
+      setIsSearchingClient(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setIsSearchingClient(true);
+      searchAdminClients(clientSearchQuery)
+        .then((res) => {
+          setClientResults(res);
+          setShowClientDropdown(true);
+        })
+        .finally(() => setIsSearchingClient(false));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [clientSearchQuery]);
+
+  const handleSelectClient = (client: SearchedClient) => {
+    setSelectedClient(client);
+    setClientName(client.name || "");
+    setClientPhone(client.phone || "");
+    setShowClientDropdown(false);
+    setClientSearchQuery("");
+    toast.success(`Cliente seleccionado: ${client.name}`, {
+      description: `${client.points} pts acumulados ${client.tier ? `· Nivel ${client.tier.name}` : ""}`,
+    });
+  };
+
+  const handleClearClient = () => {
+    setSelectedClient(null);
+    setClientName("");
+    setClientPhone("");
+    setClientSearchQuery("");
+    setShowClientDropdown(false);
+  };
 
   const allProducts = useMemo(() => catalog ? [...catalog.combos, ...catalog.categories.flatMap((category) => category.products)] : [], [catalog]);
   const visibleProducts = useMemo(() => {
@@ -144,6 +194,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
       const result = await createAdminOrder({
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
+        clientId: selectedClient?.id || null,
         whatsappOptIn,
         needsDelivery,
         deliveryAddress: needsDelivery ? deliveryAddress.trim() : null,
@@ -151,7 +202,9 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
         orderType,
         scheduledDate: orderType === "CUSTOM_DATE" ? scheduledDate : null,
         scheduledTime: catalog?.slots.find((s) => s.id === slotId)?.time || "Horario del turno",
-        paymentMethod: "CASH",
+        paymentMethod,
+        paymentStatus,
+        directDelivered,
         rouletteWinId: null,
         items: cart.map((item) => ({
           product: { id: item.product.id },
@@ -164,15 +217,25 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
         })),
       });
       if (!result.success || !result.orderId) return toast.error("No se pudo crear el pedido", { description: result.error, duration: 8000 });
-      toast.success("Pedido manual creado y marcado como pagado");
+      
+      const successDesc = selectedClient
+        ? `Vinculado a ${selectedClient.name} (${selectedClient.points} pts) · ${paymentStatus === "PAID" ? "Pagado" : "Pendiente"}`
+        : `${paymentStatus === "PAID" ? "Marcado como pagado" : "Pago pendiente"}`;
+      toast.success("Pedido manual creado con éxito", { description: successDesc });
+
       setCart([]);
+      setSelectedClient(null);
       setClientName("");
       setClientPhone("");
+      setClientSearchQuery("");
       setWhatsappOptIn(false);
       setDeliveryAddress("");
       setNeedsDelivery(false);
       setOrderType("IMMEDIATE");
       setScheduledDate("");
+      setPaymentMethod("CASH");
+      setPaymentStatus("PAID");
+      setDirectDelivered(false);
       setCatalog(null);
       onCreated(result.orderId);
       onClose();
@@ -188,7 +251,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
       <div className="flex h-full w-full max-w-7xl flex-col overflow-hidden bg-slate-50 shadow-2xl sm:h-[94vh] sm:rounded-3xl sm:border sm:border-white/50">
         <header className="flex items-center justify-between border-b bg-white px-4 py-3 sm:px-6">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[.2em] text-orange-600">Venta desde mostrador</p>
+            <p className="text-[10px] font-black uppercase tracking-[.2em] text-orange-600">Venta desde mostrador / POS</p>
             <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">Nuevo pedido manual</h2>
           </div>
           <button type="button" onClick={onClose} disabled={submitting} aria-label="Cerrar" className="grid size-10 place-items-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"><X className="size-5" /></button>
@@ -197,7 +260,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
         {loadingCatalog || !catalog ? (
           <div className="grid flex-1 place-items-center"><div className="flex items-center gap-3 font-bold text-slate-500"><Loader2 className="size-5 animate-spin" /> Cargando menú…</div></div>
         ) : (
-          <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_410px]">
+          <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_420px]">
             <section className="min-h-0 overflow-y-auto p-4 sm:p-6">
               <div className="sticky top-0 z-10 -mx-1 mb-4 bg-slate-50/95 px-1 pb-3 backdrop-blur">
                 <div className="relative mb-3"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar producto…" className="h-11 rounded-xl bg-white pl-10" /></div>
@@ -233,24 +296,184 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
                   <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className="h-10 text-xs font-bold" />
                 )}
 
-                <Input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nombre del cliente" maxLength={100} />
-                <Input value={clientPhone} onChange={(event) => setClientPhone(event.target.value.replace(/[^+\d]/g, ""))} placeholder="Teléfono" inputMode="tel" maxLength={16} />
+                {/* Buscador y Selección de Cliente Registrado */}
+                <div className="relative rounded-2xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wide text-slate-700 flex items-center gap-1.5">
+                      <User className="size-3.5 text-orange-600" /> Cliente
+                    </span>
+                    {selectedClient ? (
+                      <button
+                        type="button"
+                        onClick={handleClearClient}
+                        className="text-[11px] font-bold text-rose-600 hover:underline"
+                      >
+                        ✕ Desvincular
+                      </button>
+                    ) : (
+                      <span className="text-[10px] font-bold text-slate-400">Registrado o nuevo</span>
+                    )}
+                  </div>
+
+                  {selectedClient ? (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <UserCheck className="size-4 text-emerald-600 shrink-0" />
+                          <span className="text-xs font-black text-emerald-950 truncate">{selectedClient.name}</span>
+                          {selectedClient.tier && (
+                            <span
+                              className="text-[9px] font-black uppercase px-2 py-0.2 rounded text-white"
+                              style={{ backgroundColor: selectedClient.tier.color || "#8b5cf6" }}
+                            >
+                              👑 {selectedClient.tier.name}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-emerald-800 font-medium pl-5 mt-0.5">
+                          {selectedClient.phone} · <strong className="font-black text-amber-700">{selectedClient.points} pts acumulados</strong>
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          value={clientSearchQuery}
+                          onChange={(e) => setClientSearchQuery(e.target.value)}
+                          onFocus={() => clientResults.length > 0 && setShowClientDropdown(true)}
+                          placeholder="Buscar cliente registrado (nombre o tel)..."
+                          className="h-9 bg-white pl-8 text-xs font-medium rounded-xl"
+                        />
+                        {isSearchingClient && (
+                          <Loader2 className="absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-slate-400" />
+                        )}
+                      </div>
+
+                      {showClientDropdown && clientResults.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+                          {clientResults.map((c) => (
+                            <button
+                              type="button"
+                              key={c.id}
+                              onClick={() => handleSelectClient(c)}
+                              className="w-full text-left px-3 py-2 text-xs border-b last:border-0 hover:bg-orange-50 transition-colors flex items-center justify-between gap-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-black text-slate-900 truncate">{c.name}</p>
+                                <p className="text-[11px] text-slate-500">{c.phone}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                {c.tier && (
+                                  <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded text-white" style={{ backgroundColor: c.tier.color || "#8b5cf6" }}>
+                                    {c.tier.name}
+                                  </span>
+                                )}
+                                <span className="block text-[10px] font-bold text-amber-600">+{c.points} pts</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <Input
+                      value={clientName}
+                      onChange={(event) => setClientName(event.target.value)}
+                      placeholder="Nombre del cliente"
+                      maxLength={100}
+                      className="h-9 text-xs font-medium bg-white"
+                    />
+                    <Input
+                      value={clientPhone}
+                      onChange={(event) => setClientPhone(event.target.value.replace(/[^+\d]/g, ""))}
+                      placeholder="Teléfono"
+                      inputMode="tel"
+                      maxLength={16}
+                      className="h-9 text-xs font-medium bg-white"
+                    />
+                  </div>
+                </div>
+
                 {catalog.whatsappOptInEnabled && (
-                  <label className="flex cursor-pointer items-start gap-2 rounded-xl border bg-slate-50 p-3 text-xs text-slate-700">
+                  <label className="flex cursor-pointer items-start gap-2 rounded-xl border bg-slate-50 p-2.5 text-xs text-slate-700">
                     <Checkbox checked={whatsappOptIn} onCheckedChange={(checked) => setWhatsappOptIn(checked === true)} />
                     El cliente autorizó recibir confirmación y estados de este pedido por WhatsApp.
                   </label>
                 )}
+
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setNeedsDelivery(false)} className={`rounded-xl border p-3 text-sm font-black ${!needsDelivery ? "border-orange-500 bg-orange-50 text-orange-700" : "text-slate-500"}`}>Retira</button>
-                  <button type="button" onClick={() => setNeedsDelivery(true)} className={`rounded-xl border p-3 text-sm font-black ${needsDelivery ? "border-orange-500 bg-orange-50 text-orange-700" : "text-slate-500"}`}>Envío</button>
+                  <button type="button" onClick={() => setNeedsDelivery(false)} className={`rounded-xl border p-2.5 text-xs font-black ${!needsDelivery ? "border-orange-500 bg-orange-50 text-orange-700" : "text-slate-500"}`}>Retira en local</button>
+                  <button type="button" onClick={() => setNeedsDelivery(true)} className={`rounded-xl border p-2.5 text-xs font-black ${needsDelivery ? "border-orange-500 bg-orange-50 text-orange-700" : "text-slate-500"}`}>Envío a domicilio</button>
                 </div>
-                {needsDelivery && <Input value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} placeholder="Dirección de entrega" maxLength={250} />}
-                <select value={slotId} onChange={(event) => setSlotId(event.target.value)} className="h-10 rounded-md border bg-white px-3 text-sm">
+                {needsDelivery && <Input value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} placeholder="Dirección de entrega" maxLength={250} className="h-9 text-xs" />}
+                
+                <select value={slotId} onChange={(event) => setSlotId(event.target.value)} className="h-9 rounded-md border bg-white px-3 text-xs">
                   <option value="" disabled>Seleccionar franja horaria</option>
                   {catalog.slots.map((slot) => <option key={slot.id} value={slot.id}>{slot.time} · {slot.available} cupos</option>)}
                 </select>
-                <div className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 px-4 py-3"><span className="text-xs font-bold text-green-800">Estado del pago</span><span className="rounded-full bg-green-600 px-3 py-1 text-[10px] font-black uppercase text-white">Pagado</span></div>
+
+                {/* Selector de Método de Pago y Estado del Pago */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 space-y-2.5">
+                  <span className="text-xs font-black uppercase tracking-wide text-slate-700 block">
+                    Forma y Estado del Pago
+                  </span>
+
+                  {/* Método de pago */}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("CASH")}
+                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-[11px] font-bold transition-all ${paymentMethod === "CASH" ? "border-emerald-500 bg-emerald-50 text-emerald-950 ring-1 ring-emerald-500 shadow-xs" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      <Banknote className="size-4 mb-1 text-emerald-600" />
+                      Efectivo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("MP")}
+                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-[11px] font-bold transition-all ${paymentMethod === "MP" ? "border-sky-500 bg-sky-50 text-sky-950 ring-1 ring-sky-500 shadow-xs" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      <QrCode className="size-4 mb-1 text-sky-600" />
+                      Mercado Pago
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("ADMIN")}
+                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-[11px] font-bold transition-all ${paymentMethod === "ADMIN" ? "border-purple-500 bg-purple-50 text-purple-950 ring-1 ring-purple-500 shadow-xs" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      <CreditCard className="size-4 mb-1 text-purple-600" />
+                      Tarjeta / Pos
+                    </button>
+                  </div>
+
+                  {/* Estado del pago */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentStatus("PAID")}
+                      className={`p-2 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition-all ${paymentStatus === "PAID" ? "bg-emerald-600 text-white border-emerald-600 shadow-sm" : "bg-white text-slate-600 border-slate-200"}`}
+                    >
+                      <Check className="size-3.5" /> Ya Cobrado / Pagado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentStatus("PENDING")}
+                      className={`p-2 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition-all ${paymentStatus === "PENDING" ? "bg-amber-600 text-white border-amber-600 shadow-sm" : "bg-white text-slate-600 border-slate-200"}`}
+                    >
+                      Pendiente de Cobro
+                    </button>
+                  </div>
+
+                  {/* Entrega directa en mostrador */}
+                  <label className="flex cursor-pointer items-center gap-2 pt-1 text-[11px] font-bold text-slate-700">
+                    <Checkbox checked={directDelivered} onCheckedChange={(c) => setDirectDelivered(c === true)} />
+                    <span>Entregado en mano ahora (sin pasar por cola de cocina)</span>
+                  </label>
+                </div>
               </div>
 
               <div className="my-5 border-t" />
@@ -266,7 +489,9 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
               </div>
 
               <div className="mt-5 space-y-2 border-t pt-4 text-sm"><div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{money(subtotal)}</span></div>{quantityDiscount && <div className="flex justify-between font-bold text-emerald-700"><span>{quantityDiscount.name}</span><span>-{money(quantityDiscount.amount)}</span></div>}{catalog.globalDiscount > 0 && <div className="flex justify-between text-green-700"><span>Descuento general ({catalog.globalDiscount}%)</span><span>-{money(afterQuantityDiscount - discountedSubtotal)}</span></div>}{needsDelivery && <div className="flex justify-between text-slate-500"><span>Envío</span><span>{money(catalog.deliveryCost)}</span></div>}<div className="flex justify-between border-t pt-3 text-xl font-black text-slate-950"><span>Total</span><span>{money(total)}</span></div></div>
-              <Button onClick={submitOrder} disabled={submitting || !cart.length} className="mt-5 h-14 w-full rounded-2xl bg-orange-600 text-base font-black hover:bg-orange-700">{submitting ? <><Loader2 className="mr-2 size-4 animate-spin" /> Creando pedido…</> : "Crear pedido pagado"}</Button>
+              <Button onClick={submitOrder} disabled={submitting || !cart.length} className="mt-5 h-14 w-full rounded-2xl bg-orange-600 text-base font-black hover:bg-orange-700">
+                {submitting ? <><Loader2 className="mr-2 size-4 animate-spin" /> Creando pedido…</> : directDelivered ? "Crear y marcar como entregado" : "Crear pedido en sistema"}
+              </Button>
             </aside>
           </div>
         )}

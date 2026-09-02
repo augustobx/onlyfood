@@ -205,13 +205,55 @@ export async function logoutClient() {
 }
 
 export async function fetchCurrentClient() {
-  const client = await getLoggedClient();
+  const tenant = await getTenantContext();
+  const client = await getLoggedClient(tenant.id);
   if (!client) return null;
+  const db = createTenantDb(tenant.id);
+
+  const [dbClient, tiers] = await Promise.all([
+    db.client.findUnique({
+      where: { id: client.id },
+      include: {
+        customTier: true,
+        orders: { where: { status: { not: "CANCELLED" } }, select: { id: true, total: true } },
+      },
+    }),
+    db.customerTier.findMany({ where: { isActive: true }, orderBy: { sequence: "desc" } }),
+  ]);
+
+  let clientTier: any = dbClient?.customTier || null;
+  if (!clientTier && dbClient && tiers.length > 0) {
+    const ordersCount = dbClient.orders.length;
+    const totalSpent = dbClient.orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    clientTier = tiers.find((t) => {
+      const meetsOrders = t.minOrdersCount === 0 || ordersCount >= t.minOrdersCount;
+      const meetsSpent = t.minSpent === 0 || totalSpent >= t.minSpent;
+      const meetsPoints = t.minPoints === 0 || dbClient.points >= t.minPoints;
+      return meetsOrders && meetsSpent && meetsPoints;
+    }) || tiers[tiers.length - 1];
+  }
+
+  let tierMultiplier = 1.0;
+  let tierDiscountPercent = 0;
+  if (clientTier) {
+    const unlockedTiers = tiers.filter((t) => t.sequence <= (clientTier.sequence ?? 0));
+    tierMultiplier = Math.max(clientTier.pointsMultiplier || 1.0, ...unlockedTiers.map((t) => t.pointsMultiplier || 1.0));
+    tierDiscountPercent = Math.max(clientTier.discountPercent || 0, ...unlockedTiers.map((t) => t.discountPercent || 0));
+  }
+
   return {
     id: client.id,
     phone: client.phone,
     name: client.name,
-    points: client.points,
+    points: dbClient?.points ?? client.points,
+    tier: clientTier ? {
+      id: clientTier.id,
+      name: clientTier.name,
+      badgeText: clientTier.badgeText,
+      color: clientTier.color,
+      discountPercent: tierDiscountPercent,
+      pointsMultiplier: tierMultiplier,
+    } : null,
     createdAt: client.createdAt,
     updatedAt: client.updatedAt,
   };

@@ -126,6 +126,59 @@ export async function getAdminOrderCatalog() {
   };
 }
 
+export async function searchAdminClients(query: string) {
+  await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
+  const db = await getTenantDb();
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const phoneDigits = q.replace(/\D/g, "");
+  const clients = await db.client.findMany({
+    where: {
+      OR: [
+        { name: { contains: q } },
+        { phone: { contains: q } },
+        ...(phoneDigits.length >= 4 ? [{ phone: { contains: phoneDigits } }] : []),
+      ],
+    },
+    take: 10,
+    orderBy: [{ points: "desc" }, { createdAt: "desc" }],
+    include: {
+      customTier: { select: { id: true, name: true, badgeText: true, color: true } },
+      orders: { where: { status: { not: "CANCELLED" } }, select: { id: true, total: true } },
+    },
+  });
+
+  const tiers = await db.customerTier.findMany({
+    where: { isActive: true },
+    orderBy: { sequence: "desc" },
+  });
+
+  return clients.map((c) => {
+    const ordersCount = c.orders.length;
+    const totalSpent = c.orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    let activeTier = c.customTier;
+    if (!activeTier && tiers.length > 0) {
+      activeTier = tiers.find((t) => {
+        const meetsOrders = t.minOrdersCount === 0 || ordersCount >= t.minOrdersCount;
+        const meetsSpent = t.minSpent === 0 || totalSpent >= t.minSpent;
+        const meetsPoints = t.minPoints === 0 || c.points >= t.minPoints;
+        return meetsOrders && meetsSpent && meetsPoints;
+      }) || tiers[tiers.length - 1];
+    }
+
+    return {
+      id: c.id,
+      name: c.name || "Cliente sin nombre",
+      phone: c.phone,
+      points: c.points,
+      ordersCount,
+      totalSpent,
+      tier: activeTier ? { name: activeTier.name, badgeText: activeTier.badgeText, color: activeTier.color } : null,
+    };
+  });
+}
+
 export async function reconcilePendingMercadoPagoOrders() {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   await requireOrdersModule();

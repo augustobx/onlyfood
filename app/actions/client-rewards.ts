@@ -27,7 +27,7 @@ export async function fetchPublicRewards() {
       orderBy: [{ sequence: "asc" }, { pointsCost: "asc" }],
       include: {
         product: { select: { id: true, name: true, basePrice: true, imageUrl: true, isActive: true } },
-        minTier: { select: { id: true, name: true, badgeText: true, color: true, iconName: true } },
+        minTier: { select: { id: true, name: true, badgeText: true, color: true, iconName: true, sequence: true } },
       },
     }),
     db.customerTier.findMany({
@@ -84,6 +84,18 @@ export async function fetchPublicRewards() {
         const meetsPoints = t.minPoints === 0 || points >= t.minPoints;
         return meetsOrders && meetsSpent && meetsPoints;
       }) || tiers[0];
+    }
+
+    if (clientTier && tiers.length > 0) {
+      // Inherit maximum privileges from current and all previous tiers
+      const unlockedTiers = tiers.filter((t) => t.sequence <= (clientTier.sequence ?? 0));
+      const maxMultiplier = Math.max(clientTier.pointsMultiplier || 1.0, ...unlockedTiers.map((t) => t.pointsMultiplier || 1.0));
+      const maxDiscount = Math.max(clientTier.discountPercent || 0, ...unlockedTiers.map((t) => t.discountPercent || 0));
+      clientTier = {
+        ...clientTier,
+        pointsMultiplier: maxMultiplier,
+        discountPercent: maxDiscount,
+      };
     }
 
     // Find next tier for progression

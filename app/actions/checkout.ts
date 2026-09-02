@@ -40,6 +40,7 @@ const cartItemSchema = z.object({
 const orderSchema = z.object({
   clientName: z.string().trim().min(2).max(100),
   clientPhone: z.string().trim().min(6).max(35),
+  clientId: optionalIdField,
   whatsappOptIn: z.boolean().default(false),
   needsDelivery: z.boolean(),
   deliveryAddress: z.string().trim().max(250).optional().nullable(),
@@ -47,7 +48,9 @@ const orderSchema = z.object({
   orderType: z.enum(["IMMEDIATE", "SCHEDULED_TOMORROW", "CUSTOM_DATE"]).default("IMMEDIATE"),
   scheduledDate: z.string().optional().nullable(),
   scheduledTime: z.string().max(80).optional().nullable(),
-  paymentMethod: z.enum(["CASH", "MP"]),
+  paymentMethod: z.enum(["CASH", "MP", "ADMIN"]).default("CASH"),
+  paymentStatus: z.enum(["PAID", "PENDING"]).optional().nullable(),
+  directDelivered: z.boolean().optional().default(false),
   items: z.array(cartItemSchema).min(1).max(40),
   rouletteWinId: idField.optional().nullable(),
   redemptionId: idField.optional().nullable(),
@@ -580,30 +583,37 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         })),
       );
 
-      // Quantity, global and coupon discounts
-      const globalDiscount = Math.min(100, Math.max(0, config.globalDiscount));
-      const rawSubtotal = roundMoney(prepared.reduce((sum, item) => sum + item.subtotal, 0));
-      const afterQuantityDiscount = roundMoney(rawSubtotal - (quantityDiscount?.amount ?? 0));
-      const discountedSubtotal = afterQuantityDiscount * (1 - globalDiscount / 100) * (1 - benefitPercent / 100);
-      let remainingBenefitAmount = Math.min(benefitAmount, roundMoney(discountedSubtotal));
-      let remainingQuantityDiscount = quantityDiscount?.amount ?? 0;
-
-      const adminPhoneKey = adminDirectPaid ? data.clientPhone.replace(/\D/g, "").slice(-6) : null;
-      const adminClient = adminDirectPaid
-        ? await tx.client.findFirst({
+      // Target client lookup
+      let targetClientId: string | null = null;
+      if (adminDirectPaid) {
+        if (data.clientId) {
+          const verified = await tx.client.findFirst({
+            where: { id: data.clientId, tenantId: tenant.id },
+            select: { id: true },
+          });
+          targetClientId = verified?.id ?? null;
+        }
+        if (!targetClientId && data.clientPhone) {
+          const adminPhoneKey = data.clientPhone.replace(/\D/g, "").slice(-6);
+          const adminClient = await tx.client.findFirst({
             where: {
+              tenantId: tenant.id,
               OR: [
                 { phone: data.clientPhone },
-                ...(adminPhoneKey?.length === 6 ? [{ phoneLoginKey: adminPhoneKey }] : []),
+                ...(adminPhoneKey.length === 6 ? [{ phoneLoginKey: adminPhoneKey }] : []),
               ],
             },
             orderBy: [{ points: "desc" }, { createdAt: "asc" }],
             select: { id: true },
-          })
-        : null;
+          });
+          targetClientId = adminClient?.id ?? null;
+        }
+      } else {
+        targetClientId = loggedClient?.id ?? null;
+      }
 
-      const targetClientId = adminClient?.id ?? loggedClient?.id ?? null;
       let tierMultiplier = 1.0;
+      let tierDiscountPercent = 0;
       if (loyaltyEnabled && targetClientId) {
         const [dbClient, tiers] = await Promise.all([
           tx.client.findUnique({
@@ -618,6 +628,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
 
         if (dbClient?.customTier) {
           tierMultiplier = dbClient.customTier.pointsMultiplier || 1.0;
+          tierDiscountPercent = dbClient.customTier.discountPercent || 0;
         } else if (dbClient && tiers.length > 0) {
           const ordersCount = dbClient.orders.length;
           const totalSpent = dbClient.orders.reduce((sum, o) => sum + (o.total || 0), 0);
@@ -627,13 +638,33 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             const meetsPoints = t.minPoints === 0 || dbClient.points >= t.minPoints;
             return meetsOrders && meetsSpent && meetsPoints;
           }) || tiers[tiers.length - 1];
-          tierMultiplier = activeTier?.pointsMultiplier || 1.0;
+
+          if (activeTier) {
+            // Cumulatively inherit highest multiplier and discount from active & prior tiers
+            const unlockedTiers = tiers.filter((t) => t.sequence <= activeTier.sequence);
+            tierMultiplier = Math.max(activeTier.pointsMultiplier || 1.0, ...unlockedTiers.map((t) => t.pointsMultiplier || 1.0));
+            tierDiscountPercent = Math.max(activeTier.discountPercent || 0, ...unlockedTiers.map((t) => t.discountPercent || 0));
+          }
         }
       }
+
+      // Quantity, global, tier and coupon discounts
+      const globalDiscount = Math.min(100, Math.max(0, config.globalDiscount));
+      const rawSubtotal = roundMoney(prepared.reduce((sum, item) => sum + item.subtotal, 0));
+      const afterQuantityDiscount = roundMoney(rawSubtotal - (quantityDiscount?.amount ?? 0));
+      const totalCombinedPercent = Math.min(100, globalDiscount + tierDiscountPercent + benefitPercent);
+      const discountedSubtotal = afterQuantityDiscount * (1 - totalCombinedPercent / 100);
+      let remainingBenefitAmount = Math.min(benefitAmount, roundMoney(discountedSubtotal));
+      let remainingQuantityDiscount = quantityDiscount?.amount ?? 0;
 
       const createdOrders = [];
       const numGroups = dateGroups.length;
       const deliveryPerGroup = data.needsDelivery ? Math.max(0, config.deliveryCost) : 0;
+
+      const initialPaymentStatus = adminDirectPaid
+        ? (data.paymentStatus === "PENDING" ? "PENDING" : "PAID")
+        : (data.paymentMethod === "ADMIN" ? "PAID" : "PENDING");
+      const initialOrderStatus = adminDirectPaid && data.directDelivered ? "DELIVERED" : "NEW";
 
       for (let i = 0; i < numGroups; i++) {
         const group = dateGroups[i];
@@ -645,7 +676,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           : 0;
         groupSubtotal = roundMoney(groupSubtotal - groupQuantityDiscount);
         remainingQuantityDiscount = roundMoney(Math.max(0, remainingQuantityDiscount - groupQuantityDiscount));
-        groupSubtotal = roundMoney(groupSubtotal * (1 - globalDiscount / 100));
+        groupSubtotal = roundMoney(groupSubtotal * (1 - (globalDiscount + tierDiscountPercent) / 100));
         groupSubtotal = roundMoney(groupSubtotal * (1 - benefitPercent / 100));
         const groupAmountDiscount = i === numGroups - 1
           ? Math.min(groupSubtotal, remainingBenefitAmount)
@@ -661,6 +692,8 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           group.dateStr === todayStr && data.orderType === "IMMEDIATE"
             ? deliveryTimeDisplay
             : data.scheduledTime || (data.needsDelivery ? "Almuerzo / Vianda" : "Retiro");
+
+        const isPointsAwardedDirect = initialOrderStatus === "DELIVERED" && targetClientId !== null && groupEarnedPoints > 0;
 
         const order = await tx.order.create({
           data: {
@@ -683,10 +716,11 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
               ...quantityDiscount,
               allocatedAmount: groupQuantityDiscount,
             } : undefined,
-            status: "NEW",
-            paymentStatus: adminDirectPaid ? "PAID" : "PENDING",
-            clientId: adminClient?.id ?? loggedClient?.id ?? null,
+            status: initialOrderStatus,
+            paymentStatus: initialPaymentStatus,
+            clientId: targetClientId,
             earnedPoints: groupEarnedPoints,
+            pointsAwarded: isPointsAwardedDirect,
             stockCommitted: true,
             tenantId: tenant.id,
             locationId: tenant.primaryLocationId || null,
@@ -710,9 +744,16 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
                 },
               })),
             },
-            history: { create: { status: "NEW" } },
+            history: { create: { status: initialOrderStatus } },
           },
         });
+
+        if (isPointsAwardedDirect && targetClientId) {
+          await tx.client.update({
+            where: { id: targetClientId },
+            data: { points: { increment: groupEarnedPoints } },
+          });
+        }
 
         createdOrders.push(order);
       }

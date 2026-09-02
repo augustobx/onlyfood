@@ -251,56 +251,64 @@ export function PointsCatalogModal({
             ) : (
               <div className="grid grid-cols-1 gap-3">
                 {rewards.map((reward) => {
-                  const isLockedByTier =
-                    reward.minTier &&
-                    (!clientTier || (clientTier.sequence ?? 0) < (reward.minTier.sequence ?? 0));
-                  const canAfford = currentPoints >= reward.pointsCost;
-                  const isRedeeming = redeemingId === reward.id;
+                    const isUnlockedByTier = reward.minTier && clientTier && (clientTier.sequence ?? 0) >= (reward.minTier.sequence ?? 0);
+                    const isLockedByTier =
+                      reward.minTier &&
+                      (!clientTier || (clientTier.sequence ?? 0) < (reward.minTier.sequence ?? 0));
+                    const canAfford = currentPoints >= reward.pointsCost;
+                    const isRedeeming = redeemingId === reward.id;
 
-                  return (
-                    <div
-                      key={reward.id}
-                      className={`rounded-3xl border p-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
-                        isLockedByTier
-                          ? "bg-slate-100/80 border-slate-200 opacity-80"
-                          : "bg-white border-slate-200 hover:border-orange-300 hover:shadow-md"
-                      }`}
-                    >
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-black text-sm text-slate-900">{reward.name}</span>
-                          {reward.badgeText && (
-                            <Badge className="bg-orange-100 text-orange-800 text-[10px] font-black px-2 py-0.2">
-                              {reward.badgeText}
-                            </Badge>
+                    return (
+                      <div
+                        key={reward.id}
+                        className={`rounded-3xl border p-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                          isLockedByTier
+                            ? "bg-slate-100/80 border-slate-200 opacity-75"
+                            : isUnlockedByTier
+                              ? "bg-purple-50/30 border-purple-200 hover:border-purple-300 hover:shadow-md"
+                              : "bg-white border-slate-200 hover:border-orange-300 hover:shadow-md"
+                        }`}
+                      >
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black text-sm text-slate-900">{reward.name}</span>
+                            {reward.badgeText && (
+                              <Badge className="bg-orange-100 text-orange-800 text-[10px] font-black px-2 py-0.2">
+                                {reward.badgeText}
+                              </Badge>
+                            )}
+                            {reward.minTier && (
+                              <span
+                                className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md text-white shadow-2xs flex items-center gap-1"
+                                style={{ backgroundColor: reward.minTier.color || "#a855f7" }}
+                              >
+                                <Crown className="w-2.5 h-2.5" /> Nivel {reward.minTier.name}
+                              </span>
+                            )}
+                            {isUnlockedByTier && (
+                              <Badge className="bg-emerald-100 text-emerald-800 text-[9px] font-black">
+                                ✓ Desbloqueado por tu VIP
+                              </Badge>
+                            )}
+                          </div>
+
+                          {reward.description && (
+                            <p className="text-xs text-slate-500 font-medium">{reward.description}</p>
                           )}
-                          {reward.minTier && (
-                            <span
-                              className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md text-white shadow-2xs flex items-center gap-1"
-                              style={{ backgroundColor: reward.minTier.color || "#a855f7" }}
-                            >
-                              <Crown className="w-2.5 h-2.5" /> Exclusivo: {reward.minTier.name}
+
+                          <div className="flex items-center gap-2 pt-1 text-xs">
+                            <span className="font-black text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                              <Coins className="w-3 h-3 text-amber-500" />
+                              {reward.pointsCost} Puntos
                             </span>
-                          )}
+
+                            {isLockedByTier && (
+                              <span className="text-[11px] font-bold text-purple-700 flex items-center gap-1">
+                                <Lock className="w-3 h-3 text-purple-600" /> Desbloquea al alcanzar {reward.minTier.name}
+                              </span>
+                            )}
+                          </div>
                         </div>
-
-                        {reward.description && (
-                          <p className="text-xs text-slate-500 font-medium">{reward.description}</p>
-                        )}
-
-                        <div className="flex items-center gap-2 pt-1 text-xs">
-                          <span className="font-black text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                            <Coins className="w-3 h-3 text-amber-500" />
-                            {reward.pointsCost} Puntos
-                          </span>
-
-                          {isLockedByTier && (
-                            <span className="text-[11px] font-bold text-purple-700 flex items-center gap-1">
-                              <Lock className="w-3 h-3 text-purple-600" /> Desbloquea en rango {reward.minTier.name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
 
                       {/* Botón Canjear */}
                       <div>
