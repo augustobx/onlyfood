@@ -693,7 +693,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             ? deliveryTimeDisplay
             : data.scheduledTime || (data.needsDelivery ? "Almuerzo / Vianda" : "Retiro");
 
-        const isPointsAwardedDirect = initialOrderStatus === "DELIVERED" && targetClientId !== null && groupEarnedPoints > 0;
+        const isPointsAwardedDirect = (adminDirectPaid ? initialPaymentStatus === "PAID" || initialOrderStatus === "DELIVERED" : initialOrderStatus === "DELIVERED") && targetClientId !== null && groupEarnedPoints > 0;
 
         const order = await tx.order.create({
           data: {

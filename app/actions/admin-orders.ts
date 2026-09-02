@@ -267,17 +267,16 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
 
       const requirements = calculateOrderRequirements(current.items);
 
+      const shouldAwardPointsOnDelivered = parsedStatus.data === "DELIVERED" && current.clientId !== null && current.earnedPoints > 0 && !current.pointsAwarded;
+
       const transitioned = await tx.order.updateMany({
         where: {
           id: orderId,
           status: current.status,
-          ...(parsedStatus.data === "DELIVERED" ? { pointsAwarded: false } : {}),
         },
         data: {
           status: parsedStatus.data,
-          pointsAwarded: parsedStatus.data === "DELIVERED" && current.clientId !== null && current.earnedPoints > 0
-            ? true
-            : current.pointsAwarded,
+          pointsAwarded: shouldAwardPointsOnDelivered ? true : current.pointsAwarded,
           stockCommitted: parsedStatus.data === "CANCELLED"
             ? false
             : parsedStatus.data === "IN_PROCESS"
@@ -302,7 +301,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         await releaseStock(tx, requirements);
       }
 
-      if (parsedStatus.data === "DELIVERED" && current.clientId && current.earnedPoints > 0 && !current.pointsAwarded) {
+      if (shouldAwardPointsOnDelivered && current.clientId) {
         await tx.client.update({ where: { id: current.clientId }, data: { points: { increment: current.earnedPoints } } });
       }
 
