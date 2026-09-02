@@ -81,26 +81,17 @@ describe("VIP Cumulative Privileges and Rewards Access", () => {
 });
 
 describe("Cashier Order Creation Logic", () => {
-  it("should award points immediately when admin order is paid or direct delivered", () => {
-    const adminDirectPaid = true;
-    const initialPaymentStatus = "PAID";
-    const initialOrderStatus = "NEW";
-    const groupEarnedPoints = 150;
-    const targetClientId = "client-123";
+  function checkPointsAwardedDirect(adminDirectPaid: boolean, initialPaymentStatus: string, initialOrderStatus: string, targetClientId: string | null, groupEarnedPoints: number) {
+    return (adminDirectPaid ? initialPaymentStatus === "PAID" || initialOrderStatus === "DELIVERED" : initialOrderStatus === "DELIVERED") && targetClientId !== null && groupEarnedPoints > 0;
+  }
 
-    const isPointsAwardedDirect = (adminDirectPaid ? initialPaymentStatus === "PAID" || initialOrderStatus === "DELIVERED" : initialOrderStatus === "DELIVERED") && targetClientId !== null && groupEarnedPoints > 0;
-    expect(isPointsAwardedDirect).toBe(true);
+  it("should award points immediately when admin order is paid or direct delivered", () => {
+    expect(checkPointsAwardedDirect(true, "PAID", "NEW", "client-123", 150)).toBe(true);
+    expect(checkPointsAwardedDirect(true, "PENDING", "DELIVERED", "client-123", 150)).toBe(true);
   });
 
   it("should defer points when admin order is pending payment and not delivered", () => {
-    const adminDirectPaid = true;
-    const initialPaymentStatus = "PENDING";
-    const initialOrderStatus = "NEW";
-    const groupEarnedPoints = 150;
-    const targetClientId = "client-123";
-
-    const isPointsAwardedDirect = (adminDirectPaid ? initialPaymentStatus === "PAID" || initialOrderStatus === "DELIVERED" : initialOrderStatus === "DELIVERED") && targetClientId !== null && groupEarnedPoints > 0;
-    expect(isPointsAwardedDirect).toBe(false);
+    expect(checkPointsAwardedDirect(true, "PENDING", "NEW", "client-123", 150)).toBe(false);
   });
 
   it("should support payment methods CASH, MP, and ADMIN", () => {
