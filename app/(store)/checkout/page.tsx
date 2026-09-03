@@ -18,6 +18,40 @@ import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 /* ══ Theme class maps ══ */
 function getThemeClasses(theme: string) {
   switch (theme) {
+    case "SUSHI_ZEN":
+      return {
+        page: "bg-[#0b0e14] text-slate-100 font-sans",
+        heading: "text-white tracking-tight",
+        subtext: "text-slate-400",
+        label: "text-slate-300 font-bold",
+        formCard: "bg-[#121722] border border-amber-500/25 text-slate-100 shadow-xl shadow-black/50",
+        inputBg: "bg-[#0c1017] border border-white/15 text-white placeholder:text-slate-500 focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40",
+        selectBg: "bg-[#0c1017] border border-white/15 text-white focus:border-amber-500/60",
+        switchBg: "bg-[#0c1017] border border-amber-500/30",
+        switchLabel: "text-slate-200 font-bold",
+        summaryBg: "bg-[#121722] border border-amber-500/25 shadow-2xl shadow-black/60",
+        summaryText: "text-slate-400",
+        summaryTotal: "text-amber-300",
+        divider: "border-white/[0.08]",
+        backBtn: "bg-[#141923] border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white",
+        accent: "text-amber-300",
+        accentBg: "bg-gradient-to-r from-rose-600 to-amber-600 hover:brightness-110 text-white shadow-lg shadow-rose-950/50",
+        accentBgHover: "hover:brightness-110",
+        pillActive: "border border-amber-400 bg-amber-500/20 text-amber-300 shadow-md",
+        pillInactive: "border border-white/10 bg-[#0c1017] text-slate-400 hover:text-slate-200",
+        pillDisabled: "border border-white/5 bg-[#0c1017]/40 text-slate-600 opacity-50 cursor-not-allowed",
+        warnBg: "bg-amber-950/40 border border-amber-500/30 text-amber-200",
+        dateBg: "bg-rose-950/30 border border-rose-500/30",
+        dateLabel: "text-rose-300",
+        dateHint: "text-rose-400/80",
+        couponActive: "border border-amber-400/60 bg-amber-500/20 text-amber-300 shadow-sm",
+        couponInactive: "border border-white/10 bg-[#0c1017] text-slate-300",
+        couponNone: "border border-white/10 bg-[#0c1017] text-slate-500",
+        pointsBanner: "from-rose-900/60 via-amber-950/60 to-[#121722] border border-amber-500/30",
+        modalBg: "bg-[#121722] border border-amber-500/30",
+        modalText: "text-white",
+        modalSub: "text-slate-400",
+      };
     case "COMIC_FOOD_POP":
       return {
         page: "bg-[#fff7db] text-[#17121f]",

@@ -23,7 +23,7 @@ export function Navbar({ config }: { config?: any }) {
 
   // URBAN_DARK, FAST_NEO y CLEAN_BOUTIQUE manejan su propia navegación
   // dentro de sus storefronts → no renderizar ningún Navbar global.
-  if (["URBAN_DARK", "FAST_NEO", "CLEAN_BOUTIQUE", "FRESH_MARKET", "RETRO_DINER", "COMIC_FOOD_POP", "ARCADE_KITCHEN"].includes(theme)) {
+  if (["URBAN_DARK", "FAST_NEO", "CLEAN_BOUTIQUE", "FRESH_MARKET", "RETRO_DINER", "COMIC_FOOD_POP", "ARCADE_KITCHEN", "SUSHI_ZEN"].includes(theme)) {
     return null;
   }
 

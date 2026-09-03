@@ -26,6 +26,30 @@ function useStoreTheme() {
 // Theme palettes
 function getThemeClasses(theme: string) {
   switch (theme) {
+    case "SUSHI_ZEN":
+      return {
+        page: "bg-[#0b0e14] text-slate-100 font-sans",
+        card: "bg-[#121722] border border-amber-500/25 shadow-xl shadow-black/40",
+        cardHover: "hover:border-amber-500/40 hover:bg-[#151b28]",
+        heading: "text-white tracking-tight",
+        subtext: "text-slate-400",
+        mutedText: "text-slate-500",
+        accent: "text-amber-300",
+        accentBg: "bg-gradient-to-r from-rose-600 to-amber-600 shadow-lg shadow-rose-950/50",
+        accentBgHover: "hover:brightness-110",
+        summary: "bg-[#121722] border border-amber-500/25 shadow-2xl shadow-black/60",
+        backBtn: "bg-[#141923] border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white",
+        qtyBg: "bg-[#0c1017] border border-white/10",
+        qtyBtn: "text-slate-300 hover:text-white hover:bg-white/10",
+        removeBg: "text-rose-400 hover:text-rose-300 hover:bg-rose-500/10",
+        imgBg: "bg-[#0c1017]",
+        divider: "border-white/[0.08]",
+        notesBg: "bg-[#0c1017] border border-white/10 text-slate-200 placeholder:text-slate-500",
+        tag: { green: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30", red: "bg-rose-500/20 text-rose-300 border border-rose-500/30", purple: "bg-purple-500/20 text-purple-300 border border-purple-500/30" },
+        emptyBg: "bg-rose-500/10 border border-rose-500/20",
+        emptyIcon: "text-rose-400",
+        trustText: "text-slate-500",
+      };
     case "COMIC_FOOD_POP":
       return {
         page: "bg-[#fff7db] text-[#17121f]",

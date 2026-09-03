@@ -9,6 +9,7 @@ import styles from "./StoreNoticeBoard.module.css";
 type NoticeProfile = { className: string; eyebrow: string; mark: string; action: string; Icon: typeof Sparkles };
 
 const profiles: Record<string, NoticeProfile> = {
+  SUSHI_ZEN: { className: styles.sushi, eyebrow: "Sugerencia del Itamae", mark: "OMAKASE", action: "Ver especial", Icon: Sparkles },
   COMIC_FOOD_POP: { className: styles.comic, eyebrow: "¡Última noticia!", mark: "WOW!", action: "¡Lo tengo!", Icon: Newspaper },
   ARCADE_KITCHEN: { className: styles.arcade, eyebrow: "System broadcast", mark: "+100 XP", action: "Continuar partida", Icon: BellRing },
   URBAN_DARK: { className: styles.urban, eyebrow: "Hot drop", mark: "LIVE", action: "Quiero verlo", Icon: Megaphone },

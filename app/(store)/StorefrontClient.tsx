@@ -13,6 +13,7 @@ import { CleanBoutiqueStorefront } from "@/components/store/CleanBoutiqueStorefr
 import { SignatureStorefront } from "@/components/store/SignatureStorefront";
 import { ComicFoodStorefront } from "@/components/store/ComicFoodStorefront";
 import { ArcadeKitchenStorefront } from "@/components/store/ArcadeKitchenStorefront";
+import { SushiStorefront } from "@/components/store/SushiStorefront";
 import { StoreNoticeBoard } from "@/components/store/StoreNoticeBoard";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -775,6 +776,24 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
     return (
       <>
         <ArcadeKitchenStorefront
+          categories={categories}
+          combos={combos}
+          config={config}
+          loggedClient={loggedClient}
+          currentPoints={currentPoints}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenPointsModal={() => setIsPointsModalOpen(true)}
+          loyaltyEnabled={loyaltyEnabled}
+        />
+        {renderSharedModals()}
+      </>
+    );
+  }
+
+  if (config?.storeTheme === "SUSHI_ZEN") {
+    return (
+      <>
+        <SushiStorefront
           categories={categories}
           combos={combos}
           config={config}

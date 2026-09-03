@@ -41,6 +41,34 @@ interface TrackOrderClientProps {
 
 function getThemeStyles(theme: string) {
   switch (theme) {
+    case "SUSHI_ZEN":
+      return {
+        page: "bg-[#0b0e14] text-slate-100 font-sans min-h-[100dvh]",
+        header: "bg-[#0b0e14]/90 backdrop-blur-xl border-b border-amber-500/20 text-white",
+        backBtn: "bg-[#141923] border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white",
+        card: "bg-[#121722] border border-amber-500/25 text-white shadow-2xl shadow-black/60",
+        cardInner: "bg-[#0c1017] border border-white/10",
+        heading: "text-white tracking-tight",
+        subtext: "text-slate-400",
+        mutedText: "text-slate-500",
+        accent: "text-amber-300",
+        accentBg: "bg-gradient-to-r from-rose-600 to-amber-600 hover:brightness-110 text-white shadow-lg shadow-rose-950/50",
+        secondaryBtn: "bg-[#141923] border border-white/10 text-slate-200 hover:bg-white/10",
+        badgeActive: "bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold",
+        badgePending: "bg-white/5 border border-white/10 text-slate-500",
+        stepCompleted: "bg-gradient-to-br from-rose-600 to-amber-600 text-white shadow-[0_0_20px_rgba(225,29,72,0.45)] ring-2 ring-amber-400/40",
+        stepCurrent: "bg-gradient-to-r from-rose-600 to-amber-500 text-white shadow-[0_0_25px_rgba(245,158,11,0.5)] ring-4 ring-rose-500/30 scale-105",
+        stepPending: "bg-[#0c1017] text-slate-500 border border-white/10",
+        stepLine: "bg-white/10",
+        stepLineFilled: "bg-gradient-to-r from-rose-600 to-amber-500",
+        divider: "border-white/10",
+        totalText: "text-amber-300 font-black",
+        tagGreen: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+        tagOrange: "bg-amber-500/20 text-amber-300 border border-amber-500/30",
+        tagPurple: "bg-purple-500/20 text-purple-300 border border-purple-500/30",
+        messengerCard: "bg-[#161c28] border border-amber-500/30 text-white",
+        messengerBadge: "bg-amber-500/20 text-amber-300",
+      };
     case "COMIC_FOOD_POP":
       return {
         page: "bg-[#fff7db] text-[#17121f] min-h-[100dvh]",

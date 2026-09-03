@@ -862,6 +862,27 @@ export function SettingsForm({
                     <span className="block text-base font-black uppercase tracking-wide">Arcade Kitchen</span>
                     <span className="mt-1 block text-xs leading-relaxed opacity-70">Menú como videojuego: niveles, power-ups, XP, HUD del carrito, perfil VIP y efectos pixelados accesibles.</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateField('storeTheme', 'SUSHI_ZEN')}
+                    className={`relative overflow-hidden rounded-3xl border-2 p-4 text-left transition-all ${
+                      cfg.storeTheme === 'SUSHI_ZEN'
+                        ? 'border-amber-400 bg-[#0b0e14] text-white shadow-xl shadow-rose-950/40 ring-2 ring-amber-400/40'
+                        : 'border-slate-200 bg-white text-slate-800 hover:border-slate-400'
+                    }`}
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="rounded-lg bg-gradient-to-r from-rose-600 to-amber-600 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-white shadow-sm">
+                        🍣 Sushi Zen & Nikkei
+                      </span>
+                      {cfg.storeTheme === 'SUSHI_ZEN' && <span className="text-xs font-black text-amber-300">ACTIVO ✓</span>}
+                    </div>
+                    <span className="block text-base font-black">Sushi Zen & Nikkei Lounge</span>
+                    <span className={`mt-1 block text-xs leading-relaxed ${cfg.storeTheme === 'SUSHI_ZEN' ? 'text-slate-300' : 'text-slate-500'}`}>
+                      Estética japonesa contemporánea con acabados negro laca, detalles en oro sutil y acentos salmón/coral. Optimizado para casas de sushi, barras nikkei, piezas y tablas.
+                    </span>
+                  </button>
                 </div>
               </div>
 

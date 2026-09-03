@@ -73,8 +73,11 @@ export default async function StoreLayout({
   const isRetroDiner = theme === "RETRO_DINER";
   const isComicFood = theme === "COMIC_FOOD_POP";
   const isArcadeKitchen = theme === "ARCADE_KITCHEN";
+  const isSushiZen = theme === "SUSHI_ZEN";
 
-  const themeBgClass = isComicFood
+  const themeBgClass = isSushiZen
+    ? "bg-[#0b0e14] text-slate-100"
+    : isComicFood
     ? "bg-[#fff7db] text-[#17121f]"
     : isArcadeKitchen
     ? "bg-[#090625] text-white"
@@ -138,7 +141,9 @@ export default async function StoreLayout({
       </main>
       <footer
         className={`store-footer w-full py-6 mt-12 border-t ${
-          isComicFood
+          isSushiZen
+            ? "bg-[#080b10] text-slate-500 border-amber-500/15"
+            : isComicFood
             ? "bg-[#fff7db] text-[#17121f] border-[#17121f] border-t-[3px]"
             : isArcadeKitchen
             ? "bg-[#090625] text-cyan-200 border-cyan-300/60"

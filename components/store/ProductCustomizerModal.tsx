@@ -35,7 +35,7 @@ interface ProductCustomizerModalProps {
   isOpen: boolean;
   onClose: () => void;
   categoryProducts?: any[];
-  theme?: "URBAN_DARK" | "FAST_NEO" | "CLEAN_BOUTIQUE" | "NEXO" | "ORIGINAL" | "FRESH_MARKET" | "RETRO_DINER" | "COMIC_FOOD_POP" | "ARCADE_KITCHEN";
+  theme?: "URBAN_DARK" | "FAST_NEO" | "CLEAN_BOUTIQUE" | "NEXO" | "ORIGINAL" | "FRESH_MARKET" | "RETRO_DINER" | "COMIC_FOOD_POP" | "ARCADE_KITCHEN" | "SUSHI_ZEN";
   loyaltyEnabled?: boolean;
 }
 
