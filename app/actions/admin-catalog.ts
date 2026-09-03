@@ -72,7 +72,7 @@ export async function upsertProduct(data: {
   allowRemoveIngredients?: boolean,
   availableDays?: string | string[] | null,
   isCombo?: boolean,
-  comboItemsData?: { id: string, quantity: number }[]
+  comboItemsData?: { id: string, quantity: number, pieces?: number | null }[]
 }) {
   const { tenant } = await requireAdmin(["OWNER", "MANAGER"]);
   await requireTenantFeature(tenant.id, "orders");
@@ -92,7 +92,7 @@ export async function upsertProduct(data: {
     allowRemoveIngredients: z.boolean().optional().default(true),
     availableDays: z.union([z.string(), z.array(z.string())]).optional().nullable().default(""),
     isCombo: z.boolean().optional().default(false),
-    comboItemsData: z.array(z.object({ id: idSchema, quantity: z.coerce.number().int().min(1).max(100) })).max(100).optional().default([]),
+    comboItemsData: z.array(z.object({ id: idSchema, quantity: z.coerce.number().int().min(1).max(100), pieces: z.coerce.number().int().min(0).max(1000).optional().nullable().default(0) })).max(100).optional().default([]),
   }).safeParse(data);
 
   if (!parsed.success) {
@@ -155,7 +155,7 @@ export async function upsertProduct(data: {
              categoryId: cleanData.categoryId || null,
              ingredients: { create: cleanData.ingredientsData.map(ing => ({ ingredientId: ing.id, isRemovable: true, quantity: ing.quantity })) },
              extras: { create: cleanData.extraIds.map(id => ({ extraId: id })) },
-             comboItemsConfig: cleanData.isCombo ? { create: cleanData.comboItemsData.map(item => ({ productId: item.id, quantity: item.quantity })) } : undefined
+             comboItemsConfig: cleanData.isCombo ? { create: cleanData.comboItemsData.map(item => ({ productId: item.id, quantity: Number(item.quantity) || 1, pieces: item.pieces ? Number(item.pieces) : null })) } : undefined
           }
         })
       ]);
@@ -170,7 +170,7 @@ export async function upsertProduct(data: {
           categoryId: cleanData.categoryId || null,
           ingredients: { create: cleanData.ingredientsData.map(ing => ({ ingredientId: ing.id, isRemovable: true, quantity: ing.quantity })) },
           extras: { create: cleanData.extraIds.map(id => ({ extraId: id })) },
-          comboItemsConfig: cleanData.isCombo ? { create: cleanData.comboItemsData.map(item => ({ productId: item.id, quantity: item.quantity })) } : undefined
+          comboItemsConfig: cleanData.isCombo ? { create: cleanData.comboItemsData.map(item => ({ productId: item.id, quantity: Number(item.quantity) || 1, pieces: item.pieces ? Number(item.pieces) : null })) } : undefined
         }
       });
     }

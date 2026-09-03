@@ -38,7 +38,7 @@ export function formatOrderDetailForWhatsApp(items: MessageOrderItem[], maxLengt
   const lines = items.flatMap((item) => {
     const result = [`• ${item.quantity}x ${item.product.name} — $${item.subtotal.toLocaleString("es-AR")}`];
     if (item.isHalfAndHalf && item.secondHalfProduct) result.push(`  Mitad y mitad con ${item.secondHalfProduct.name}`);
-    if (item.comboItems?.length) result.push(`  Incluye: ${item.comboItems.map((part) => `${part.quantity}x ${part.product.name}`).join(", ")}`);
+    if (item.comboItems?.length) result.push(`  Incluye: ${item.comboItems.map((part: any) => `${part.pieces && part.pieces > 0 ? `${part.pieces} piezas` : `${part.quantity}x`} ${part.product.name}`).join(", ")}`);
     if (item.addedExtras?.length) result.push(`  Extras: ${item.addedExtras.map((extra) => extra.extra.name).join(", ")}`);
     if (item.removedIngredients?.length) result.push(`  Sin: ${item.removedIngredients.map((ingredient) => ingredient.ingredient.name).join(", ")}`);
     if (item.notes?.trim()) result.push(`  Nota: ${item.notes.trim()}`);

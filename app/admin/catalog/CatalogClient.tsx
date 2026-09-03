@@ -70,13 +70,13 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
     ingredientsData: [] as { id: string, quantity: number }[], extraIds: [] as string[],
     allowHalf: false, onlyHalf: false, allowRemoveIngredients: true,
     availableDays: [] as string[],
-    isCombo: false, comboItemsData: [] as { id: string, quantity: number }[]
+    isCombo: false, comboItemsData: [] as { id: string, quantity: number, pieces?: number, productInfo?: any }[]
   });
 
   const [newCombo, setNewCombo] = useState({
     id: undefined as string | undefined,
     name: "", basePrice: "", points: "0", description: "", imageUrl: "",
-    comboItemsData: [] as { id: string, quantity: number, productInfo: any }[]
+    comboItemsData: [] as { id: string, quantity: number, pieces?: number, productInfo?: any }[]
   });
 
   const [isProductDialogOpen, setProductDialogOpen] = useState(false);
@@ -214,7 +214,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
       allowRemoveIngredients: true,
       ingredientsData: [],
       extraIds: [],
-      comboItemsData: newCombo.comboItemsData.map(c => ({ id: c.id, quantity: c.quantity }))
+      comboItemsData: newCombo.comboItemsData.map(c => ({ id: c.id, quantity: c.quantity, pieces: c.pieces ? Number(c.pieces) : 0 }))
     });
 
     if (res.success) {
@@ -252,7 +252,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
       nv[exists].quantity += 1;
       setNewCombo({ ...newCombo, comboItemsData: nv });
     } else {
-      setNewCombo({ ...newCombo, comboItemsData: [...newCombo.comboItemsData, { id: sel.value, quantity: 1, productInfo: p }] });
+      setNewCombo({ ...newCombo, comboItemsData: [...newCombo.comboItemsData, { id: sel.value, quantity: 1, pieces: 0, productInfo: p }] });
     }
     sel.value = "";
   };
@@ -332,23 +332,43 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
 
                       <div className="mt-4 space-y-2">
                         {newCombo.comboItemsData.length === 0 && <p className="text-xs text-muted-foreground italic p-2">No has agregado productos para este combo.</p>}
-                        {newCombo.comboItemsData.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center p-2 px-3 border rounded shadow-sm bg-white">
-                            <span className="font-semibold text-sm">{item.productInfo?.name || categories.flatMap(c => c.products).find(p => p.id === item.id)?.name || "Producto no disponible"}</span>
-                            <div className="flex gap-3 items-center">
-                              <Label className="text-xs">Cant:</Label>
-                              <Input className="w-16 h-8 text-xs text-center" type="number" min="1" value={item.quantity} onChange={(e) => {
-                                const nb = parseInt(e.target.value) || 1;
-                                const nv = [...newCombo.comboItemsData];
-                                nv[idx].quantity = nb;
-                                setNewCombo({ ...newCombo, comboItemsData: nv });
-                              }} />
-                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => {
-                                setNewCombo({ ...newCombo, comboItemsData: newCombo.comboItemsData.filter((_, i) => i !== idx) });
+                        {newCombo.comboItemsData.map((item: any, idx: number) => (
+                          <div key={idx} className="flex flex-wrap justify-between items-center p-2.5 px-3 border rounded-xl shadow-xs bg-white gap-2">
+                            <span className="font-bold text-sm text-slate-800">{item.productInfo?.name || categories.flatMap(c => c.products).find(p => p.id === item.id)?.name || "Producto no disponible"}</span>
+                            <div className="flex gap-2.5 items-center">
+                              <div className="flex items-center gap-1">
+                                <Label className="text-[11px] font-semibold text-slate-500">Unidades:</Label>
+                                <Input className="w-14 h-8 text-xs text-center font-bold" type="number" min="1" value={item.quantity} onChange={(e) => {
+                                  const nb = parseInt(e.target.value) || 1;
+                                  const nv = [...newCombo.comboItemsData];
+                                  nv[idx].quantity = nb;
+                                  setNewCombo({ ...newCombo, comboItemsData: nv });
+                                }} />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Label className="text-[11px] font-semibold text-amber-700">Piezas:</Label>
+                                <Input className="w-16 h-8 text-xs text-center font-black border-amber-300 bg-amber-50/60 text-amber-900" type="number" min="0" placeholder="0" value={item.pieces ?? ""} onChange={(e) => {
+                                  const nb = parseInt(e.target.value) || 0;
+                                  const nv = [...newCombo.comboItemsData];
+                                  nv[idx].pieces = nb;
+                                  setNewCombo({ ...newCombo, comboItemsData: nv });
+                                }} title="Cantidad de piezas que aporta este producto al combo (ej: 5 piezas)" />
+                              </div>
+                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50" onClick={() => {
+                                setNewCombo({ ...newCombo, comboItemsData: newCombo.comboItemsData.filter((_: any, i: number) => i !== idx) });
                               }}><Tag className="h-4 w-4 rotate-45" /></Button>
                             </div>
                           </div>
                         ))}
+
+                        {newCombo.comboItemsData.some((it: any) => (Number(it.pieces) || 0) > 0) && (
+                          <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between">
+                            <span className="text-xs font-bold flex items-center gap-1.5">🍣 Total de piezas calculadas para el combo:</span>
+                            <span className="text-sm font-black bg-amber-200/80 px-2.5 py-0.5 rounded-lg">
+                              {newCombo.comboItemsData.reduce((sum: number, it: any) => sum + ((Number(it.pieces) || 0) * (Number(it.quantity) || 1)), 0)} piezas
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -381,7 +401,11 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                       <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest block mb-2">Incluye:</span>
                       {combo.comboItemsConfig?.map((ci: any) => (
                         <div key={ci.id} className="text-sm flex items-center gap-2 mt-1">
-                          <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-xs font-bold">{ci.quantity}x</span>
+                          <span className={`px-2 py-0.5 rounded-lg text-xs font-black ${
+                            ci.pieces && ci.pieces > 0 ? "bg-amber-100 text-amber-800 border border-amber-300" : "bg-purple-100 text-purple-700"
+                          }`}>
+                            {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity}x`}
+                          </span>
                           <span className="font-medium text-slate-700">{ci.product?.name || categories.flatMap(c => c.products).find(p => p.id === ci.productId)?.name || "Producto no disponible"}</span>
                         </div>
                       ))}
@@ -400,6 +424,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                         comboItemsData: combo.comboItemsConfig?.map((ci: any) => ({
                           id: ci.productId,
                           quantity: ci.quantity,
+                          pieces: ci.pieces || 0,
                           productInfo: ci.product || categories.flatMap(c => c.products).find(p => p.id === ci.productId) || { name: "Producto no disponible" }
                         })) || []
                       });

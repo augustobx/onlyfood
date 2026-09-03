@@ -72,7 +72,7 @@ type PreparedItem = {
   secondHalfProductId: string | null;
   removedIngredientIds: string[];
   extras: { id: string; price: number }[];
-  comboItems: { productId: string; quantity: number; removedIngredientIds: string[] }[];
+  comboItems: { productId: string; quantity: number; pieces?: number | null; removedIngredientIds: string[] }[];
   stockRequirements: InventoryRequirement[];
   points: number;
   targetDateStr: string;
@@ -317,7 +317,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           const allowedRemoved = new Set(comboItem.product.ingredients.filter((entry) => entry.isRemovable).map((entry) => entry.ingredientId));
           const requested = [...new Set(item.comboRemovedIngredients?.[comboItem.id] ?? [])];
           if (requested.some((id) => !allowedRemoved.has(id))) throw new Error("INVALID_INGREDIENT");
-          return { productId: comboItem.productId, quantity: comboItem.quantity, removedIngredientIds: requested };
+          return { productId: comboItem.productId, quantity: comboItem.quantity, pieces: comboItem.pieces ? comboItem.pieces * item.quantity : null, removedIngredientIds: requested };
         });
 
         const stockRequirements: InventoryRequirement[] = [];
@@ -461,7 +461,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           secondHalfProductId: null,
           removedIngredientIds: [],
           extras: [],
-          comboItems: (product.comboItemsConfig || []).map((item: any) => ({ productId: item.productId, quantity: item.quantity * qty, removedIngredientIds: [] })),
+          comboItems: (product.comboItemsConfig || []).map((item: any) => ({ productId: item.productId, quantity: item.quantity * qty, pieces: item.pieces ? item.pieces * qty : null, removedIngredientIds: [] })),
           stockRequirements,
           points: 0,
           targetDateStr,
@@ -774,6 +774,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
                   create: item.comboItems.map((comboItem) => ({
                     productId: comboItem.productId,
                     quantity: comboItem.quantity,
+                    pieces: comboItem.pieces ?? null,
                     removedIngredients: { create: comboItem.removedIngredientIds.map((ingredientId) => ({ ingredientId })) },
                   })),
                 },

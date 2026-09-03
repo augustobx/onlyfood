@@ -78,7 +78,8 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     if (item.addedExtras.length) blocks.push({ text: `+ EXTRA: ${item.addedExtras.map((extra) => extra.extra.name).join(", ")}`, bold: true, after: 1 });
     if (item.removedIngredients.length) blocks.push({ text: `- SIN: ${item.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, size: 10, bold: true, after: 1 });
     for (const comboItem of item.comboItems) {
-      blocks.push({ text: `${comboItem.quantity}x ${comboItem.product.name.toUpperCase()}`, bold: true, before: 1, after: 1 });
+      const qtyOrPieces = (comboItem as any).pieces && (comboItem as any).pieces > 0 ? `${(comboItem as any).pieces} PIEZAS` : `${comboItem.quantity}x`;
+      blocks.push({ text: `${qtyOrPieces} ${comboItem.product.name.toUpperCase()}`, bold: true, before: 1, after: 1 });
       if (comboItem.removedIngredients.length) {
         blocks.push({ text: `- SIN: ${comboItem.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, bold: true, after: 1 });
       }

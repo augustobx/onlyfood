@@ -133,6 +133,18 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
                 <div className="flex justify-between text-base font-black leading-snug">
                   <span>{item.quantity}x {item.product.name}</span>
                 </div>
+                {item.comboItems?.length > 0 && (
+                  <div className="pl-2 my-1 space-y-0.5 text-xs">
+                    {item.comboItems.map((ci: any, cidx: number) => (
+                      <div key={cidx} className="font-bold">
+                        <span>• {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity}x`} {ci.product.name}</span>
+                        {ci.removedIngredients?.length > 0 && (
+                          <span className="block pl-2 text-[11px] font-black uppercase text-red-700">- SIN: {ci.removedIngredients.map((ri: any) => ri.ingredient.name).join(", ")}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {item.addedExtras?.length > 0 && (
                   <div className="text-xs font-bold leading-snug">+ EXTRA: {item.addedExtras.map((extra: any) => extra.extra.name).join(", ")}</div>
                 )}
@@ -177,6 +189,15 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
                   <span>{item.quantity}x {item.product.name}</span>
                   <span>${item.subtotal.toLocaleString("es-AR")}</span>
                 </div>
+                {item.comboItems?.length > 0 && (
+                  <div className="pl-3 text-[11px] text-slate-700">
+                    {item.comboItems.map((ci: any, cidx: number) => (
+                      <div key={cidx}>
+                        • {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity}x`} {ci.product.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {item.addedExtras?.length > 0 && (
                   <div className="pl-4 text-[10px]">+ {item.addedExtras.map((extra: any) => extra.extra.name).join(", ")}</div>
                 )}

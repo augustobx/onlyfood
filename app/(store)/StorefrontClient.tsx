@@ -275,7 +275,7 @@ function ExpandableProductCard({ product, categoryProducts = [], loyaltyEnabled 
                   {product.comboItemsConfig.filter((ci: any) => ci.product.ingredients?.length > 0 && ci.product.allowRemoveIngredients !== false).map((ci: any) => {
                     return (
                       <div key={ci.id} className="bg-white p-3 border-l-4 border-purple-400 rounded-lg shadow-sm">
-                        <span className="font-bold text-xs uppercase text-slate-500 block mb-2">{ci.product.name} (x{ci.quantity})</span>
+                        <span className="font-bold text-xs uppercase text-slate-500 block mb-2">{ci.product.name} ({ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `x${ci.quantity}`})</span>
                         <div className="grid gap-2 pl-1">
                           {ci.product.ingredients.map((pi: any) => (
                             <div key={pi.ingredient.id} className="flex items-center space-x-2">

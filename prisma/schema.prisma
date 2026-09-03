@@ -355,6 +355,7 @@ model ProductComboItem {
   comboId   String
   productId String
   quantity  Int    @default(1)
+  pieces    Int?   @default(0)
 
   combo   Product @relation("ComboToItems", fields: [comboId], references: [id], onDelete: Cascade)
   product Product @relation("ItemToCombo", fields: [productId], references: [id], onDelete: Restrict)
@@ -541,6 +542,7 @@ model OrderItemComboItem {
   orderItemId String
   productId   String
   quantity    Int    @default(1)
+  pieces      Int?   @default(0)
 
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
