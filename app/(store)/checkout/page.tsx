@@ -257,16 +257,22 @@ export default function CheckoutPage() {
   const theme = config?.storeTheme || "ORIGINAL";
   const t = getThemeClasses(theme);
 
-  const getMinDateStr = (minDays: number = 1) => {
+  const getMinDateStr = (minDays: number = 0) => {
     const d = new Date();
     d.setDate(d.getDate() + minDays);
-    return d.toISOString().split("T")[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   };
 
   const getMaxDateStr = (maxDays: number = 30) => {
     const d = new Date();
     d.setDate(d.getDate() + maxDays);
-    return d.toISOString().split("T")[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   };
 
   const schedule = useMemo(() => analyzeCartSchedule(items), [items]);
@@ -280,18 +286,37 @@ export default function CheckoutPage() {
         if (cfg.paymentCash && !cfg.paymentMp) setFormData((p) => ({ ...p, paymentMethod: "CASH" }));
 
         if (schedule.hasScheduledProducts && schedule.targetDateInfo) {
-          setFormData((p) => ({
-            ...p,
-            orderType: "CUSTOM_DATE",
-            scheduledDate: schedule.targetDateInfo!.dateStr,
-          }));
+          const isToday = schedule.targetDateInfo.dayOffset === 0;
+          const isTomorrow = schedule.targetDateInfo.dayOffset === 1;
+          const isImmediateOpen = Boolean(cfg.isStoreOpen && cfg.allowImmediateOrders !== false);
+
+          if (isToday && isImmediateOpen && !schedule.isMultiDaySchedule) {
+            setFormData((p) => ({
+              ...p,
+              orderType: "IMMEDIATE",
+              scheduledDate: schedule.targetDateInfo!.dateStr,
+            }));
+          } else if (isTomorrow && cfg.allowScheduledTomorrow !== false && !schedule.isMultiDaySchedule) {
+            setFormData((p) => ({
+              ...p,
+              orderType: "SCHEDULED_TOMORROW",
+              scheduledDate: schedule.targetDateInfo!.dateStr,
+            }));
+          } else {
+            setFormData((p) => ({
+              ...p,
+              orderType: "CUSTOM_DATE",
+              scheduledDate: schedule.targetDateInfo!.dateStr,
+            }));
+          }
         } else {
           const isImmediateOpen = Boolean(cfg.isStoreOpen && cfg.allowImmediateOrders !== false);
           if (!isImmediateOpen) {
             if (cfg.allowScheduledTomorrow !== false) {
               setFormData((p) => ({ ...p, orderType: "SCHEDULED_TOMORROW" }));
             } else if (cfg.allowAdvanceOrders !== false) {
-              setFormData((p) => ({ ...p, orderType: "CUSTOM_DATE", scheduledDate: getMinDateStr(cfg.advanceOrderMinDays || 1) }));
+              const minDays = cfg.advanceOrderMinDays !== undefined && cfg.advanceOrderMinDays !== null ? cfg.advanceOrderMinDays : 1;
+              setFormData((p) => ({ ...p, orderType: "CUSTOM_DATE", scheduledDate: getMinDateStr(minDays) }));
             }
           }
         }
@@ -482,10 +507,13 @@ export default function CheckoutPage() {
 
   if (items.length === 0) return null;
 
+  const isScheduledForToday = schedule.hasScheduledProducts && schedule.targetDateInfo?.dayOffset === 0 && !schedule.isMultiDaySchedule;
+  const isScheduledForFuture = schedule.hasScheduledProducts && ((schedule.targetDateInfo?.dayOffset ?? 0) > 0 || schedule.isMultiDaySchedule);
+
   const isImmediateAllowed = Boolean(
     config?.isStoreOpen &&
     config?.allowImmediateOrders !== false &&
-    !schedule.hasScheduledProducts
+    (!schedule.hasScheduledProducts || isScheduledForToday)
   );
 
   return (
@@ -599,7 +627,7 @@ export default function CheckoutPage() {
                     Hoy
                     {!isImmediateAllowed && (
                       <span className="text-[8px] font-black bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
-                        {schedule.hasScheduledProducts ? "Programado" : "Pausado"}
+                        {isScheduledForFuture ? "Programado" : "Pausado"}
                       </span>
                     )}
                   </button>
@@ -619,13 +647,14 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     disabled={config?.allowAdvanceOrders === false && !schedule.hasScheduledProducts}
-                    onClick={() =>
+                    onClick={() => {
+                      const minDays = config?.advanceOrderMinDays !== undefined && config?.advanceOrderMinDays !== null ? config.advanceOrderMinDays : 1;
                       setFormData({
                         ...formData,
                         orderType: "CUSTOM_DATE",
-                        scheduledDate: formData.scheduledDate || (schedule.targetDateInfo ? schedule.targetDateInfo.dateStr : getMinDateStr(config?.advanceOrderMinDays || 1)),
-                      })
-                    }
+                        scheduledDate: formData.scheduledDate || (schedule.targetDateInfo ? schedule.targetDateInfo.dateStr : getMinDateStr(minDays)),
+                      });
+                    }}
                     className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${
                       config?.allowAdvanceOrders === false && !schedule.hasScheduledProducts ? t.pillDisabled : formData.orderType === "CUSTOM_DATE" ? t.pillActive : t.pillInactive
                     }`}
@@ -635,26 +664,36 @@ export default function CheckoutPage() {
                   </button>
                 </div>
 
-                {formData.orderType === "CUSTOM_DATE" && (
-                  <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className={`p-3 rounded-xl border space-y-1.5 mt-2 ${t.dateBg}`}>
-                    <Label htmlFor="custom-date" className={`text-[10px] font-black uppercase tracking-wider block ${t.dateLabel}`}>
-                      Día del encargo
-                    </Label>
-                    <Input
-                      id="custom-date"
-                      type="date"
-                      required
-                      min={getMinDateStr(config?.advanceOrderMinDays || 1)}
-                      max={getMaxDateStr(config?.advanceOrderMaxDays || 30)}
-                      value={formData.scheduledDate}
-                      onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-                      className={`h-10 rounded-xl font-bold text-sm ${t.inputBg}`}
-                    />
-                    <p className={`text-[10px] ${t.dateHint}`}>
-                      Mínimo {config?.advanceOrderMinDays || 1} día(s) de anticipación.
-                    </p>
-                  </motion.div>
-                )}
+                {formData.orderType === "CUSTOM_DATE" && (() => {
+                  const minDays = config?.advanceOrderMinDays !== undefined && config?.advanceOrderMinDays !== null ? config.advanceOrderMinDays : 1;
+                  const configMinDate = getMinDateStr(minDays);
+                  const effectiveMinDate = schedule.hasScheduledProducts && schedule.targetDateInfo
+                    ? (schedule.targetDateInfo.dateStr < configMinDate ? schedule.targetDateInfo.dateStr : configMinDate)
+                    : configMinDate;
+
+                  return (
+                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className={`p-3 rounded-xl border space-y-1.5 mt-2 ${t.dateBg}`}>
+                      <Label htmlFor="custom-date" className={`text-[10px] font-black uppercase tracking-wider block ${t.dateLabel}`}>
+                        Día del encargo
+                      </Label>
+                      <Input
+                        id="custom-date"
+                        type="date"
+                        required
+                        min={effectiveMinDate}
+                        max={getMaxDateStr(config?.advanceOrderMaxDays ?? 30)}
+                        value={formData.scheduledDate}
+                        onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
+                        className={`h-10 rounded-xl font-bold text-sm ${t.inputBg}`}
+                      />
+                      <p className={`text-[10px] ${t.dateHint}`}>
+                        {minDays === 0
+                          ? "Podés encargar para hoy o fechas posteriores."
+                          : `Mínimo ${minDays} día(s) de anticipación.`}
+                      </p>
+                    </motion.div>
+                  );
+                })()}
               </div>
             )}
 

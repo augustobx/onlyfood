@@ -53,7 +53,7 @@ const configSchema = z.object({
   allowImmediateOrders: z.boolean().default(true),
   allowScheduledTomorrow: z.boolean().default(true),
   allowAdvanceOrders: z.boolean().default(true),
-  advanceOrderMinDays: z.number().int().min(1).max(365).default(1),
+  advanceOrderMinDays: z.number().int().min(0).max(365).default(1),
   advanceOrderMaxDays: z.number().int().min(1).max(365).default(30),
   asapEstimatedMinutes: z.number().int().min(5).max(300).default(40),
   businessHours: z.string().nullable().optional(),

@@ -222,7 +222,10 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         } else if (data.orderType === "SCHEDULED_TOMORROW") {
           if (!config.allowScheduledTomorrow) throw new Error("SCHEDULED_TOMORROW_DISABLED");
         } else if (data.orderType === "CUSTOM_DATE") {
-          if (!config.allowAdvanceOrders) throw new Error("ADVANCE_ORDERS_DISABLED");
+          // Si es pedido por encargo con productos estándar, se valida allowAdvanceOrders
+          if (!config.allowAdvanceOrders) {
+            // Se valida de forma diferida tras cargar los productos para no bloquear planes de menú semanal
+          }
         }
 
         if (data.paymentMethod === "CASH" && !config.paymentCash) throw new Error("PAYMENT_DISABLED");
@@ -280,6 +283,11 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       });
       const productMap = new Map(products.map((product) => [product.id, product]));
       if (productMap.size !== productIds.length) throw new Error("PRODUCT_UNAVAILABLE");
+
+      if (!adminDirectPaid && data.orderType === "CUSTOM_DATE" && !config.allowAdvanceOrders) {
+        const hasDailyProductItem = products.some((p) => isDailyProduct(p.availableDays));
+        if (hasDailyProductItem) throw new Error("ADVANCE_ORDERS_DISABLED");
+      }
 
       // Prepare items and calculate individual target delivery dates
       const prepared: PreparedItem[] = data.items.map((item) => {
@@ -359,7 +367,11 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           if (nextDate) {
             targetDateStr = nextDate.dateStr;
             targetScheduledDate = new Date(`${nextDate.dateStr}T12:00:00Z`);
-            targetOrderType = nextDate.dateStr === todayStr ? "IMMEDIATE" : nextDate.dateStr === tomorrowStr ? "SCHEDULED_TOMORROW" : "CUSTOM_DATE";
+            if (data.orderType === "CUSTOM_DATE") {
+              targetOrderType = "CUSTOM_DATE";
+            } else {
+              targetOrderType = nextDate.dateStr === todayStr ? "IMMEDIATE" : nextDate.dateStr === tomorrowStr ? "SCHEDULED_TOMORROW" : "CUSTOM_DATE";
+            }
             dayName = nextDate.dayName;
           }
         } else {

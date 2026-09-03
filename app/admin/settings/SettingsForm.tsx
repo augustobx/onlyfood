@@ -100,7 +100,7 @@ export function SettingsForm({
       allowImmediateOrders: Boolean(cfg.allowImmediateOrders ?? true),
       allowScheduledTomorrow: Boolean(cfg.allowScheduledTomorrow ?? true),
       allowAdvanceOrders: Boolean(cfg.allowAdvanceOrders ?? true),
-      advanceOrderMinDays: Number(cfg.advanceOrderMinDays) || 1,
+      advanceOrderMinDays: cfg.advanceOrderMinDays !== undefined && cfg.advanceOrderMinDays !== null && cfg.advanceOrderMinDays !== "" ? Number(cfg.advanceOrderMinDays) : 1,
       advanceOrderMaxDays: Number(cfg.advanceOrderMaxDays) || 30,
       asapEstimatedMinutes: Number(cfg.asapEstimatedMinutes) || 40,
       businessHours: JSON.stringify(businessHours),
@@ -314,12 +314,12 @@ export function SettingsForm({
                   <Label className="text-xs font-bold">Mínimo días de anticipación (Encargo)</Label>
                   <Input
                     type="number"
-                    min={1}
+                    min={0}
                     max={30}
-                    value={cfg.advanceOrderMinDays || 1}
+                    value={cfg.advanceOrderMinDays !== undefined && cfg.advanceOrderMinDays !== null ? cfg.advanceOrderMinDays : 1}
                     onChange={(e) => updateField("advanceOrderMinDays", e.target.value)}
                   />
-                  <p className="text-[11px] text-muted-foreground">Días mínimos antes de la fecha elegida.</p>
+                  <p className="text-[11px] text-muted-foreground">0 permite encargar para el mismo día. 1 o más exige días previos de anticipación.</p>
                 </div>
 
                 <div className="space-y-2">
