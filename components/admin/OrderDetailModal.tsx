@@ -53,11 +53,6 @@ export function OrderDetailModal({
   const [isPrinting, setIsPrinting] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
-  if (!order) return null;
-
-  const isDelivery = Boolean(order.needsDelivery);
-  const isPaid = order.paymentStatus === "PAID" || order.paymentMethod === "ADMIN";
-
   const availableMessengers = useMemo(() => {
     const map = new Map<string, any>();
     (messengers || []).forEach((m) => {
@@ -68,6 +63,11 @@ export function OrderDetailModal({
     }
     return Array.from(map.values());
   }, [messengers, order]);
+
+  if (!order) return null;
+
+  const isDelivery = Boolean(order.needsDelivery);
+  const isPaid = order.paymentStatus === "PAID" || order.paymentMethod === "ADMIN";
 
   const handleStatus = async (status: string) => {
     if (!onStatusChange) return;
