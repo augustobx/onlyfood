@@ -22,13 +22,13 @@ async function requireOrdersModule() {
 
 const statusSchema = z.enum(["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"]);
 const transitions: Record<string, string[]> = {
-  NEW: ["IN_PROCESS", "CANCELLED"],
-  IN_PROCESS: ["PENDING_DELIVERY", "FINISHED", "CANCELLED"],
-  PENDING_DELIVERY: ["OUT_FOR_DELIVERY", "CANCELLED"],
-  OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
-  FINISHED: ["DELIVERED", "CANCELLED"],
-  DELIVERED: [],
-  CANCELLED: [],
+  NEW: ["IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"],
+  IN_PROCESS: ["NEW", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"],
+  PENDING_DELIVERY: ["NEW", "IN_PROCESS", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"],
+  OUT_FOR_DELIVERY: ["NEW", "IN_PROCESS", "PENDING_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"],
+  FINISHED: ["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"],
+  DELIVERED: ["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "CANCELLED"],
+  CANCELLED: ["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED"],
 };
 
 const adminOrderProductSelect = {
@@ -257,17 +257,13 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         },
       });
       if (!current) throw new Error("ORDER_NOT_FOUND");
+      if (parsedStatus.data === current.status) return current;
       if (!transitions[current.status]?.includes(parsedStatus.data)) throw new Error("INVALID_TRANSITION");
-      if (parsedStatus.data === "CANCELLED" && current.paymentMethod === "MP" && current.paymentStatus === "PAID") {
-        throw new Error("REFUND_REQUIRED");
-      }
-      if (current.status === "NEW" && parsedStatus.data === "IN_PROCESS" && current.paymentMethod === "MP" && current.paymentStatus !== "PAID") {
-        throw new Error("PAYMENT_PENDING");
-      }
 
       const requirements = calculateOrderRequirements(current.items);
 
       const shouldAwardPointsOnDelivered = parsedStatus.data === "DELIVERED" && current.clientId !== null && current.earnedPoints > 0 && !current.pointsAwarded;
+      const shouldRevokePointsOnCancelled = parsedStatus.data === "CANCELLED" && current.clientId !== null && current.earnedPoints > 0 && current.pointsAwarded;
 
       const transitioned = await tx.order.updateMany({
         where: {
@@ -276,18 +272,22 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         },
         data: {
           status: parsedStatus.data,
-          pointsAwarded: shouldAwardPointsOnDelivered ? true : current.pointsAwarded,
+          pointsAwarded: shouldAwardPointsOnDelivered ? true : shouldRevokePointsOnCancelled ? false : current.pointsAwarded,
           stockCommitted: parsedStatus.data === "CANCELLED"
             ? false
-            : parsedStatus.data === "IN_PROCESS"
+            : (parsedStatus.data === "IN_PROCESS" || parsedStatus.data === "DELIVERED" || parsedStatus.data === "FINISHED" || parsedStatus.data === "OUT_FOR_DELIVERY")
               ? true
               : current.stockCommitted,
         },
       });
       if (transitioned.count !== 1) throw new Error("CONCURRENT_TRANSITION");
 
-      if (current.status === "NEW" && parsedStatus.data === "IN_PROCESS" && !current.stockCommitted) {
-        await reserveStock(tx, requirements);
+      if (current.status === "NEW" && parsedStatus.data !== "CANCELLED" && !current.stockCommitted) {
+        try {
+          await reserveStock(tx, requirements);
+        } catch (e) {
+          console.warn("Could not reserve stock on admin status change:", e);
+        }
       }
 
       if (parsedStatus.data === "CANCELLED" && current.deliverySlot) {
@@ -297,12 +297,16 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         });
       }
 
-      if (parsedStatus.data === "CANCELLED" && current.stockCommitted && current.status === "NEW") {
+      if (parsedStatus.data === "CANCELLED" && current.stockCommitted) {
         await releaseStock(tx, requirements);
       }
 
       if (shouldAwardPointsOnDelivered && current.clientId) {
         await tx.client.update({ where: { id: current.clientId }, data: { points: { increment: current.earnedPoints } } });
+      }
+
+      if (shouldRevokePointsOnCancelled && current.clientId) {
+        await tx.client.update({ where: { id: current.clientId }, data: { points: { decrement: current.earnedPoints } } });
       }
 
       await tx.orderHistory.create({ data: { orderId, status: parsedStatus.data } });
@@ -324,6 +328,8 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
       if (notificationId) after(() => dispatchWhatsAppNotification(notificationId, order.tenantId));
     }
     revalidatePath("/admin/live");
+    revalidatePath("/admin/history");
+    revalidatePath("/admin/calendar");
     revalidatePath(`/track/${order.id}`);
     return { success: true, order };
   } catch (error) {
@@ -343,17 +349,24 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
 export async function assignMessenger(orderId: string, messengerId: string | null) {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   await requireOrdersModule();
-  if (!z.string().uuid().safeParse(orderId).success || (messengerId && !z.string().uuid().safeParse(messengerId).success)) {
+  const normalizedMessengerId = (!messengerId || messengerId === "none" || messengerId.trim() === "") ? null : messengerId.trim();
+  if (!z.string().uuid().safeParse(orderId).success || (normalizedMessengerId && !z.string().uuid().safeParse(normalizedMessengerId).success)) {
     return { success: false, error: "Datos inválidos" };
   }
   try {
     const db = await getTenantDb();
-    if (messengerId) {
-      const messenger = await db.messenger.findFirst({ where: { id: messengerId, isActive: true } });
+    if (normalizedMessengerId) {
+      const messenger = await db.messenger.findFirst({ where: { id: normalizedMessengerId } });
       if (!messenger) return { success: false, error: "Repartidor no disponible" };
     }
-    const order = await db.order.update({ where: { id: orderId }, data: { messengerId } });
+    const order = await db.order.update({
+      where: { id: orderId },
+      data: { messengerId: normalizedMessengerId },
+      include: { messenger: true },
+    });
     revalidatePath("/admin/live");
+    revalidatePath("/admin/history");
+    revalidatePath("/admin/calendar");
     revalidatePath(`/track/${order.id}`);
     return { success: true, order };
   } catch {

@@ -8,35 +8,40 @@ export default async function AdminHistoryPage() {
   await requireAdmin(["OWNER", "MANAGER", "STAFF", "CASHIER"]);
   const db = await getTenantDb();
 
-  const orders = await db.order.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      items: {
-        include: {
-          product: true,
-          secondHalfProduct: true,
-          addedExtras: { include: { extra: true } },
-          removedIngredients: { include: { ingredient: true } },
-          comboItems: {
-            include: {
-              product: true,
-              removedIngredients: { include: { ingredient: true } },
+  const [orders, messengers] = await Promise.all([
+    db.order.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        items: {
+          include: {
+            product: true,
+            secondHalfProduct: true,
+            addedExtras: { include: { extra: true } },
+            removedIngredients: { include: { ingredient: true } },
+            comboItems: {
+              include: {
+                product: true,
+                removedIngredients: { include: { ingredient: true } },
+              },
             },
           },
         },
+        messenger: true,
+        client: {
+          select: { id: true, name: true, phone: true, points: true },
+        },
+        payments: true,
       },
-      messenger: true,
-      client: {
-        select: { id: true, name: true, phone: true, points: true },
-      },
-      payments: true,
-    },
-    take: 1000,
-  });
+      take: 1000,
+    }),
+    db.messenger.findMany({
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   return (
     <div className="flex-1 space-y-6 max-w-7xl mx-auto">
-      <HistoryClient initialOrders={orders} />
+      <HistoryClient initialOrders={orders} initialMessengers={messengers} />
     </div>
   );
 }

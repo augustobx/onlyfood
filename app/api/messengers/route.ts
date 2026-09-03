@@ -6,12 +6,11 @@ import { requireTenantFeature } from "@/lib/features";
 
 export async function GET() {
   try {
-    await requireAdmin(["OWNER", "MANAGER", "DELIVERY", "STAFF"]);
+    await requireAdmin(["OWNER", "MANAGER", "CASHIER", "DELIVERY", "STAFF", "KITCHEN"]);
     const tenant = await getTenantContext();
     await requireTenantFeature(tenant.id, "orders");
     const db = await getTenantDb();
     const messengers = await db.messenger.findMany({
-      where: { isActive: true },
       orderBy: { name: "asc" },
     });
     return NextResponse.json(messengers);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Search, Calendar, Filter, Clock, MapPin, Truck, Phone, User, CheckCircle2, AlertCircle, XCircle, ChevronRight, Download, Receipt, ArrowUpDown, Eye, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,13 +8,26 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { OrderDetailModal } from "@/components/admin/OrderDetailModal";
+import { toast } from "sonner";
+import { updateOrderStatus, assignMessenger } from "@/app/actions/admin-orders";
 
 interface HistoryClientProps {
   initialOrders: any[];
+  initialMessengers?: any[];
 }
 
-export function HistoryClient({ initialOrders }: HistoryClientProps) {
-  const [orders] = useState<any[]>(initialOrders);
+export function HistoryClient({ initialOrders, initialMessengers = [] }: HistoryClientProps) {
+  const [orders, setOrders] = useState<any[]>(initialOrders);
+  const [messengers, setMessengers] = useState<any[]>(initialMessengers);
+
+  useEffect(() => {
+    fetch("/api/messengers")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) setMessengers(data);
+      })
+      .catch(() => {});
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
@@ -130,6 +143,46 @@ export function HistoryClient({ initialOrders }: HistoryClientProps) {
       return <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px] font-bold">📆 Encargo {dateStr}</Badge>;
     }
     return <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-[10px] font-bold">⚡ Inmediato</Badge>;
+  };
+
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    const res = await updateOrderStatus(orderId, newStatus);
+    if (res.success) {
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder((prev: any) => ({ ...prev, status: newStatus }));
+      }
+      toast.success(`Estado actualizado a: ${newStatus}`);
+    } else {
+      toast.error(res.error || "No se pudo actualizar el estado");
+      throw new Error(res.error);
+    }
+  };
+
+  const handleMessengerChange = async (orderId: string, messengerId: string | null) => {
+    const cleanId = messengerId === "none" ? null : messengerId;
+    const res = await assignMessenger(orderId, cleanId);
+    if (res.success) {
+      const m = messengers.find((x) => x.id === cleanId) || null;
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId ? { ...o, messenger: m, messengerId: cleanId } : o
+        )
+      );
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder((prev: any) => ({
+          ...prev,
+          messenger: m,
+          messengerId: cleanId,
+        }));
+      }
+      toast.success(m ? `Asignado a ${m.name}` : "Cadete desasignado");
+    } else {
+      toast.error(res.error || "Error al asignar cadete");
+      throw new Error(res.error);
+    }
   };
 
   return (
@@ -346,7 +399,9 @@ export function HistoryClient({ initialOrders }: HistoryClientProps) {
         order={selectedOrder}
         isOpen={Boolean(selectedOrder)}
         onClose={() => setSelectedOrder(null)}
-        messengers={[]}
+        messengers={messengers}
+        onStatusChange={handleStatusChange}
+        onMessengerChange={handleMessengerChange}
         onPrint={(orderId) => {
           window.open(`/admin/live/print/${orderId}`, "_blank");
         }}

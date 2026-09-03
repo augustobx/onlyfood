@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,14 +58,24 @@ export function OrderDetailModal({
   const isDelivery = Boolean(order.needsDelivery);
   const isPaid = order.paymentStatus === "PAID" || order.paymentMethod === "ADMIN";
 
+  const availableMessengers = useMemo(() => {
+    const map = new Map<string, any>();
+    (messengers || []).forEach((m) => {
+      if (m && m.id) map.set(m.id, m);
+    });
+    if (order?.messenger && !map.has(order.messenger.id)) {
+      map.set(order.messenger.id, order.messenger);
+    }
+    return Array.from(map.values());
+  }, [messengers, order]);
+
   const handleStatus = async (status: string) => {
     if (!onStatusChange) return;
     setIsUpdating(true);
     try {
       await onStatusChange(order.id, status);
-      toast.success(`Estado actualizado a: ${status}`);
-    } catch {
-      toast.error("Error al actualizar el estado");
+    } catch (e: any) {
+      toast.error(e?.message || "Error al actualizar el estado");
     } finally {
       setIsUpdating(false);
     }
@@ -76,9 +86,8 @@ export function OrderDetailModal({
     setIsUpdating(true);
     try {
       await onMessengerChange(order.id, messengerId);
-      toast.success("Cadete asignado con éxito");
-    } catch {
-      toast.error("Error al asignar cadete");
+    } catch (e: any) {
+      toast.error(e?.message || "Error al asignar cadete");
     } finally {
       setIsUpdating(false);
     }
@@ -419,33 +428,62 @@ export function OrderDetailModal({
                   <ChefHat className="w-4 h-4 text-orange-600" /> Gestión y Despacho
                 </span>
 
-                {/* Asignación de Cadete (si es delivery) */}
-                {isDelivery ? (
-                  <div className="space-y-2">
+                {/* Asignación de Cadete (disponible para todo pedido) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-700 block">
                       Repartidor / Cadete Asignado:
                     </label>
-                    <Select
-                      value={order.messengerId || "none"}
-                      onValueChange={(val) => handleMessenger(val)}
-                      disabled={isUpdating}
-                    >
-                      <SelectTrigger className="w-full h-10 bg-slate-50 border-slate-300 font-bold text-xs rounded-xl">
-                        <SelectValue placeholder="Asignar repartidor..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sin asignar (Nadie)</SelectItem>
-                        {messengers.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.name} {m.phone ? `(${m.phone})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {!isDelivery && (
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                        Mostrador / Retiro
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  <div className="p-2.5 bg-slate-100 rounded-xl text-xs text-slate-600 font-medium">
-                    Pedido para retirar en sucursal (no requiere cadete).
+                  <Select
+                    value={order.messengerId || "none"}
+                    onValueChange={(val) => handleMessenger(val)}
+                    disabled={isUpdating}
+                  >
+                    <SelectTrigger className="w-full h-10 bg-slate-50 border-slate-300 font-bold text-xs rounded-xl">
+                      <SelectValue placeholder="Asignar repartidor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin asignar (Nadie)</SelectItem>
+                      {availableMessengers.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name} {m.phone ? `(${m.phone})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Mensaje si la orden fue cancelada */}
+                {order.status === "CANCELLED" && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-800 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <XCircle className="w-4 h-4 text-red-600 shrink-0" />
+                      Pedido actualmente cancelado
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isUpdating}
+                      onClick={() => handleStatus("IN_PROCESS")}
+                      className="h-7 text-xs bg-white hover:bg-red-100 text-red-900 border-red-300 font-bold rounded-lg"
+                    >
+                      Reactivar a Cocina
+                    </Button>
+                  </div>
+                )}
+
+                {/* Mensaje si la orden ya está entregada */}
+                {order.status === "DELIVERED" && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Pedido completado y entregado con éxito.</span>
                   </div>
                 )}
 
