@@ -684,7 +684,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
         onPointsUpdate={setCurrentPoints}
       />
 
-      <AuthModal isOpen={isAuthModalOpen} onClose={handleCloseAuth} />
+      <AuthModal isOpen={isAuthModalOpen} onClose={handleCloseAuth} theme={config?.storeTheme} />
     </>
   );
 

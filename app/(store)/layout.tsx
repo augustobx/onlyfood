@@ -126,6 +126,36 @@ export default async function StoreLayout({
         .ring-purple-600 { --tw-ring-color: var(--brand-secondary) !important; }
         
         .bg-brand-primary { background-color: var(--brand-primary) !important; }
+
+        /* Protecciones de contraste para fondos claros en tema Sushi Zen */
+        [data-store-theme="sushi_zen"] .bg-white,
+        [data-store-theme="sushi_zen"] .bg-slate-50,
+        [data-store-theme="sushi_zen"] .bg-slate-100,
+        [data-store-theme="sushi_zen"] .bg-neutral-50,
+        [data-store-theme="sushi_zen"] .bg-stone-50 {
+          color: #0f172a;
+        }
+
+        [data-store-theme="sushi_zen"] .bg-white input:not([class*="text-white"]):not([class*="text-amber-"]):not([class*="text-rose-"]),
+        [data-store-theme="sushi_zen"] .bg-slate-50 input:not([class*="text-white"]):not([class*="text-amber-"]):not([class*="text-rose-"]),
+        [data-store-theme="sushi_zen"] .bg-slate-100 input:not([class*="text-white"]):not([class*="text-amber-"]):not([class*="text-rose-"]),
+        [data-store-theme="sushi_zen"] input.bg-white,
+        [data-store-theme="sushi_zen"] input.bg-slate-50,
+        [data-store-theme="sushi_zen"] input.bg-slate-100,
+        [data-store-theme="sushi_zen"] textarea.bg-white,
+        [data-store-theme="sushi_zen"] textarea.bg-slate-50,
+        [data-store-theme="sushi_zen"] textarea.bg-slate-100 {
+          color: #0f172a !important;
+        }
+
+        [data-store-theme="sushi_zen"] input.bg-white::placeholder,
+        [data-store-theme="sushi_zen"] input.bg-slate-50::placeholder,
+        [data-store-theme="sushi_zen"] input.bg-slate-100::placeholder,
+        [data-store-theme="sushi_zen"] textarea.bg-white::placeholder,
+        [data-store-theme="sushi_zen"] textarea.bg-slate-50::placeholder,
+        [data-store-theme="sushi_zen"] textarea.bg-slate-100::placeholder {
+          color: #64748b !important;
+        }
       `}} />
       
       {/* Background with optional blur */}

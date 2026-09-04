@@ -96,7 +96,8 @@ export function ProductCustomizerModal({
 
   if (!product) return null;
 
-  const isDark = theme === "URBAN_DARK" || theme === "ARCADE_KITCHEN";
+  const isSushi = theme === "SUSHI_ZEN";
+  const isDark = theme === "URBAN_DARK" || theme === "ARCADE_KITCHEN" || isSushi;
   const isClean = theme === "CLEAN_BOUTIQUE";
   const isComic = theme === "COMIC_FOOD_POP";
   const isArcade = theme === "ARCADE_KITCHEN";
@@ -180,6 +181,8 @@ export function ProductCustomizerModal({
             ? "rounded-none border-2 border-cyan-300 bg-[#15113b] text-white shadow-[8px_8px_0_#ec4899]"
             : isComic
             ? "rounded-2xl border-[3px] border-[#17121f] bg-[#fff7db] text-[#17121f] shadow-[8px_8px_0_#17121f]"
+            : isSushi
+            ? "bg-[#121722] text-slate-100 border-amber-500/35 shadow-black/80"
             : isDark
             ? "bg-[#11141c] text-white border-slate-800"
             : isClean
@@ -305,9 +308,13 @@ export function ProductCustomizerModal({
                     onClick={() => setSecondHalf(null)}
                     className={`p-2.5 rounded-xl text-left border text-xs font-bold transition-all ${
                       secondHalf === null
-                        ? isDark
+                        ? isSushi
+                          ? "border-amber-400 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40"
+                          : isDark
                           ? "border-orange-500 bg-orange-500/20 text-orange-300"
                           : "border-orange-500 bg-orange-50 text-orange-900"
+                        : isSushi
+                        ? "border-white/10 bg-[#0c1017] text-slate-400 hover:border-white/20 hover:text-white"
                         : isDark
                         ? "border-slate-800 bg-slate-950 text-slate-400"
                         : "border-slate-200 bg-white text-slate-600"
@@ -323,9 +330,13 @@ export function ProductCustomizerModal({
                     onClick={() => setSecondHalf(half)}
                     className={`p-2.5 rounded-xl text-left border text-xs font-bold transition-all flex items-center justify-between ${
                       secondHalf?.id === half.id
-                        ? isDark
+                        ? isSushi
+                          ? "border-amber-400 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40"
+                          : isDark
                           ? "border-orange-500 bg-orange-500/20 text-orange-300 ring-2 ring-orange-500/30"
                           : "border-orange-500 bg-orange-50 text-orange-900 ring-2 ring-orange-500/20"
+                        : isSushi
+                        ? "border-white/10 bg-[#0c1017] text-slate-400 hover:border-white/20 hover:text-white"
                         : isDark
                         ? "border-slate-800 bg-slate-950 text-slate-400"
                         : "border-slate-200 bg-white text-slate-600"
@@ -362,7 +373,11 @@ export function ProductCustomizerModal({
                       onClick={() => toggleRemovedIngredient(item.ingredientId || ing.id)}
                       className={`px-2.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 border ${
                         isRemoved
-                          ? "bg-red-500/20 border-red-500 text-red-400 line-through"
+                          ? isSushi
+                            ? "bg-rose-500/20 border-rose-500/40 text-rose-300 line-through"
+                            : "bg-red-500/20 border-red-500 text-red-400 line-through"
+                          : isSushi
+                          ? "bg-[#0c1017] border-white/10 text-slate-200 hover:border-amber-500/40 hover:text-white"
                           : isDark
                           ? "bg-slate-900 border-slate-700 text-slate-200 hover:border-slate-500"
                           : "bg-white border-slate-200 text-slate-800 hover:border-slate-400"
@@ -414,9 +429,13 @@ export function ProductCustomizerModal({
                             onClick={() => handleSelectExtra(extra, group.isSingle, group.groupName)}
                             className={`p-2.5 rounded-xl text-left border text-xs font-bold transition-all flex items-center justify-between active:scale-[0.98] ${
                               isSelected
-                                ? group.isSingle
+                                ? isSushi
+                                  ? "border-amber-400 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40"
+                                  : group.isSingle
                                   ? "border-purple-500 bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/40"
                                   : "border-emerald-500 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
+                                : isSushi
+                                ? "border-white/10 bg-[#0c1017] text-slate-300 hover:border-white/20 hover:text-white"
                                 : isDark
                                 ? "border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700"
                                 : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
@@ -472,7 +491,9 @@ export function ProductCustomizerModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className={`rounded-xl text-xs h-14 ${
-                isDark
+                isSushi
+                  ? "bg-[#0c1017] border-white/15 text-white placeholder:text-slate-500 focus:border-amber-500/60"
+                  : isDark
                   ? "bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-orange-500"
                   : "bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-orange-500"
               }`}
@@ -483,13 +504,29 @@ export function ProductCustomizerModal({
         {/* Barra Fija Inferior */}
         <div
           className={`p-3.5 sm:p-4 border-t shrink-0 flex items-center gap-2.5 ${
-            isArcade ? "bg-[#090625] border-cyan-300" : isComic ? "bg-[#fff7db] border-[#17121f]" : isDark ? "bg-[#0d1017] border-slate-800" : "bg-white border-slate-200"
+            isArcade
+              ? "bg-[#090625] border-cyan-300"
+              : isComic
+              ? "bg-[#fff7db] border-[#17121f]"
+              : isSushi
+              ? "bg-[#0d1017] border-white/10"
+              : isDark
+              ? "bg-[#0d1017] border-slate-800"
+              : "bg-white border-slate-200"
           }`}
         >
           {/* Selector de Cantidad */}
           <div
             className={`flex items-center gap-1 p-1 rounded-2xl border shrink-0 ${
-              isArcade ? "rounded-none bg-[#15113b] border-cyan-300" : isComic ? "bg-white border-[#17121f] border-2" : isDark ? "bg-slate-900 border-slate-800" : "bg-slate-100 border-slate-200"
+              isArcade
+                ? "rounded-none bg-[#15113b] border-cyan-300"
+                : isComic
+                ? "bg-white border-[#17121f] border-2"
+                : isSushi
+                ? "bg-[#141923] border-white/15 text-white"
+                : isDark
+                ? "bg-slate-900 border-slate-800 text-white"
+                : "bg-slate-100 border-slate-200 text-slate-900"
             }`}
           >
             <Button
@@ -498,7 +535,11 @@ export function ProductCustomizerModal({
               type="button"
               disabled={quantity <= 1}
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              className="h-9 w-9 rounded-xl text-slate-400 hover:text-white"
+              className={`h-9 w-9 rounded-xl transition-colors ${
+                isSushi || isDark
+                  ? "text-slate-400 hover:text-white hover:bg-white/10"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+              }`}
             >
               <Minus className="w-3.5 h-3.5" />
             </Button>
@@ -508,7 +549,11 @@ export function ProductCustomizerModal({
               variant="ghost"
               type="button"
               onClick={() => setQuantity((q) => q + 1)}
-              className="h-9 w-9 rounded-xl text-slate-400 hover:text-white"
+              className={`h-9 w-9 rounded-xl transition-colors ${
+                isSushi || isDark
+                  ? "text-slate-400 hover:text-white hover:bg-white/10"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+              }`}
             >
               <Plus className="w-3.5 h-3.5" />
             </Button>
@@ -518,7 +563,15 @@ export function ProductCustomizerModal({
           <Button
             type="button"
             onClick={handleAddToCart}
-            className={`flex-1 h-12 font-black text-xs sm:text-sm text-white transition-all active:scale-[0.98] ${isArcade ? "rounded-none border-2 border-yellow-200 bg-fuchsia-600 shadow-[4px_4px_0_#32f5ff]" : isComic ? "rounded-xl border-2 border-[#17121f] shadow-[4px_4px_0_#17121f]" : "rounded-2xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-700 hover:to-amber-600 shadow-lg shadow-orange-600/30"}`}
+            className={`flex-1 h-12 font-black text-xs sm:text-sm text-white transition-all active:scale-[0.98] ${
+              isArcade
+                ? "rounded-none border-2 border-yellow-200 bg-fuchsia-600 shadow-[4px_4px_0_#32f5ff]"
+                : isComic
+                ? "rounded-xl border-2 border-[#17121f] shadow-[4px_4px_0_#17121f]"
+                : isSushi
+                ? "rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 hover:brightness-110 shadow-lg shadow-rose-950/50"
+                : "rounded-2xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-700 hover:to-amber-600 shadow-lg shadow-orange-600/30"
+            }`}
             style={isComic ? { backgroundColor: "var(--brand-primary)" } : undefined}
           >
             <span>Agregar al Pedido</span>

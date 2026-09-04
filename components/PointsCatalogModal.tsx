@@ -154,7 +154,7 @@ export function PointsCatalogModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-0 rounded-3xl border border-slate-200 shadow-2xl bg-slate-50">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-0 rounded-3xl border border-slate-200 shadow-2xl bg-slate-50 text-slate-900">
         {/* Header con gradiente de marca */}
         <div className="bg-gradient-to-r from-orange-600 via-amber-600 to-orange-500 text-white p-6 rounded-t-3xl relative overflow-hidden">
           <div className="relative z-10 space-y-3">

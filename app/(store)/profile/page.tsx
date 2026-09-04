@@ -78,7 +78,7 @@ export default async function ProfilePage() {
   const tenant = await getTenantContext();
   const loyaltyEnabled = tenant.features.has("loyalty");
 
-  const [orders, tiers, dbClient] = await Promise.all([
+  const [orders, tiers, dbClient, config] = await Promise.all([
     db.order.findMany({
       where: { clientId: client.id },
       orderBy: [
@@ -97,7 +97,12 @@ export default async function ProfilePage() {
       where: { id: client.id },
       include: { customTier: true },
     }),
+    db.systemConfig.findFirst({
+      select: { storeTheme: true },
+    }),
   ]);
+
+  const isSushiZen = config?.storeTheme === "SUSHI_ZEN";
 
   const activeOrders = orders.filter(o => o.status !== "DELIVERED" && o.status !== "CANCELLED");
   const pastOrders = orders.filter(o => o.status === "DELIVERED" || o.status === "CANCELLED");
@@ -154,16 +159,20 @@ export default async function ProfilePage() {
   return (
     <div className="profile-page max-w-2xl mx-auto pb-24 px-4 sm:px-0">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6 text-slate-800">
+      <div className={`flex items-center gap-4 mb-6 ${isSushiZen ? "text-slate-100" : "text-slate-800"}`}>
          <Link href="/">
-           <button className="w-10 h-10 bg-white border shadow-sm rounded-full flex items-center justify-center hover:bg-slate-50 transition-colors">
-              <ArrowLeft className="w-5 h-5 text-slate-600" />
+           <button className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+             isSushiZen
+               ? "bg-[#141923] border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 shadow-md"
+               : "bg-white border shadow-sm text-slate-600 hover:bg-slate-50"
+           }`} aria-label="Volver a la tienda">
+              <ArrowLeft className="w-5 h-5" />
            </button>
          </Link>
          <div className="flex-1">
-           <span className="text-xs font-black uppercase tracking-wider text-orange-600">Tu Espacio de Beneficios</span>
-           <h1 className="text-3xl font-black tracking-tight text-slate-900">Mi Perfil</h1>
-           <p className="text-muted-foreground text-sm font-medium">Hola, {client.name || client.phone}!</p>
+           <span className={`text-xs font-black uppercase tracking-wider ${isSushiZen ? "text-amber-400" : "text-orange-600"}`}>Tu Espacio de Beneficios</span>
+           <h1 className={`text-3xl font-black tracking-tight ${isSushiZen ? "text-white" : "text-slate-900"}`}>Mi Perfil</h1>
+           <p className={`text-sm font-medium ${isSushiZen ? "text-slate-400" : "text-muted-foreground"}`}>Hola, {client.name || client.phone}!</p>
          </div>
          <LogoutButton />
       </div>
@@ -241,20 +250,28 @@ export default async function ProfilePage() {
       {todayActiveOrders.length > 0 && (
         <div className="mb-8 space-y-3">
           <div className="flex items-center gap-2">
-            <Flame className="w-5 h-5 text-orange-600" />
-            <h3 className="text-xl font-black text-slate-900">Entregas de Hoy ({todayActiveOrders.length})</h3>
+            <Flame className={`w-5 h-5 ${isSushiZen ? "text-amber-400" : "text-orange-600"}`} />
+            <h3 className={`text-xl font-black ${isSushiZen ? "text-white" : "text-slate-900"}`}>Entregas de Hoy ({todayActiveOrders.length})</h3>
           </div>
           <div className="space-y-3">
             {todayActiveOrders.map(order => (
               <Link href={`/track/${order.id}`} key={order.id} className="block">
-                <div className="bg-white border border-orange-200 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all relative overflow-hidden group">
-                   <div className="absolute top-0 left-0 w-2.5 h-full bg-orange-500" />
+                <div className={`rounded-2xl p-5 shadow-xs hover:shadow-md transition-all relative overflow-hidden group ${
+                  isSushiZen
+                    ? "bg-[#121722] border border-amber-500/30 text-white shadow-xl shadow-black/40"
+                    : "bg-white border border-orange-200 text-slate-900"
+                }`}>
+                   <div className={`absolute top-0 left-0 w-2.5 h-full ${isSushiZen ? "bg-amber-400" : "bg-orange-500"}`} />
                    <div className="flex justify-between items-start mb-2">
                      <div>
-                       <span className="font-black text-slate-900 text-base">Orden #{order.id.slice(-6).toUpperCase()}</span>
-                       <span className="block text-[11px] font-bold text-orange-600">⚡ Para recibir o retirar hoy</span>
+                       <span className={`font-black text-base ${isSushiZen ? "text-white" : "text-slate-900"}`}>Orden #{order.id.slice(-6).toUpperCase()}</span>
+                       <span className={`block text-[11px] font-bold ${isSushiZen ? "text-amber-300" : "text-orange-600"}`}>⚡ Para recibir o retirar hoy</span>
                      </div>
-                     <span className="bg-orange-100 text-orange-800 text-xs font-black px-2.5 py-1 rounded-xl flex items-center gap-1">
+                     <span className={`text-xs font-black px-2.5 py-1 rounded-xl flex items-center gap-1 ${
+                       isSushiZen
+                         ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                         : "bg-orange-100 text-orange-800"
+                     }`}>
                        {order.status === 'IN_PROCESS' && <Clock className="w-3.5 h-3.5"/>}
                        {order.status === 'OUT_FOR_DELIVERY' && <Truck className="w-3.5 h-3.5"/>}
                        {order.status === 'FINISHED' && <MapPinIcon className="w-3.5 h-3.5"/>}
@@ -262,14 +279,14 @@ export default async function ProfilePage() {
                        {order.status === 'IN_PROCESS' ? 'En Cocina' : order.status === 'OUT_FOR_DELIVERY' ? 'En Viaje' : order.status === 'FINISHED' ? 'Listo Retiro' : 'Recibido'}
                      </span>
                    </div>
-                   <p className="text-xs text-slate-600 font-medium line-clamp-1 mt-1">
+                   <p className={`text-xs font-medium line-clamp-1 mt-1 ${isSushiZen ? "text-slate-300" : "text-slate-600"}`}>
                      {order.items.map(i => `${i.quantity}x ${i.product.name}`).join(", ")}
                    </p>
-                   <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
-                     <span className="text-slate-500 font-medium">Franja: {order.scheduledTime ? `${order.scheduledTime} hs` : "Horario no informado"}</span>
+                   <div className={`mt-3 pt-2 border-t flex justify-between items-center text-xs ${isSushiZen ? "border-white/10" : "border-slate-100"}`}>
+                     <span className={`${isSushiZen ? "text-slate-400" : "text-slate-500"} font-medium`}>Franja: {order.scheduledTime ? `${order.scheduledTime} hs` : "Horario no informado"}</span>
                      <div className="flex items-center gap-2">
-                       <span className="font-black text-slate-900 text-sm">${order.total.toLocaleString('es-AR')}</span>
-                       <span className="text-orange-600 font-black text-xs group-hover:translate-x-0.5 transition-transform flex items-center">Seguimiento <ChevronRight className="w-3.5 h-3.5" /></span>
+                       <span className={`font-black text-sm ${isSushiZen ? "text-amber-300" : "text-slate-900"}`}>${order.total.toLocaleString('es-AR')}</span>
+                       <span className={`font-black text-xs group-hover:translate-x-0.5 transition-transform flex items-center ${isSushiZen ? "text-amber-400" : "text-orange-600"}`}>Seguimiento <ChevronRight className="w-3.5 h-3.5" /></span>
                      </div>
                    </div>
                 </div>
@@ -283,35 +300,43 @@ export default async function ProfilePage() {
       {futureScheduledOrders.length > 0 && (
         <div className="mb-8 space-y-3">
           <div className="flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-purple-600" />
-            <h3 className="text-xl font-black text-slate-900">Entregas Agendadas ({futureScheduledOrders.length})</h3>
+            <CalendarDays className={`w-5 h-5 ${isSushiZen ? "text-rose-400" : "text-purple-600"}`} />
+            <h3 className={`text-xl font-black ${isSushiZen ? "text-white" : "text-slate-900"}`}>Entregas Agendadas ({futureScheduledOrders.length})</h3>
           </div>
           <div className="space-y-3">
             {futureScheduledOrders.map(order => {
               const dateInfo = formatScheduledDateLabel(order);
               return (
                 <Link href={`/track/${order.id}`} key={order.id} className="block">
-                  <div className="bg-white border border-purple-200 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all relative overflow-hidden group">
-                     <div className="absolute top-0 left-0 w-2.5 h-full bg-purple-600" />
+                  <div className={`rounded-2xl p-5 shadow-xs hover:shadow-md transition-all relative overflow-hidden group ${
+                    isSushiZen
+                      ? "bg-[#121722] border border-rose-500/30 text-white shadow-xl shadow-black/40"
+                      : "bg-white border border-purple-200 text-slate-900"
+                  }`}>
+                     <div className={`absolute top-0 left-0 w-2.5 h-full ${isSushiZen ? "bg-rose-500" : "bg-purple-600"}`} />
                      <div className="flex justify-between items-start mb-2">
                        <div>
-                         <span className="font-black text-slate-900 text-base">Orden #{order.id.slice(-6).toUpperCase()}</span>
-                         <span className="block text-xs font-black text-purple-700 mt-0.5">
+                         <span className={`font-black text-base ${isSushiZen ? "text-white" : "text-slate-900"}`}>Orden #{order.id.slice(-6).toUpperCase()}</span>
+                         <span className={`block text-xs font-black mt-0.5 ${isSushiZen ? "text-rose-300" : "text-purple-700"}`}>
                            📅 Programado para el {dateInfo.label}
                          </span>
                        </div>
-                       <span className="bg-purple-100 text-purple-800 text-xs font-black px-2.5 py-1 rounded-xl flex items-center gap-1">
+                       <span className={`text-xs font-black px-2.5 py-1 rounded-xl flex items-center gap-1 ${
+                         isSushiZen
+                           ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                           : "bg-purple-100 text-purple-800"
+                       }`}>
                          <CalendarDays className="w-3.5 h-3.5" /> Agendado
                        </span>
                      </div>
-                     <p className="text-xs text-slate-600 font-medium line-clamp-1 mt-1">
+                     <p className={`text-xs font-medium line-clamp-1 mt-1 ${isSushiZen ? "text-slate-300" : "text-slate-600"}`}>
                        {order.items.map(i => `${i.quantity}x ${i.product.name}`).join(", ")}
                      </p>
-                     <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
-                       <span className="text-slate-500 font-medium">Franja: {order.scheduledTime ? `${order.scheduledTime} hs` : "Horario de entrega"}</span>
+                     <div className={`mt-3 pt-2 border-t flex justify-between items-center text-xs ${isSushiZen ? "border-white/10" : "border-slate-100"}`}>
+                       <span className={`${isSushiZen ? "text-slate-400" : "text-slate-500"} font-medium`}>Franja: {order.scheduledTime ? `${order.scheduledTime} hs` : "Horario de entrega"}</span>
                        <div className="flex items-center gap-2">
-                         <span className="font-black text-slate-900 text-sm">${order.total.toLocaleString('es-AR')}</span>
-                         <span className="text-purple-600 font-black text-xs group-hover:translate-x-0.5 transition-transform flex items-center">Ver detalle <ChevronRight className="w-3.5 h-3.5" /></span>
+                         <span className={`font-black text-sm ${isSushiZen ? "text-amber-300" : "text-slate-900"}`}>${order.total.toLocaleString('es-AR')}</span>
+                         <span className={`font-black text-xs group-hover:translate-x-0.5 transition-transform flex items-center ${isSushiZen ? "text-rose-400" : "text-purple-600"}`}>Ver detalle <ChevronRight className="w-3.5 h-3.5" /></span>
                        </div>
                      </div>
                   </div>
@@ -324,24 +349,32 @@ export default async function ProfilePage() {
 
       {/* 3. SECCIÓN: HISTORIAL DE COMPRAS PASADAS */}
       <div>
-        <h3 className="text-xl font-black text-slate-900 mb-4">Historial de Compras</h3>
+        <h3 className={`text-xl font-black mb-4 ${isSushiZen ? "text-white" : "text-slate-900"}`}>Historial de Compras</h3>
         {pastOrders.length === 0 ? (
-           <div className="text-center p-8 bg-slate-50 rounded-2xl border text-slate-500 text-xs font-medium">Aún no hay compras pasadas.</div>
+           <div className={`text-center p-8 rounded-2xl border text-xs font-medium ${
+             isSushiZen
+               ? "bg-[#121722] border-white/10 text-slate-400"
+               : "bg-slate-50 border-slate-200 text-slate-500"
+           }`}>Aún no hay compras pasadas.</div>
         ) : (
           <div className="space-y-3">
             {pastOrders.map(order => (
-              <div key={order.id} className="bg-white/80 border rounded-2xl p-4 flex items-center justify-between shadow-2xs">
+              <div key={order.id} className={`rounded-2xl p-4 flex items-center justify-between shadow-2xs border ${
+                isSushiZen
+                  ? "bg-[#121722] border-white/10 text-white"
+                  : "bg-white border-slate-200 text-slate-900"
+              }`}>
                  <div>
-                   <span className="font-bold text-slate-800 block text-sm">
+                   <span className={`font-bold block text-sm ${isSushiZen ? "text-white" : "text-slate-800"}`}>
                      #{order.id.slice(-6).toUpperCase()} 
-                     {order.status === "CANCELLED" && <span className="text-red-500 text-xs ml-2 font-black">(Cancelado)</span>}
-                     {order.status === "DELIVERED" && <span className="text-emerald-600 text-xs ml-2 font-black">✓ Entregado</span>}
+                     {order.status === "CANCELLED" && <span className="text-rose-400 text-xs ml-2 font-black">(Cancelado)</span>}
+                     {order.status === "DELIVERED" && <span className="text-emerald-400 text-xs ml-2 font-black">✓ Entregado</span>}
                    </span>
-                   <span className="text-xs text-slate-500">{new Date(order.createdAt).toLocaleDateString()}</span>
+                   <span className={`text-xs ${isSushiZen ? "text-slate-400" : "text-slate-500"}`}>{new Date(order.createdAt).toLocaleDateString()}</span>
                  </div>
                  <div className="text-right">
-                   <span className="font-black text-slate-900 block text-sm">${order.total.toLocaleString('es-AR')}</span>
-                   {order.earnedPoints > 0 && <span className="text-xs font-black text-yellow-600 block">+{order.earnedPoints} pts</span>}
+                   <span className={`font-black block text-sm ${isSushiZen ? "text-amber-300" : "text-slate-900"}`}>${order.total.toLocaleString('es-AR')}</span>
+                   {order.earnedPoints > 0 && <span className="text-xs font-black text-amber-400 block">+{order.earnedPoints} pts</span>}
                  </div>
               </div>
             ))}
