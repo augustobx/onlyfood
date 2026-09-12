@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { getTenantDb } from "@/lib/tenant-db";
 import { getTenantContext } from "@/lib/tenant-context";
-import { getTenantIntegration, saveTenantIntegration, setTenantIntegrationActive, type WhatsAppCredentials } from "@/lib/tenant-integrations";
+import { getTenantIntegration, saveTenantIntegration, setTenantIntegrationActive, type WhatsAppCredentials, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
 import { sendOrderPush } from "@/lib/push-notifications";
@@ -85,13 +85,28 @@ export async function updateConfig(id: string, data: unknown) {
       return { success: false, error: "PrintNode está desactivado para este comercio." };
     }
     const db = await getTenantDb();
-    const existingWhatsApp = await getTenantIntegration<WhatsAppCredentials>(tenant.id, "WHATSAPP");
+    const [existingWhatsApp, existingMp] = await Promise.all([
+      getTenantIntegration<WhatsAppCredentials>(tenant.id, "WHATSAPP"),
+      getTenantIntegration<MercadoPagoCredentials>(tenant.id, "MERCADO_PAGO"),
+    ]);
 
     // Guardar integraciones de forma cifrada si se modificaron
-    if (parsed.data.mpAccessToken) {
+    const mpAccessTokenProvided = Boolean(parsed.data.mpAccessToken && parsed.data.mpAccessToken.trim().length > 0);
+    const currentMpPublic = existingMp?.publicKey || "";
+    const requestedMpPublic = parsed.data.mpPublicKey !== undefined && parsed.data.mpPublicKey !== null ? parsed.data.mpPublicKey.trim() : currentMpPublic;
+    const mpPublicKeyChanged = parsed.data.mpPublicKey !== undefined && parsed.data.mpPublicKey !== null && requestedMpPublic !== currentMpPublic;
+    const mpCredentialsTouched = mpAccessTokenProvided || mpPublicKeyChanged;
+
+    const nextMpAccessToken = mpAccessTokenProvided ? parsed.data.mpAccessToken!.trim() : (existingMp?.accessToken || "");
+    const nextMpPublicKey = requestedMpPublic;
+
+    if (mpCredentialsTouched) {
+      if (!nextMpAccessToken) {
+        return { success: false, error: "Para configurar Mercado Pago ingresá el Access Token." };
+      }
       await saveTenantIntegration(tenant.id, "MERCADO_PAGO", {
-        accessToken: parsed.data.mpAccessToken,
-        publicKey: parsed.data.mpPublicKey || undefined,
+        accessToken: nextMpAccessToken,
+        publicKey: nextMpPublicKey || undefined,
       });
     }
 
@@ -140,7 +155,11 @@ export async function updateConfig(id: string, data: unknown) {
     });
 
     revalidatePath("/admin/settings"); revalidatePath("/admin/live"); revalidatePath("/");
-    return { success: true, whatsappConfigured: Boolean(nextWhatsApp.apiToken && nextWhatsApp.phoneNumberId && nextWhatsApp.verifyToken) };
+    return {
+      success: true,
+      whatsappConfigured: Boolean(nextWhatsApp.apiToken && nextWhatsApp.phoneNumberId && nextWhatsApp.verifyToken),
+      mpConfigured: Boolean(nextMpAccessToken),
+    };
   } catch (error) {
     console.error("Config update failed", error);
     return { success: false, error: "No se pudo actualizar la configuracion." };

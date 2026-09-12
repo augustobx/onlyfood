@@ -26,6 +26,7 @@ export function SettingsForm({
   whatsappNotifications,
   whatsappEnabled,
   printNodeEnabled,
+  mpIntegrationConfigured,
 }: {
   initialConfig: any;
   printNodeApiKeyConfigured: boolean;
@@ -35,6 +36,7 @@ export function SettingsForm({
   whatsappNotifications: any[];
   whatsappEnabled: boolean;
   printNodeEnabled: boolean;
+  mpIntegrationConfigured?: boolean;
 }) {
   const [cfg, setCfg] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +51,7 @@ export function SettingsForm({
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
   const [retryingNotification, setRetryingNotification] = useState<string | null>(null);
   const [waConfigured, setWaConfigured] = useState(whatsappIntegrationConfigured);
+  const [mpConfigured, setMpConfigured] = useState(Boolean(mpIntegrationConfigured));
 
   const updateField = (field: string, value: any) => {
     setCfg((prev: any) => ({ ...prev, [field]: value }));
@@ -133,6 +136,7 @@ export function SettingsForm({
     if (result.success) {
       toast.success("Configuración general guardada");
       if ("whatsappConfigured" in result) setWaConfigured(Boolean(result.whatsappConfigured));
+      if ("mpConfigured" in result) setMpConfigured(Boolean(result.mpConfigured));
     } else {
       toast.error("Error", { description: result.error });
     }
@@ -472,16 +476,32 @@ export function SettingsForm({
               <CardDescription>Credenciales de Producción de tu cuenta de Mercado Pago.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className={`rounded-xl border p-3 ${mpConfigured ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  {mpConfigured ? <CircleCheck className="h-4 w-4 text-emerald-600" /> : <CircleAlert className="h-4 w-4 text-amber-600" />}
+                  Credenciales de Mercado Pago
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {mpConfigured
+                    ? "Access Token guardado y cifrado. Para mantener el token actual dejá el campo en blanco."
+                    : "Falta configurar el Access Token para habilitar cobros automáticos."}
+                </p>
+              </div>
+
               <div className="space-y-4 bg-slate-50 p-4 border rounded-xl">
                 <div className="space-y-2">
                   <Label className="font-bold">Access Token</Label>
                   <Input
                     type="password"
-                    placeholder="APP_USR-..."
+                    placeholder={mpConfigured ? "•••••••••••••••••••••••• (Guardado)" : "APP_USR-..."}
                     value={cfg.mpAccessToken || ''}
                     onChange={e => updateField('mpAccessToken', e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">Token privado necesario para generar los cobros.</p>
+                  <p className="text-xs text-muted-foreground">
+                    {mpConfigured
+                      ? "Token privado cifrado. Dejalo en blanco para conservar el actual o ingresá uno nuevo para actualizarlo."
+                      : "Token privado necesario para generar los cobros."}
+                  </p>
                 </div>
                 <div className="space-y-2 pt-2">
                   <Label className="font-bold">Public Key</Label>
