@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { createOrder, fetchConfig } from "@/app/actions/checkout";
 import { fetchClientAvailableCoupons } from "@/app/actions/client-rewards";
-import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check } from "lucide-react";
+import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
@@ -264,13 +264,14 @@ export default function CheckoutPage() {
   const addressInputRef = useRef<HTMLInputElement>(null);
   const checkoutCompletedRef = useRef(false);
 
-  const { items, getTotal, clearCart, dailyPrize, appliedCoupon } = useCartStore();
+  const { items, getTotal, clearCart, dailyPrize, appliedCoupon, clearDailyPrize, dismissCoupon } = useCartStore();
   const quantityDiscount = useQuantityDiscountPreview(items);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
   const [selectedCoupon, setSelectedCoupon] = useState<any | null>(null);
+  const [userOptedOutCoupon, setUserOptedOutCoupon] = useState(false);
 
   const [formData, setFormData] = useState({
     clientName: "",
@@ -393,15 +394,16 @@ export default function CheckoutPage() {
         setAvailableCoupons(coupons);
         const rewardItem = items.find((i) => i.rewardRedemptionId);
         const preselectedId = appliedCoupon?.id || rewardItem?.rewardRedemptionId;
-        if (preselectedId) {
+        if (preselectedId && !userOptedOutCoupon) {
           const match = coupons.find((c: any) => c.id === preselectedId);
           if (match) setSelectedCoupon(match);
         }
       }
     });
-  }, [appliedCoupon, items]);
+  }, [appliedCoupon, items, userOptedOutCoupon]);
 
   useEffect(() => {
+    if (userOptedOutCoupon) return;
     if (appliedCoupon && !selectedCoupon) {
       setSelectedCoupon(appliedCoupon);
     } else if (!selectedCoupon) {
@@ -411,7 +413,18 @@ export default function CheckoutPage() {
         if (match) setSelectedCoupon(match);
       }
     }
-  }, [appliedCoupon, availableCoupons, items, selectedCoupon]);
+  }, [appliedCoupon, availableCoupons, items, selectedCoupon, userOptedOutCoupon]);
+
+  // Expiración preventiva del premio diario (+24hs)
+  useEffect(() => {
+    if (dailyPrize?.wonAt) {
+      const isExpired = Date.now() - dailyPrize.wonAt > 24 * 60 * 60 * 1000;
+      if (isExpired) {
+        clearDailyPrize();
+        toast.info("Tu premio de la ruleta ha caducado (+24hs).");
+      }
+    }
+  }, [dailyPrize, clearDailyPrize]);
 
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -442,13 +455,20 @@ export default function CheckoutPage() {
   }
 
   let couponDiscount = 0;
+  let productCouponBonus = 0;
   if (selectedCoupon?.reward) {
     if (selectedCoupon.reward.type === "PERCENT") {
       couponDiscount = discountedSubtotal * ((selectedCoupon.reward.value || 0) / 100);
     } else if (selectedCoupon.reward.type === "AMOUNT") {
       couponDiscount = Math.min(discountedSubtotal, selectedCoupon.reward.value || 0);
+    } else if (selectedCoupon.reward.type === "PRODUCT" || selectedCoupon.reward.type === "COMBO") {
+      const targetProdId = selectedCoupon.reward.productId || selectedCoupon.reward.product?.id;
+      const matchingItem = items.find((i) => (i.product?.id === targetProdId || (i as any).productId === targetProdId) && !i.isReward);
+      if (matchingItem) {
+        productCouponBonus = matchingItem.unitPrice;
+      }
     }
-    discountedSubtotal -= couponDiscount;
+    discountedSubtotal = Math.max(0, discountedSubtotal - couponDiscount - productCouponBonus);
   }
 
   const deliveryCost = formData.needsDelivery ? config?.deliveryCost || 0 : 0;
@@ -860,7 +880,11 @@ export default function CheckoutPage() {
                 </Label>
                 <div className="space-y-1.5">
                   <div
-                    onClick={() => setSelectedCoupon(null)}
+                    onClick={() => {
+                      setSelectedCoupon(null);
+                      setUserOptedOutCoupon(true);
+                      dismissCoupon();
+                    }}
                     className={`p-2.5 rounded-xl border text-[11px] font-bold cursor-pointer transition-all flex items-center justify-between ${
                       selectedCoupon === null ? t.couponNone : t.couponInactive
                     }`}
@@ -874,7 +898,10 @@ export default function CheckoutPage() {
                     return (
                       <div
                         key={coupon.id}
-                        onClick={() => setSelectedCoupon(coupon)}
+                        onClick={() => {
+                          setSelectedCoupon(coupon);
+                          setUserOptedOutCoupon(false);
+                        }}
                         className={`p-2.5 rounded-xl border text-[11px] cursor-pointer transition-all flex items-center justify-between ${
                           isSelected ? t.couponActive : t.couponInactive
                         }`}
@@ -921,16 +948,24 @@ export default function CheckoutPage() {
                   <span>-${tierDiscountAmount.toLocaleString("es-AR")}</span>
                 </div>
               )}
-              {dailyPrize && dailyPrize.type !== "PRODUCT" && (
-                <div className="flex justify-between text-purple-600 font-bold text-[11px]">
-                  <span>✨ Premio ({dailyPrize.type === "PERCENT" ? `${dailyPrize.value}%` : `$${dailyPrize.value}`})</span>
-                  <span>-${prizeDiscount.toLocaleString("es-AR")}</span>
-                </div>
-              )}
-              {dailyPrize && dailyPrize.type === "PRODUCT" && (
-                <div className="flex justify-between text-purple-600 font-bold text-[11px]">
-                  <span>✨ {dailyPrize.product?.name}</span>
-                  <span className="text-green-600">GRATIS</span>
+              {dailyPrize && (
+                <div className="flex justify-between items-center text-purple-600 font-bold text-[11px]">
+                  <span>✨ Premio ({dailyPrize.type === "PRODUCT" ? dailyPrize.product?.name || "Producto" : dailyPrize.type === "PERCENT" ? `${dailyPrize.value}% OFF` : `$${dailyPrize.value} OFF`})</span>
+                  <div className="flex items-center gap-1.5">
+                    {dailyPrize.type !== "PRODUCT" && <span>-${prizeDiscount.toLocaleString("es-AR")}</span>}
+                    {dailyPrize.type === "PRODUCT" && <span className="text-green-600">GRATIS</span>}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearDailyPrize();
+                        toast.info("Premio diario removido del pedido");
+                      }}
+                      className="text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors"
+                      title="Quitar premio"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               )}
               {items.some((i) => i.isReward) && (
@@ -943,6 +978,12 @@ export default function CheckoutPage() {
                 <div className="flex justify-between text-emerald-600 font-bold text-[11px]">
                   <span>🎁 Cupón ({selectedCoupon.reward?.name})</span>
                   <span>-${couponDiscount.toLocaleString("es-AR")}</span>
+                </div>
+              )}
+              {selectedCoupon && (selectedCoupon.reward?.type === "PRODUCT" || selectedCoupon.reward?.type === "COMBO") && (
+                <div className="flex justify-between text-emerald-600 font-bold text-[11px]">
+                  <span>🎁 Cupón ({selectedCoupon.reward?.name})</span>
+                  <span>{productCouponBonus > 0 ? `-$${productCouponBonus.toLocaleString("es-AR")}` : "Bonificado en pedido"}</span>
                 </div>
               )}
               {formData.needsDelivery && (

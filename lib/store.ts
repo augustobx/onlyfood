@@ -23,8 +23,10 @@ interface CartState {
   dailyPrize: any | null;
   appliedCoupon: any | null;
   setDailyPrize: (prize: any) => void;
+  clearDailyPrize: () => void;
   setAppliedCoupon: (coupon: any | null) => void;
   clearCoupon: () => void;
+  dismissCoupon: () => void;
   addItem: (item: Omit<CartItem, 'id' | 'subtotal'>) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
@@ -38,9 +40,11 @@ export const useCartStore = create<CartState>()(
       items: [],
       dailyPrize: null,
       appliedCoupon: null,
-      setDailyPrize: (prize) => set({ dailyPrize: prize }),
+      setDailyPrize: (prize) => set({ dailyPrize: prize ? { ...prize, wonAt: prize.wonAt || Date.now() } : null }),
+      clearDailyPrize: () => set({ dailyPrize: null }),
       setAppliedCoupon: (coupon) => set({ appliedCoupon: coupon }),
       clearCoupon: () => set({ appliedCoupon: null }),
+      dismissCoupon: () => set({ appliedCoupon: null }),
       addItem: (item) => set((state) => {
         const unitPrice = item.isReward ? 0 : item.unitPrice;
         const subtotal = unitPrice * item.quantity;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Receipt, Gift, UserCheck, Loader2, CheckCircle2, Star, Plus, Minus } from "lucide-react";
+import { Receipt, Gift, UserCheck, Loader2, CheckCircle2, Star, Plus, Minus, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { adminAssignRewardToClient, adminAdjustClientPoints } from "@/app/actions/admin-rewards";
+import { resetUserPassword } from "@/app/actions/admin-users";
 
 interface UsersTableClientProps {
   initialUsers: any[];
@@ -22,12 +23,32 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
   const [selectedRewardId, setSelectedRewardId] = useState<string>("");
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [resettingId, setResettingId] = useState<string | null>(null);
 
   // Modal Ajuste Rápido de Puntos
   const [adjustClient, setAdjustClient] = useState<any | null>(null);
   const [adjustPointsValue, setAdjustPointsValue] = useState<number>(50);
   const [adjustMode, setAdjustMode] = useState<"ADD" | "SUB">("ADD");
   const [isAdjusting, setIsAdjusting] = useState(false);
+
+  const handleResetPassword = async (user: any) => {
+    if (!confirm(`¿Restablecer el acceso de ${user.name || user.phone}? El cliente podrá definir una nueva clave la próxima vez que ingrese o en "¿Olvidaste tu clave?".`)) {
+      return;
+    }
+    setResettingId(user.id);
+    try {
+      const res = await resetUserPassword(user.id);
+      if (res.success) {
+        toast.success(`Acceso restablecido para ${user.name || user.phone}`, {
+          description: "El cliente ya puede ingresar una nueva contraseña directamente desde la tienda.",
+        });
+      } else {
+        toast.error(res.error);
+      }
+    } finally {
+      setResettingId(null);
+    }
+  };
 
   const openAssignModal = (user: any) => {
     setSelectedClient(user);
@@ -152,6 +173,18 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
                       className="rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-100 h-7 px-2.5"
                     >
                       <Star className="w-3 h-3 mr-1 text-yellow-500" /> Puntos
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={resettingId === u.id}
+                      onClick={() => handleResetPassword(u)}
+                      className="rounded-xl text-[11px] font-bold text-amber-700 hover:bg-amber-50 hover:text-amber-800 h-7 px-2"
+                      title="Restablecer contraseña para que el cliente pueda definir una nueva"
+                    >
+                      {resettingId === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3 mr-1 text-amber-600" />}
+                      Clave
                     </Button>
                   </div>
                 </td>

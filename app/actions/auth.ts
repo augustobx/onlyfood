@@ -21,18 +21,24 @@ type LoginClient = {
   createdAt: Date;
 };
 
+export function cleanPhoneNumber(value: string) {
+  return value.replace(/[\s\-\(\)\.]/g, "").trim();
+}
+
 function phoneLoginKey(value: string) {
   const digits = value.replace(/\D/g, "");
   return digits.length >= 6 ? digits.slice(-6) : null;
 }
 
-async function findClientsByIdentifier(tenantId: string, identifier: string) {
-  const key = phoneLoginKey(identifier);
+export async function findClientsByIdentifier(tenantId: string, identifier: string) {
+  const cleaned = cleanPhoneNumber(identifier);
+  const key = phoneLoginKey(cleaned);
   const db = createTenantDb(tenantId);
   return db.client.findMany({
     where: {
       OR: [
-        { phone: identifier },
+        { phone: cleaned },
+        ...(cleaned !== identifier ? [{ phone: identifier }] : []),
         ...(key ? [{ phoneLoginKey: key }] : []),
       ],
     },
@@ -40,9 +46,10 @@ async function findClientsByIdentifier(tenantId: string, identifier: string) {
 }
 
 function preferredClient(clients: LoginClient[], identifier: string) {
+  const cleaned = cleanPhoneNumber(identifier);
   return [...clients].sort((left, right) => {
-    if (left.phone === identifier && right.phone !== identifier) return -1;
-    if (right.phone === identifier && left.phone !== identifier) return 1;
+    if ((left.phone === cleaned || left.phone === identifier) && right.phone !== cleaned && right.phone !== identifier) return -1;
+    if ((right.phone === cleaned || right.phone === identifier) && left.phone !== cleaned && left.phone !== identifier) return 1;
     if (left.points !== right.points) return right.points - left.points;
     return left.createdAt.getTime() - right.createdAt.getTime();
   })[0];
@@ -105,12 +112,14 @@ export async function registerClient(formData: FormData) {
     if (!(await consumeRateLimit("client-register", ip, 8, 60 * 60 * 1000))) {
       return { success: false, error: "Demasiados intentos. Probá más tarde." };
     }
+    const rawPhone = String(formData.get("phone") || "");
+    const cleanedPhone = cleanPhoneNumber(rawPhone);
     const parsed = z.object({
       phone: phoneSchema,
       password: passwordSchema,
       name: z.string().trim().max(80).optional(),
     }).safeParse({
-      phone: formData.get("phone"),
+      phone: cleanedPhone,
       password: formData.get("password"),
       name: formData.get("name") || undefined,
     });
@@ -126,7 +135,13 @@ export async function registerClient(formData: FormData) {
       await createSession(clientId, tenant.id);
       return { success: true, accountActivated: true };
     }
-    if (existing.length > 0) return { success: false, error: "No se pudo crear la cuenta con esos datos." };
+    if (existing.length > 0) {
+      return {
+        success: false,
+        error: "Este número de teléfono ya está registrado. Ingresá con tu contraseña o recuperala.",
+        code: "PHONE_EXISTS",
+      };
+    }
 
     const client = await db.client.create({
       data: {
@@ -150,8 +165,10 @@ export async function loginClient(formData: FormData) {
     if (!(await consumeRateLimit("client-login", ip, 10, 15 * 60 * 1000))) {
       return { success: false, error: "Demasiados intentos. Probá en 15 minutos." };
     }
+    const rawPhone = String(formData.get("phone") || "");
+    const cleanedPhone = cleanPhoneNumber(rawPhone);
     const parsed = z.object({ phone: loginIdentifierSchema, password: z.string().min(1).max(128) }).safeParse({
-      phone: formData.get("phone"),
+      phone: cleanedPhone,
       password: formData.get("password"),
     });
     if (!parsed.success) return { success: false, error: "Credenciales incorrectas." };
@@ -196,6 +213,64 @@ export async function loginClient(formData: FormData) {
   } catch (error) {
     console.error("Auth login error:", error);
     return { success: false, error: "Error interno del servidor." };
+  }
+}
+
+export async function requestPasswordResetStatus(phone: string) {
+  try {
+    const tenant = await getTenantContext();
+    const cleaned = cleanPhoneNumber(phone);
+    if (!phoneSchema.safeParse(cleaned).success) {
+      return { success: false, error: "Ingresá un número de teléfono válido." };
+    }
+    const clients = await findClientsByIdentifier(tenant.id, cleaned);
+    if (clients.length === 0) {
+      return { success: false, error: "No encontramos ninguna cuenta registrada con este número." };
+    }
+
+    const canSelfReset = clients.every((c) => c.passwordSetupRequired);
+    return {
+      success: true,
+      canSelfReset,
+      phone: cleaned,
+      clientName: clients[0]?.name || null,
+    };
+  } catch (error) {
+    console.error("Reset status error:", error);
+    return { success: false, error: "No se pudo verificar el estado de la cuenta." };
+  }
+}
+
+export async function resetClientPasswordWithSetup(phone: string, newPassword: string) {
+  try {
+    const tenant = await getTenantContext();
+    const cleaned = cleanPhoneNumber(phone);
+    const parsedPass = passwordSchema.safeParse(newPassword);
+    if (!parsedPass.success) {
+      return { success: false, error: "La clave debe tener al menos 8 caracteres." };
+    }
+
+    const clients = await findClientsByIdentifier(tenant.id, cleaned);
+    if (clients.length === 0) {
+      return { success: false, error: "No encontramos ninguna cuenta con este número." };
+    }
+
+    const hasSetupRequired = clients.some((c) => c.passwordSetupRequired);
+    if (!hasSetupRequired) {
+      return {
+        success: false,
+        error: "Esta cuenta ya tiene una clave activa. Podés solicitar al local por WhatsApp que restablezca tu acceso.",
+        requireAdminReset: true,
+      };
+    }
+
+    const clientId = await activateImportedClients(tenant.id, clients as LoginClient[], cleaned, newPassword);
+    if (!clientId) return { success: false, error: "No se pudo actualizar la contraseña. Intentá nuevamente." };
+    await createSession(clientId, tenant.id);
+    return { success: true };
+  } catch (error) {
+    console.error("Password reset error:", error);
+    return { success: false, error: "Error al actualizar la contraseña." };
   }
 }
 

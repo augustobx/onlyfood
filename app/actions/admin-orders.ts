@@ -290,15 +290,32 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         }
       }
 
-      if (parsedStatus.data === "CANCELLED" && current.deliverySlot) {
-        await tx.deliveryTimeSlot.update({
-          where: { id: current.deliverySlot.id },
-          data: { available: Math.min(current.deliverySlot.capacity, current.deliverySlot.available + 1) },
-        });
-      }
+      if (parsedStatus.data === "CANCELLED") {
+        if (current.deliverySlot) {
+          await tx.deliveryTimeSlot.update({
+            where: { id: current.deliverySlot.id },
+            data: { available: Math.min(current.deliverySlot.capacity, current.deliverySlot.available + 1) },
+          });
+        }
 
-      if (parsedStatus.data === "CANCELLED" && current.stockCommitted) {
-        await releaseStock(tx, requirements);
+        if (current.stockCommitted) {
+          await releaseStock(tx, requirements);
+        }
+
+        // Restituir cupones canjeados utilizados en este pedido
+        await tx.pointRedemption.updateMany({
+          where: { usedOrderId: orderId, status: "USED" },
+          data: { status: "AVAILABLE", usedOrderId: null, usedAt: null },
+        });
+
+        // Restituir premio de ruleta si fue consumido en este pedido
+        const details = current.discountDetails as any;
+        if (details?.rouletteWinId) {
+          await tx.rouletteWin.updateMany({
+            where: { id: details.rouletteWinId },
+            data: { claimedAt: null },
+          });
+        }
       }
 
       if (shouldAwardPointsOnDelivered && current.clientId) {
@@ -306,7 +323,13 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
       }
 
       if (shouldRevokePointsOnCancelled && current.clientId) {
-        await tx.client.update({ where: { id: current.clientId }, data: { points: { decrement: current.earnedPoints } } });
+        const clientRec = await tx.client.findUnique({ where: { id: current.clientId }, select: { points: true } });
+        if (clientRec) {
+          await tx.client.update({
+            where: { id: current.clientId },
+            data: { points: Math.max(0, clientRec.points - current.earnedPoints) },
+          });
+        }
       }
 
       await tx.orderHistory.create({ data: { orderId, status: parsedStatus.data } });

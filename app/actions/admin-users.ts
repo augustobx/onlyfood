@@ -19,3 +19,24 @@ export async function updateUserPoints(clientId: string, points: number) {
     revalidatePath("/admin/users"); return { success: true };
   } catch { return { success: false, error: "No se pudieron actualizar los puntos." }; }
 }
+
+export async function resetUserPassword(clientId: string) {
+  await requireAdmin();
+  const tenant = await getTenantContext();
+  const parsed = z.string().min(1).max(100).safeParse(clientId);
+  if (!parsed.success) return { success: false, error: "Cliente inválido." };
+  try {
+    const db = await getTenantDb();
+    await db.client.update({
+      where: { id: parsed.data },
+      data: { passwordSetupRequired: true },
+    });
+    // Invalidate existing sessions so client has to establish new credentials
+    await db.session.deleteMany({ where: { clientId: parsed.data } });
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (error) {
+    console.error("Error resetting user password:", error);
+    return { success: false, error: "No se pudo restablecer la contraseña." };
+  }
+}

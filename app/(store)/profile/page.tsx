@@ -18,6 +18,8 @@ import {
   Zap,
   Sparkles,
   Award,
+  Ticket,
+  Gift,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -78,7 +80,7 @@ export default async function ProfilePage() {
   const tenant = await getTenantContext();
   const loyaltyEnabled = tenant.features.has("loyalty");
 
-  const [orders, tiers, dbClient, config] = await Promise.all([
+  const [orders, tiers, dbClient, config, activeCoupons, activeRouletteWin] = await Promise.all([
     db.order.findMany({
       where: { clientId: client.id },
       orderBy: [
@@ -99,6 +101,39 @@ export default async function ProfilePage() {
     }),
     db.systemConfig.findFirst({
       select: { storeTheme: true },
+    }),
+    loyaltyEnabled ? db.pointRedemption.findMany({
+      where: {
+        clientId: client.id,
+        status: "AVAILABLE",
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } }
+        ]
+      },
+      include: {
+        reward: {
+          include: {
+            product: true
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    }) : [],
+    db.rouletteWin.findFirst({
+      where: {
+        clientId: client.id,
+        claimedAt: null,
+        expiresAt: { gt: new Date() }
+      },
+      include: {
+        prize: {
+          include: {
+            product: true
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" }
     }),
   ]);
 
@@ -245,6 +280,96 @@ export default async function ProfilePage() {
           )}
         </div>
       </div>}
+
+      {/* ═══ BENEFICIOS Y CUPONES ACTIVOS ═══ */}
+      {((activeCoupons && activeCoupons.length > 0) || activeRouletteWin) && (
+        <div className="mb-8 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Ticket className={`w-5 h-5 ${isSushiZen ? "text-amber-400" : "text-emerald-600"}`} />
+              <h3 className={`text-xl font-black ${isSushiZen ? "text-white" : "text-slate-900"}`}>
+                Tus Cupones y Premios Disponibles
+              </h3>
+            </div>
+            <Link href="/" className={`text-xs font-black ${isSushiZen ? "text-amber-400 hover:underline" : "text-emerald-700 hover:underline"}`}>
+              Usar en el menú →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Premio de Ruleta si está vigente */}
+            {activeRouletteWin && (
+              <div className={`p-4.5 rounded-3xl border transition-all ${
+                isSushiZen
+                  ? "bg-[#121722] border-amber-500/40 text-white shadow-lg"
+                  : "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300 text-slate-900 shadow-xs"
+              }`}>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-lg bg-amber-500 text-white flex items-center gap-1 shadow-xs">
+                    <Sparkles className="w-3 h-3" /> Ruleta Diaria
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-700">
+                    Vence hoy {new Date(activeRouletteWin.expiresAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                  </span>
+                </div>
+                <div className="mt-2.5 font-black text-base text-slate-900">
+                  {activeRouletteWin.prize?.name || "Premio Sorpresa"}
+                </div>
+                <p className="text-xs text-slate-600 font-medium mt-0.5">
+                  {activeRouletteWin.prize?.type === "PERCENT"
+                    ? `${activeRouletteWin.prize.value}% OFF en tu pedido`
+                    : activeRouletteWin.prize?.type === "AMOUNT"
+                      ? `$${activeRouletteWin.prize.value} de descuento directo`
+                      : "Producto sorpresa gratis en tu carrito"}
+                </p>
+                <div className="mt-3.5 pt-2.5 border-t border-amber-200/60 flex items-center justify-between text-xs">
+                  <span className="text-[11px] font-bold text-emerald-700">✓ Listo para aplicar</span>
+                  <Link href="/" className="font-black text-xs text-amber-700 hover:underline">
+                    Ir al menú →
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Cupones de Puntos Canjeados */}
+            {activeCoupons.map((coupon) => (
+              <div
+                key={coupon.id}
+                className={`p-4.5 rounded-3xl border transition-all ${
+                  isSushiZen
+                    ? "bg-[#121722] border-emerald-500/40 text-white shadow-lg"
+                    : "bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 text-slate-900 shadow-xs"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white flex items-center gap-1 shadow-xs">
+                    <Gift className="w-3 h-3" /> Puntos Canjeados
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-800">
+                    {coupon.pointsSpent} pts usados
+                  </span>
+                </div>
+                <div className="mt-2.5 font-black text-base text-slate-900">
+                  {coupon.reward?.name || "Cupón Canjeado"}
+                </div>
+                <p className="text-xs text-slate-600 font-medium mt-0.5">
+                  {coupon.reward?.type === "PERCENT"
+                    ? `${coupon.reward.value}% OFF en tu compra`
+                    : coupon.reward?.type === "AMOUNT"
+                      ? `$${coupon.reward.value} de descuento directo`
+                      : `${coupon.reward?.value && coupon.reward.value > 1 ? `${coupon.reward.value}x ` : ""}Producto gratis: ${coupon.reward?.product?.name || "seleccionado"}`}
+                </p>
+                <div className="mt-3.5 pt-2.5 border-t border-emerald-200/60 flex items-center justify-between text-xs">
+                  <span className="text-[11px] font-bold text-emerald-700">✓ Disponible en checkout</span>
+                  <Link href="/" className="font-black text-xs text-emerald-800 hover:underline">
+                    Canjear en carrito →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 1. SECCIÓN: PEDIDOS EN CURSO PARA HOY */}
       {todayActiveOrders.length > 0 && (

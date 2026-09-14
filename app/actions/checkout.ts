@@ -7,7 +7,8 @@ import { after } from "next/server";
 import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { getTenantIntegration, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
-import { getLoggedClient } from "@/lib/auth";
+import { getLoggedClient, hashPassword } from "@/lib/auth";
+import { cleanPhoneNumber } from "@/app/actions/auth";
 import { getPublicConfig } from "@/lib/public-config";
 import { consumeRateLimit, getRequestIp, getRequestOrigin } from "@/lib/request-security";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
@@ -396,19 +397,24 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           }
         }
 
+        const isHalfAndHalf = Boolean(secondHalf);
+        const itemPoints = isHalfAndHalf
+          ? Math.round(((product.points || 0) / 2 + (secondHalf?.points || 0) / 2) * item.quantity)
+          : (product.points || 0) * item.quantity;
+
         return {
           productId: product.id,
           quantity: item.quantity,
           unitPrice,
           subtotal: roundMoney(unitPrice * item.quantity),
           notes: item.notes || null,
-          isHalfAndHalf: Boolean(secondHalf),
+          isHalfAndHalf,
           secondHalfProductId: secondHalf?.id ?? null,
           removedIngredientIds,
           extras,
           comboItems,
           stockRequirements,
-          points: product.points * item.quantity,
+          points: itemPoints,
           targetDateStr,
           targetScheduledDate,
           targetOrderType,
@@ -474,19 +480,28 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       const applyPrize = (prize: any) => {
         if (prize.type === "PRODUCT" || prize.type === "COMBO") {
           const qty = prize.value ? Math.max(1, Math.round(Number(prize.value))) : 1;
-          const matchingItem = prepared.find((item) => item.productId === prize.productId || (prize.product && item.productId === prize.product.id));
-          if (matchingItem && matchingItem.quantity >= qty) {
-            if (matchingItem.quantity === qty) {
-              matchingItem.unitPrice = 0;
-              matchingItem.subtotal = 0;
-              matchingItem.points = 0;
-              matchingItem.notes = matchingItem.notes || "🎁 Beneficio aplicado";
-            } else {
-              matchingItem.subtotal = roundMoney(matchingItem.unitPrice * (matchingItem.quantity - qty));
-              matchingItem.points = Math.round(matchingItem.points * ((matchingItem.quantity - qty) / matchingItem.quantity));
-            }
+          const alreadyFreeItem = prepared.find(
+            (item) => (item.productId === prize.productId || (prize.product && item.productId === prize.product.id)) && item.unitPrice === 0
+          );
+          if (alreadyFreeItem) {
+            alreadyFreeItem.notes = alreadyFreeItem.notes || "🎁 Beneficio aplicado";
           } else {
-            addFreeProduct(prize.product, qty);
+            const paidItem = prepared.find(
+              (item) => (item.productId === prize.productId || (prize.product && item.productId === prize.product.id)) && item.unitPrice > 0
+            );
+            if (paidItem) {
+              if (paidItem.quantity <= qty) {
+                paidItem.unitPrice = 0;
+                paidItem.subtotal = 0;
+                paidItem.points = 0;
+                paidItem.notes = paidItem.notes || "🎁 Beneficio aplicado";
+              } else {
+                paidItem.subtotal = roundMoney(paidItem.unitPrice * (paidItem.quantity - qty));
+                paidItem.points = Math.round(paidItem.points * ((paidItem.quantity - qty) / paidItem.quantity));
+              }
+            } else {
+              addFreeProduct(prize.product, qty);
+            }
           }
         }
         else if (prize.type === "PERCENT") benefitPercent = Math.min(100, benefitPercent + Math.max(0, Number(prize.value || 0)));
@@ -620,6 +635,9 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
 
       // Target client lookup
       let targetClientId: string | null = null;
+      const cleanPhone = cleanPhoneNumber(data.clientPhone || "");
+      const phoneKey = cleanPhone.slice(-6);
+
       if (adminDirectPaid) {
         if (data.clientId) {
           const verified = await tx.client.findFirst({
@@ -628,14 +646,14 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           });
           targetClientId = verified?.id ?? null;
         }
-        if (!targetClientId && data.clientPhone) {
-          const adminPhoneKey = data.clientPhone.replace(/\D/g, "").slice(-6);
+        if (!targetClientId && cleanPhone) {
           const adminClient = await tx.client.findFirst({
             where: {
               tenantId: tenant.id,
               OR: [
-                { phone: data.clientPhone },
-                ...(adminPhoneKey.length === 6 ? [{ phoneLoginKey: adminPhoneKey }] : []),
+                { phone: cleanPhone },
+                ...(cleanPhone !== data.clientPhone ? [{ phone: data.clientPhone }] : []),
+                ...(phoneKey.length >= 6 ? [{ phoneLoginKey: phoneKey }] : []),
               ],
             },
             orderBy: [{ points: "desc" }, { createdAt: "asc" }],
@@ -644,7 +662,41 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           targetClientId = adminClient?.id ?? null;
         }
       } else {
-        targetClientId = loggedClient?.id ?? null;
+        if (loggedClient?.id) {
+          targetClientId = loggedClient.id;
+        } else if (cleanPhone) {
+          // Buscar si el cliente ya existe por teléfono para atribuirle los puntos
+          const matchedClient = await tx.client.findFirst({
+            where: {
+              tenantId: tenant.id,
+              OR: [
+                { phone: cleanPhone },
+                ...(cleanPhone !== data.clientPhone ? [{ phone: data.clientPhone }] : []),
+                ...(phoneKey.length >= 6 ? [{ phoneLoginKey: phoneKey }] : []),
+              ],
+            },
+            orderBy: [{ points: "desc" }, { createdAt: "asc" }],
+            select: { id: true },
+          });
+
+          if (matchedClient) {
+            targetClientId = matchedClient.id;
+          } else {
+            // Crear cuenta pendiente de activación para que los puntos se acumulen sin perderse
+            const pendingClient = await tx.client.create({
+              data: {
+                tenantId: tenant.id,
+                phone: cleanPhone,
+                phoneLoginKey: phoneKey.length >= 6 ? phoneKey : null,
+                name: data.clientName,
+                password: await hashPassword(crypto.randomUUID()),
+                passwordSetupRequired: true,
+              },
+              select: { id: true },
+            });
+            targetClientId = pendingClient.id;
+          }
+        }
       }
 
       let tierMultiplier = 1.0;
@@ -747,9 +799,13 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             paymentMethod: data.paymentMethod,
             total: groupTotal,
             quantityDiscountAmount: groupQuantityDiscount,
-            discountDetails: quantityDiscount ? {
-              ...quantityDiscount,
-              allocatedAmount: groupQuantityDiscount,
+            discountDetails: (quantityDiscount || consumedRouletteWinId || consumedRedemptionId) ? {
+              ...(quantityDiscount ? {
+                ...quantityDiscount,
+                allocatedAmount: groupQuantityDiscount,
+              } : {}),
+              ...(consumedRouletteWinId ? { rouletteWinId: consumedRouletteWinId } : {}),
+              ...(consumedRedemptionId ? { redemptionId: consumedRedemptionId } : {}),
             } : undefined,
             status: initialOrderStatus,
             paymentStatus: initialPaymentStatus,

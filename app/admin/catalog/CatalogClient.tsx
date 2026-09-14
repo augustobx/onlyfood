@@ -301,7 +301,23 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                       </div>
                       <div className="space-y-2">
                         <Label>Precio ($)</Label>
-                        <Input type="number" min="0" step="0.01" value={newCombo.basePrice} onChange={e => setNewCombo({ ...newCombo, basePrice: e.target.value })} required />
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={newCombo.basePrice}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const num = parseFloat(val);
+                            const shouldSuggest = !newCombo.id && (!newCombo.points || newCombo.points === "0");
+                            setNewCombo({
+                              ...newCombo,
+                              basePrice: val,
+                              points: shouldSuggest && !isNaN(num) && num > 0 ? Math.max(10, Math.round(num / 100)).toString() : newCombo.points,
+                            });
+                          }}
+                          required
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Puntos (Otorga)</Label>
@@ -511,7 +527,23 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                         </div>
                         <div className="space-y-2">
                           <Label>Precio Base</Label>
-                          <Input type="number" min="0" step="0.01" value={newProduct.basePrice} onChange={e => setNewProduct({ ...newProduct, basePrice: e.target.value })} required />
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={newProduct.basePrice}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const num = parseFloat(val);
+                              const shouldSuggest = !newProduct.id && (!newProduct.points || newProduct.points === "0");
+                              setNewProduct({
+                                ...newProduct,
+                                basePrice: val,
+                                points: shouldSuggest && !isNaN(num) && num > 0 ? Math.max(10, Math.round(num / 100)).toString() : newProduct.points,
+                              });
+                            }}
+                            required
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Puntos (Otorga)</Label>
