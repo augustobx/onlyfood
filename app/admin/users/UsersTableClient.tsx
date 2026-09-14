@@ -1,7 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { Receipt, Gift, UserCheck, Loader2, CheckCircle2, Star, Plus, Minus, KeyRound } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  Receipt,
+  Gift,
+  Loader2,
+  CheckCircle2,
+  Star,
+  Plus,
+  Minus,
+  KeyRound,
+  Search,
+  SlidersHorizontal,
+  X,
+  Users,
+  Merge,
+  GitMerge,
+  Sparkles,
+  ShieldCheck,
+  AlertCircle,
+  Phone,
+  ArrowUpDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -10,14 +30,15 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { adminAssignRewardToClient, adminAdjustClientPoints } from "@/app/actions/admin-rewards";
-import { resetUserPassword } from "@/app/actions/admin-users";
+import { resetUserPassword, detectDuplicateClients, mergeClients, type DuplicateClientGroup } from "@/app/actions/admin-users";
 
 interface UsersTableClientProps {
   initialUsers: any[];
   rewards: any[];
+  tiers?: any[];
 }
 
-export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProps) {
+export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTableClientProps) {
   const [users, setUsers] = useState<any[]>(initialUsers);
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [selectedRewardId, setSelectedRewardId] = useState<string>("");
@@ -25,14 +46,105 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
   const [isAssigning, setIsAssigning] = useState(false);
   const [resettingId, setResettingId] = useState<string | null>(null);
 
+  // Filtros y Buscador
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tierFilter, setTierFilter] = useState("ALL");
+  const [pointsFilter, setPointsFilter] = useState("ALL");
+  const [passwordFilter, setPasswordFilter] = useState("ALL");
+  const [ordersFilter, setOrdersFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState<"POINTS_DESC" | "POINTS_ASC" | "ORDERS_DESC" | "SPENT_DESC" | "NEWEST">("POINTS_DESC");
+
+  // Detección y Fusión de Duplicados
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateClientGroup[] | null>(null);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+  const [mergingClusterKey, setMergingClusterKey] = useState<string | null>(null);
+
+  // Fusión Manual Individual
+  const [manualMergeSource, setManualMergeSource] = useState<any | null>(null);
+  const [manualMergeTargetId, setManualMergeTargetId] = useState<string>("");
+  const [isManualMergeModalOpen, setIsManualMergeModalOpen] = useState(false);
+  const [isManualMerging, setIsManualMerging] = useState(false);
+
   // Modal Ajuste Rápido de Puntos
   const [adjustClient, setAdjustClient] = useState<any | null>(null);
   const [adjustPointsValue, setAdjustPointsValue] = useState<number>(50);
   const [adjustMode, setAdjustMode] = useState<"ADD" | "SUB">("ADD");
   const [isAdjusting, setIsAdjusting] = useState(false);
 
+  // Filtrado y Ordenamiento Reactivo
+  const filteredUsers = useMemo(() => {
+    return users
+      .filter((u) => {
+        // Búsqueda por nombre o teléfono
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          const matchesName = (u.name || "").toLowerCase().includes(q);
+          const matchesPhone = (u.phone || "").toLowerCase().includes(q);
+          if (!matchesName && !matchesPhone) return false;
+        }
+
+        // Filtro por Insignia / Rango
+        if (tierFilter !== "ALL") {
+          if (tierFilter === "NONE") {
+            if (u.tier) return false;
+          } else {
+            if (u.tier?.id !== tierFilter) return false;
+          }
+        }
+
+        // Filtro por Saldo de Puntos
+        if (pointsFilter === "WITH_POINTS" && u.points <= 0) return false;
+        if (pointsFilter === "ZERO_POINTS" && u.points > 0) return false;
+
+        // Filtro por Estado de Clave
+        if (passwordFilter === "ACTIVE" && u.passwordSetupRequired) return false;
+        if (passwordFilter === "PENDING" && !u.passwordSetupRequired) return false;
+
+        // Filtro por Compras
+        const ordersCount = u.ordersCount ?? u._count?.orders ?? 0;
+        if (ordersFilter === "WITH_ORDERS" && ordersCount === 0) return false;
+        if (ordersFilter === "NO_ORDERS" && ordersCount > 0) return false;
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "POINTS_DESC") return b.points - a.points;
+        if (sortBy === "POINTS_ASC") return a.points - b.points;
+        if (sortBy === "ORDERS_DESC") {
+          const countA = a.ordersCount ?? a._count?.orders ?? 0;
+          const countB = b.ordersCount ?? b._count?.orders ?? 0;
+          return countB - countA;
+        }
+        if (sortBy === "SPENT_DESC") return (b.totalSpent || 0) - (a.totalSpent || 0);
+        if (sortBy === "NEWEST") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return 0;
+      });
+  }, [users, searchQuery, tierFilter, pointsFilter, passwordFilter, ordersFilter, sortBy]);
+
+  const hasActiveFilters =
+    searchQuery !== "" ||
+    tierFilter !== "ALL" ||
+    pointsFilter !== "ALL" ||
+    passwordFilter !== "ALL" ||
+    ordersFilter !== "ALL" ||
+    sortBy !== "POINTS_DESC";
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setTierFilter("ALL");
+    setPointsFilter("ALL");
+    setPasswordFilter("ALL");
+    setOrdersFilter("ALL");
+    setSortBy("POINTS_DESC");
+  };
+
   const handleResetPassword = async (user: any) => {
-    if (!confirm(`¿Restablecer el acceso de ${user.name || user.phone}? El cliente podrá definir una nueva clave la próxima vez que ingrese o en "¿Olvidaste tu clave?".`)) {
+    if (
+      !confirm(
+        `¿Restablecer el acceso de ${user.name || user.phone}? El cliente podrá definir una nueva clave la próxima vez que ingrese o en "¿Olvidaste tu clave?".`
+      )
+    ) {
       return;
     }
     setResettingId(user.id);
@@ -42,11 +154,142 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
         toast.success(`Acceso restablecido para ${user.name || user.phone}`, {
           description: "El cliente ya puede ingresar una nueva contraseña directamente desde la tienda.",
         });
+        setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, passwordSetupRequired: true } : u)));
       } else {
         toast.error(res.error);
       }
     } finally {
       setResettingId(null);
+    }
+  };
+
+  const handleDetectDuplicates = async () => {
+    setIsDetecting(true);
+    try {
+      const res = await detectDuplicateClients();
+      if (res.success && res.groups) {
+        setDuplicateGroups(res.groups);
+        setIsDuplicateModalOpen(true);
+        if (res.groups.length === 0) {
+          toast.info("No se encontraron clientes duplicados", {
+            description: "Todos los números de teléfono registrados son únicos o canónicos.",
+          });
+        }
+      } else {
+        toast.error(res.error || "Error al buscar duplicados");
+      }
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const handleMergeGroup = async (primaryId: string, secondaryId: string, clusterKey: string) => {
+    setMergingClusterKey(clusterKey);
+    try {
+      const res = await mergeClients(primaryId, secondaryId);
+      if (res.success) {
+        toast.success("Clientes unificados con éxito", {
+          description: `Se consolidaron los puntos (+${res.transferredPoints} pts) y todos los pedidos en la cuenta elegida.`,
+        });
+
+        // Actualizar la tabla local
+        setUsers((prev) => {
+          const sec = prev.find((u) => u.id === secondaryId);
+          const transPoints = sec?.points || 0;
+          const transOrders = sec?.ordersCount || 0;
+          const transSpent = sec?.totalSpent || 0;
+
+          return prev
+            .filter((u) => u.id !== secondaryId)
+            .map((u) =>
+              u.id === primaryId
+                ? {
+                    ...u,
+                    points: u.points + transPoints,
+                    ordersCount: (u.ordersCount || 0) + transOrders,
+                    totalSpent: (u.totalSpent || 0) + transSpent,
+                    name: u.name || sec?.name || null,
+                  }
+                : u
+            );
+        });
+
+        // Actualizar el grupo en el modal de duplicados
+        setDuplicateGroups((prev) => {
+          if (!prev) return null;
+          return prev
+            .map((g) => ({
+              ...g,
+              clients: g.clients.filter((c) => c.id !== secondaryId),
+            }))
+            .filter((g) => g.clients.length > 1);
+        });
+      } else {
+        toast.error(res.error || "No se pudo unificar las cuentas");
+      }
+    } finally {
+      setMergingClusterKey(null);
+    }
+  };
+
+  const openManualMergeModal = (user: any) => {
+    setManualMergeSource(user);
+    // Sugerir como target el primer cliente distinto
+    const firstOther = users.find((u) => u.id !== user.id);
+    setManualMergeTargetId(firstOther ? firstOther.id : "");
+    setIsManualMergeModalOpen(true);
+  };
+
+  const handleSaveManualMerge = async () => {
+    if (!manualMergeSource || !manualMergeTargetId) return;
+    const targetUser = users.find((u) => u.id === manualMergeTargetId);
+    if (!targetUser) return;
+
+    if (
+      !confirm(
+        `¿Confirmás unir la cuenta de ${manualMergeSource.name || manualMergeSource.phone} DENTRO de la cuenta de ${
+          targetUser.name || targetUser.phone
+        }?\n\nLos puntos (+${manualMergeSource.points} pts) y pedidos se transferirán a ${
+          targetUser.name || targetUser.phone
+        } y el registro secundario será eliminado.`
+      )
+    ) {
+      return;
+    }
+
+    setIsManualMerging(true);
+    try {
+      const res = await mergeClients(manualMergeTargetId, manualMergeSource.id);
+      if (res.success) {
+        toast.success("Cuentas unificadas correctamente", {
+          description: `Se transfirieron ${res.transferredPoints} puntos a ${targetUser.name || targetUser.phone}.`,
+        });
+        setUsers((prev) => {
+          const transPoints = manualMergeSource.points || 0;
+          const transOrders = manualMergeSource.ordersCount || 0;
+          const transSpent = manualMergeSource.totalSpent || 0;
+
+          return prev
+            .filter((u) => u.id !== manualMergeSource.id)
+            .map((u) =>
+              u.id === manualMergeTargetId
+                ? {
+                    ...u,
+                    points: u.points + transPoints,
+                    ordersCount: (u.ordersCount || 0) + transOrders,
+                    totalSpent: (u.totalSpent || 0) + transSpent,
+                    name: u.name || manualMergeSource.name || null,
+                  }
+                : u
+            );
+        });
+        setIsManualMergeModalOpen(false);
+        setManualMergeSource(null);
+      } else {
+        toast.error(res.error || "Error al unir cuentas");
+      }
+    } finally {
+      setIsManualMerging(false);
     }
   };
 
@@ -110,7 +353,152 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
   const currentReward = rewards.find((r) => r.id === selectedRewardId);
 
   return (
-    <>
+    <div className="space-y-4">
+      {/* ═══ BARRA DE HERRAMIENTAS: BÚSQUEDA, FILTROS Y ACCIÓN DE DUPLICADOS ═══ */}
+      <div className="bg-white border rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Buscador en Vivo */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por nombre o número de teléfono..."
+              className="pl-10 h-10 rounded-xl text-xs font-medium border-slate-200"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Botón Detectar y Unir Duplicados */}
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              disabled={isDetecting}
+              onClick={handleDetectDuplicates}
+              className="h-10 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-orange-600 to-amber-600 hover:brightness-105 text-white shadow-sm flex items-center gap-1.5"
+            >
+              {isDetecting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <GitMerge className="w-3.5 h-3.5" />
+              )}
+              Detectar y Unir Duplicados
+            </Button>
+          </div>
+        </div>
+
+        {/* Fila de Filtros y Ordenamiento */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 border-t border-slate-100 text-xs">
+          {/* Filtro por Rango VIP */}
+          <div>
+            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Insignia / Rango</Label>
+            <Select value={tierFilter} onValueChange={(v) => setTierFilter(v ?? "ALL")}>
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+                <SelectValue placeholder="Todos los rangos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos los rangos</SelectItem>
+                {tiers.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+                <SelectItem value="NONE">Cliente Base (Sin rango)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por Saldo de Puntos */}
+          <div>
+            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Saldo de Puntos</Label>
+            <Select value={pointsFilter} onValueChange={(v) => setPointsFilter(v ?? "ALL")}>
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos los saldos</SelectItem>
+                <SelectItem value="WITH_POINTS">Con puntos (&gt; 0)</SelectItem>
+                <SelectItem value="ZERO_POINTS">Sin puntos (0 pts)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por Estado de Clave */}
+          <div>
+            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Estado de Clave</Label>
+            <Select value={passwordFilter} onValueChange={(v) => setPasswordFilter(v ?? "ALL")}>
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todas las cuentas</SelectItem>
+                <SelectItem value="ACTIVE">Contraseña activa</SelectItem>
+                <SelectItem value="PENDING">Pendiente de setup</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por Pedidos */}
+          <div>
+            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Historial de Compras</Label>
+            <Select value={ordersFilter} onValueChange={(v) => setOrdersFilter(v ?? "ALL")}>
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todas las compras</SelectItem>
+                <SelectItem value="WITH_ORDERS">Con pedidos realizados</SelectItem>
+                <SelectItem value="NO_ORDERS">Sin pedidos aún</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Ordenar por */}
+          <div>
+            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Ordenar por</Label>
+            <Select value={sortBy} onValueChange={(v: any) => setSortBy(v ?? "POINTS_DESC")}>
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+                <SelectValue placeholder="Ordenar..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="POINTS_DESC">Mayor saldo de puntos</SelectItem>
+                <SelectItem value="POINTS_ASC">Menor saldo de puntos</SelectItem>
+                <SelectItem value="ORDERS_DESC">Mayor cantidad de pedidos</SelectItem>
+                <SelectItem value="SPENT_DESC">Mayor gasto total ($)</SelectItem>
+                <SelectItem value="NEWEST">Más recientes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Barra de Resumen de Filtros */}
+        <div className="flex items-center justify-between text-xs pt-1 text-slate-500">
+          <span className="font-bold">
+            Mostrando <strong className="text-slate-900">{filteredUsers.length}</strong> de{" "}
+            <strong className="text-slate-900">{users.length}</strong> clientes
+          </span>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="text-xs font-black text-orange-600 hover:text-orange-700 flex items-center gap-1 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" /> Limpiar filtros
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ═══ TABLA DE CLIENTES ═══ */}
       <div className="border rounded-2xl bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50 border-b text-slate-500 uppercase text-[10px] font-black tracking-wider">
@@ -124,11 +512,22 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
-            {users.map((u) => (
+            {filteredUsers.map((u) => (
               <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
                 <td className="px-6 py-4">
-                  <div className="font-extrabold text-slate-900">{u.name || "Sin nombre"}</div>
-                  <div className="text-[11px] text-slate-400 font-mono">{u.phone}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-extrabold text-slate-900">{u.name || "Sin nombre"}</div>
+                    {u.passwordSetupRequired ? (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        Setup Pendiente
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-0.5">
+                        ✓ Activa
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">{u.phone}</div>
                 </td>
                 <td className="px-6 py-4">
                   {u.tier ? (
@@ -156,12 +555,13 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
                   </span>
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => openAssignModal(u)}
-                      className="rounded-xl text-[11px] font-black border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100 h-7 px-2.5"
+                      className="rounded-xl text-[11px] font-black border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100 h-7 px-2"
+                      title="Otorgar recompensa del catálogo descontando puntos"
                     >
                       <Gift className="w-3 h-3 mr-1 text-purple-600" /> Premiar
                     </Button>
@@ -170,7 +570,8 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
                       size="sm"
                       variant="ghost"
                       onClick={() => openAdjustModal(u)}
-                      className="rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-100 h-7 px-2.5"
+                      className="rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-100 h-7 px-2"
+                      title="Sumar o restar puntos manualmente"
                     >
                       <Star className="w-3 h-3 mr-1 text-yellow-500" /> Puntos
                     </Button>
@@ -183,17 +584,33 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
                       className="rounded-xl text-[11px] font-bold text-amber-700 hover:bg-amber-50 hover:text-amber-800 h-7 px-2"
                       title="Restablecer contraseña para que el cliente pueda definir una nueva"
                     >
-                      {resettingId === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3 mr-1 text-amber-600" />}
+                      {resettingId === u.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <KeyRound className="w-3 h-3 mr-1 text-amber-600" />
+                      )}
                       Clave
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => openManualMergeModal(u)}
+                      className="rounded-xl text-[11px] font-bold text-blue-700 hover:bg-blue-50 hover:text-blue-800 h-7 px-2"
+                      title="Unir este usuario con otra cuenta duplicada manualmente"
+                    >
+                      <GitMerge className="w-3 h-3 mr-1 text-blue-600" /> Unir
                     </Button>
                   </div>
                 </td>
               </tr>
             ))}
-            {users.length === 0 && (
+            {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                  Todavía no hay clientes registrados en el sistema.
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  {users.length === 0
+                    ? "Todavía no hay clientes registrados en el sistema."
+                    : "No se encontraron clientes que coincidan con los filtros aplicados."}
                 </td>
               </tr>
             )}
@@ -201,7 +618,215 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
         </table>
       </div>
 
-      {/* MODAL ASIGNAR PREMIO A CLIENTE ESPECÍFICO */}
+      {/* ═══ MODAL DETECCIÓN Y UNIFICACIÓN DE DUPLICADOS ═══ */}
+      <Dialog open={isDuplicateModalOpen} onOpenChange={setIsDuplicateModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl p-6 bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <GitMerge className="w-5 h-5 text-orange-600" />
+              Clientes Duplicados Detectados
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Se detectaron clientes con números de teléfono equivalentes (diferencias de prefijos +54, 9, 0, o espacios). Podés
+              consolidar sus puntos y pedidos en 1 clic.
+            </DialogDescription>
+          </DialogHeader>
+
+          {duplicateGroups && duplicateGroups.length === 0 ? (
+            <div className="py-12 text-center text-slate-500 space-y-2">
+              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+              <p className="font-black text-sm text-slate-800">¡Base de clientes limpia y unificada!</p>
+              <p className="text-xs text-slate-400">No se encontraron números duplicados con prefijos similares.</p>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-2">
+              {duplicateGroups?.map((group, gIdx) => {
+                const primary = group.clients.find((c) => c.id === group.suggestedPrimaryId) || group.clients[0];
+                const secondaries = group.clients.filter((c) => c.id !== primary.id);
+
+                return (
+                  <div
+                    key={gIdx}
+                    className="p-4 rounded-2xl border border-orange-200 bg-orange-50/40 space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-2 border-b border-orange-200/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-orange-950 uppercase tracking-wider">
+                          Grupo Duplicado #{gIdx + 1}
+                        </span>
+                        <Badge className="bg-orange-200 text-orange-800 font-bold text-[10px]">
+                          {group.clients.length} cuentas vinculadas
+                        </Badge>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-500">{group.canonicalPhone}</span>
+                    </div>
+
+                    {/* Comparación de Cuentas */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      {/* Cuenta Principal Recomendada */}
+                      <div className="p-3 bg-white rounded-xl border border-emerald-300 shadow-xs relative">
+                        <span className="absolute -top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-600 text-white shadow-2xs">
+                          Cuenta a Preservar
+                        </span>
+                        <div className="font-black text-slate-900 text-sm">{primary.name || "Sin nombre"}</div>
+                        <div className="text-slate-500 font-mono text-[11px]">{primary.phone}</div>
+                        <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-2 gap-1 text-[11px]">
+                          <div>
+                            <span className="text-slate-400 block">Puntos:</span>
+                            <strong className="text-amber-700">🪙 {primary.points} pts</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Pedidos:</span>
+                            <strong className="text-slate-800">{primary.ordersCount} compras</strong>
+                          </div>
+                        </div>
+                        <div className="mt-1 text-[10px]">
+                          {primary.passwordSetupRequired ? (
+                            <span className="text-amber-700 font-semibold">⚠️ Requiere definir clave</span>
+                          ) : (
+                            <span className="text-emerald-700 font-semibold">✓ Contraseña activa</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Cuentas Secundarias a Fusionar */}
+                      {secondaries.map((sec) => {
+                        const clusterKey = `${primary.id}-${sec.id}`;
+                        const isMergingThis = mergingClusterKey === clusterKey;
+
+                        return (
+                          <div
+                            key={sec.id}
+                            className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs relative flex flex-col justify-between"
+                          >
+                            <div>
+                              <span className="px-2 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 block w-fit mb-1">
+                                Cuenta Duplicada
+                              </span>
+                              <div className="font-extrabold text-slate-900 text-sm">{sec.name || "Sin nombre"}</div>
+                              <div className="text-slate-500 font-mono text-[11px]">{sec.phone}</div>
+                              <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-2 gap-1 text-[11px]">
+                                <div>
+                                  <span className="text-slate-400 block">Puntos:</span>
+                                  <strong className="text-amber-700">🪙 {sec.points} pts</strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 block">Pedidos:</span>
+                                  <strong className="text-slate-800">{sec.ordersCount} compras</strong>
+                                </div>
+                              </div>
+                            </div>
+
+                            <Button
+                              size="sm"
+                              disabled={Boolean(mergingClusterKey)}
+                              onClick={() => handleMergeGroup(primary.id, sec.id, clusterKey)}
+                              className="mt-3 w-full h-8 rounded-xl font-black text-[11px] bg-orange-600 hover:bg-orange-700 text-white shadow-xs"
+                            >
+                              {isMergingThis ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <>
+                                  <Merge className="w-3 h-3 mr-1" /> Unir en la cuenta principal
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <DialogFooter className="pt-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsDuplicateModalOpen(false)}
+              className="rounded-xl font-bold text-xs"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ MODAL UNIFICACIÓN MANUAL INDIVIDUAL ═══ */}
+      <Dialog open={isManualMergeModalOpen} onOpenChange={setIsManualMergeModalOpen}>
+        <DialogContent className="max-w-md rounded-3xl p-6 bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <GitMerge className="w-5 h-5 text-blue-600" />
+              Unir Cuenta Manualmente
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Consolidá los puntos y pedidos de esta cuenta dentro de otra cuenta destino.
+            </DialogDescription>
+          </DialogHeader>
+
+          {manualMergeSource && (
+            <div className="space-y-4 pt-2 text-xs">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-2xl space-y-1 text-red-950">
+                <span className="text-[10px] font-black uppercase text-red-600 block">Cuenta a absorber (será eliminada):</span>
+                <div className="font-black text-sm">{manualMergeSource.name || "Sin nombre"}</div>
+                <div className="font-mono text-[11px] text-red-700">{manualMergeSource.phone}</div>
+                <div className="font-bold text-red-800 text-[11px] pt-1 border-t border-red-200 flex justify-between">
+                  <span>Puntos a transferir:</span>
+                  <span>🪙 {manualMergeSource.points} pts</span>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold text-slate-700">Seleccionar Cuenta Principal Destino</Label>
+                <Select value={manualMergeTargetId} onValueChange={(val) => setManualMergeTargetId(val ?? "")}>
+                  <SelectTrigger className="h-11 rounded-xl font-bold mt-1 text-xs">
+                    <SelectValue placeholder="Elegir cliente destino..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {users
+                      .filter((u) => u.id !== manualMergeSource.id)
+                      .map((u) => (
+                        <SelectItem key={u.id} value={u.id} className="text-xs">
+                          {u.name || "Sin nombre"} ({u.phone}) — 🪙 {u.points} pts
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-950 space-y-1">
+                <span className="font-black text-xs block">Resultado de la unificación:</span>
+                <p className="text-[11px] leading-relaxed text-blue-800">
+                  Todos los pedidos, cupones y puntos acumulados se sumarán al cliente destino. La cuenta origen dejará de existir
+                  y el cliente podrá iniciar sesión en su cuenta unificada.
+                </p>
+              </div>
+
+              <DialogFooter className="pt-2 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsManualMergeModalOpen(false)}
+                  className="rounded-xl font-bold text-xs"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={isManualMerging || !manualMergeTargetId}
+                  onClick={handleSaveManualMerge}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs"
+                >
+                  {isManualMerging ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+                  Confirmar y Unir
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ MODAL ASIGNAR PREMIO A CLIENTE ESPECÍFICO ═══ */}
       <Dialog open={isAssignModalOpen} onOpenChange={setIsAssignModalOpen}>
         <DialogContent className="max-w-md rounded-3xl p-6 bg-white">
           <DialogHeader>
@@ -285,7 +910,7 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
         </DialogContent>
       </Dialog>
 
-      {/* MODAL AJUSTAR PUNTOS MANUALMENTE */}
+      {/* ═══ MODAL AJUSTAR PUNTOS MANUALMENTE ═══ */}
       <Dialog open={Boolean(adjustClient)} onOpenChange={(open) => !open && setAdjustClient(null)}>
         <DialogContent className="max-w-sm rounded-3xl p-6 bg-white">
           <DialogHeader>
@@ -361,6 +986,6 @@ export function UsersTableClient({ initialUsers, rewards }: UsersTableClientProp
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

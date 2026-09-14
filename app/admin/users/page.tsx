@@ -110,7 +110,7 @@ export default async function AdminUsersPage() {
         </Card>
       </div>
 
-      <UsersTableClient initialUsers={usersWithTiers} rewards={rewards} />
+      <UsersTableClient initialUsers={usersWithTiers} rewards={rewards} tiers={tiers} />
     </div>
   );
 }
