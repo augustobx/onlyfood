@@ -8,7 +8,7 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { getTenantIntegration, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
 import { getLoggedClient, hashPassword } from "@/lib/auth";
-import { cleanPhoneNumber } from "@/app/actions/auth";
+import { cleanPhoneNumber } from "@/lib/phone";
 import { getPublicConfig } from "@/lib/public-config";
 import { consumeRateLimit, getRequestIp, getRequestOrigin } from "@/lib/request-security";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";

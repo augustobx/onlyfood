@@ -5,6 +5,7 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { hashPassword, verifyPassword, createSession, clearSession, getLoggedClient } from "@/lib/auth";
 import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
+import { cleanPhoneNumber } from "@/lib/phone";
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9]{8,15}$/);
 const loginIdentifierSchema = z.string().trim().min(1).max(50);
@@ -20,10 +21,6 @@ type LoginClient = {
   points: number;
   createdAt: Date;
 };
-
-export function cleanPhoneNumber(value: string) {
-  return value.replace(/[\s\-\(\)\.]/g, "").trim();
-}
 
 function phoneLoginKey(value: string) {
   const digits = value.replace(/\D/g, "");
