@@ -1,6 +1,8 @@
 "use server";
 
 import { z } from "zod";
+import crypto from "node:crypto";
+import { prisma } from "@/lib/prisma";
 import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { hashPassword, verifyPassword, createSession, clearSession, getLoggedClient } from "@/lib/auth";
@@ -20,6 +22,8 @@ type LoginClient = {
   phoneLoginKey: string | null;
   password: string;
   passwordSetupRequired: boolean;
+  forcePasswordChange: boolean;
+  temporaryPasswordExpiresAt: Date | null;
   name: string | null;
   points: number;
   createdAt: Date;
@@ -155,7 +159,7 @@ export async function loginClient(formData: FormData) {
     if (activeClients.length === 0) {
       return {
         success: false,
-        error: "Esta cuenta requiere activación segura. Si no tenés correo, pedí un código al comercio desde «¿Olvidaste tu clave?».",
+        error: "Esta cuenta requiere activación. Si no tenés correo, solicitá el reseteo al comercio desde «¿Olvidaste tu clave?».",
       };
     }
 
@@ -172,6 +176,26 @@ export async function loginClient(formData: FormData) {
       }
     }
     if (!matchedClient) return { success: false, error: "Credenciales incorrectas." };
+    if (matchedClient.forcePasswordChange) {
+      if (!matchedClient.temporaryPasswordExpiresAt ||
+        matchedClient.temporaryPasswordExpiresAt <= new Date()) {
+        return { success: false, error: "La clave temporal venció. Solicitá un nuevo reseteo al comercio." };
+      }
+      // No crear una sesión normal con contraseña temporal.
+      // Este permiso sirve ÚNICAMENTE para definir email y clave definitiva.
+      const setupToken = crypto.randomBytes(32).toString("hex");
+      await prisma.clientRecoveryCode.deleteMany({
+        where: { tenantId: tenant.id, clientId: matchedClient.id, phoneAtIssue: "PASSWORD_SETUP" },
+      });
+      await prisma.clientRecoveryCode.create({
+        data: {
+          tenantId: tenant.id, clientId: matchedClient.id, phoneAtIssue: "PASSWORD_SETUP",
+          codeHash: crypto.createHash("sha256").update(setupToken).digest("hex"),
+          expiresAt: new Date(Date.now() + 20 * 60_000),
+        },
+      });
+      return { success: true, requiresSetup: true, setupToken };
+    }
     if (matchedLegacyPassword) {
       await db.client.update({ where: { id: matchedClient.id }, data: { password: await hashPassword(parsed.data.password) } });
     }
