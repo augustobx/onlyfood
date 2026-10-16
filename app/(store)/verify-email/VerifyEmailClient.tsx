@@ -11,7 +11,7 @@ export function VerifyEmailClient({ token }: { token: string }) {
     setBusy(true);
     try {
       const result = await confirmClientEmailToken(token);
-      setMessage(result.success ? "Correo verificado. Ya podés recuperar tu contraseña por email." : result.error);
+      setMessage(result.success ? "Correo verificado. Ya podés recuperar tu contraseña por email." : (result.error || "No se pudo verificar el correo."));
     } catch { setMessage("No se pudo verificar el correo."); }
     finally { setBusy(false); }
   };

@@ -17,7 +17,7 @@ export function ResetPasswordClient({ token }: { token: string }) {
     try {
       const result = await resetClientPasswordWithToken(token, password);
       if (result.success) { setComplete(true); setStatus("Tu contraseña fue actualizada. Podés iniciar sesión."); }
-      else setStatus(result.error);
+      else setStatus(result.error || "No se pudo restablecer la contraseña.");
     } catch { setStatus("No se pudo restablecer la contraseña."); }
     finally { setBusy(false); }
   };
