@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 
-export function Navbar({ config }: { config?: any }) {
+export function Navbar({ config, isAuthenticated = false }: { config?: any; isAuthenticated?: boolean }) {
   const items = useCartStore((state) => state.items);
   const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
   const [open, setOpen] = useState(false);
@@ -20,6 +20,8 @@ export function Navbar({ config }: { config?: any }) {
   const primaryColor = config?.primaryColor || '#f97316';
   const secondaryColor = config?.secondaryColor || '#9333ea';
   const theme = config?.storeTheme;
+  const guestMode = !isAuthenticated && config?.requireLoginForCheckout === false;
+  const ordersHref = guestMode ? "/orders" : "/profile";
 
   // URBAN_DARK, FAST_NEO y CLEAN_BOUTIQUE manejan su propia navegación
   // dentro de sus storefronts → no renderizar ningún Navbar global.
@@ -31,7 +33,7 @@ export function Navbar({ config }: { config?: any }) {
   if (theme === "NEXO") {
     const navItems = [
       { href: "/", label: "Inicio", icon: Home },
-      { href: "/profile", label: "Mis pedidos", icon: UserRound },
+      { href: ordersHref, label: "Mis pedidos", icon: UserRound },
     ];
     return (
       <>
@@ -105,8 +107,8 @@ export function Navbar({ config }: { config?: any }) {
                 <Link href="/" onClick={() => setOpen(false)} className="text-lg font-bold p-4 hover:brightness-95 transition-colors rounded-2xl flex items-center gap-2" style={{ backgroundColor: `${primaryColor}15`, color: primaryColor }}>
                    🛍️ Menú de Productos
                 </Link>
-                <Link href="/profile" onClick={() => setOpen(false)} className="text-lg font-bold p-4 hover:brightness-95 transition-colors rounded-2xl flex items-center gap-2" style={{ backgroundColor: `${secondaryColor}15`, color: secondaryColor }}>
-                   🧾 Mis Pedidos / Puntos
+                <Link href={ordersHref} onClick={() => setOpen(false)} className="text-lg font-bold p-4 hover:brightness-95 transition-colors rounded-2xl flex items-center gap-2" style={{ backgroundColor: `${secondaryColor}15`, color: secondaryColor }}>
+                   🧾 {guestMode ? "Mis pedidos sin cuenta" : "Mis pedidos / Puntos"}
                 </Link>
               </div>
             </SheetContent>
