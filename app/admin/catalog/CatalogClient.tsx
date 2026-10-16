@@ -66,7 +66,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
 
   const [newProduct, setNewProduct] = useState({
     id: undefined as string | undefined,
-    name: "", basePrice: "", points: "0", description: "", categoryId: "", imageUrl: "",
+    name: "", basePrice: "", points: "0", description: "", allergenInfo: "", categoryId: "", imageUrl: "",
     ingredientsData: [] as { id: string, quantity: number }[], extraIds: [] as string[],
     allowHalf: false, onlyHalf: false, allowRemoveIngredients: true,
     availableDays: [] as string[],
@@ -75,7 +75,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
 
   const [newCombo, setNewCombo] = useState({
     id: undefined as string | undefined,
-    name: "", basePrice: "", points: "0", description: "", imageUrl: "",
+    name: "", basePrice: "", points: "0", description: "", allergenInfo: "", imageUrl: "",
     comboItemsData: [] as { id: string, quantity: number, pieces?: number, productInfo?: any }[]
   });
 
@@ -190,7 +190,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
     if (res.success) {
       toast.success("Producto guardado");
       setProductDialogOpen(false);
-      setNewProduct({ id: undefined, name: "", basePrice: "", points: "0", description: "", categoryId: "", imageUrl: "", ingredientsData: [], extraIds: [], allowHalf: false, onlyHalf: false, allowRemoveIngredients: true, availableDays: [], isCombo: false, comboItemsData: [] });
+      setNewProduct({ id: undefined, name: "", basePrice: "", points: "0", description: "", allergenInfo: "", categoryId: "", imageUrl: "", ingredientsData: [], extraIds: [], allowHalf: false, onlyHalf: false, allowRemoveIngredients: true, availableDays: [], isCombo: false, comboItemsData: [] });
     }
     else { toast.error("Error al guardar producto"); }
   };
@@ -220,7 +220,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
     if (res.success) {
       toast.success("Combo guardado");
       setComboDialogOpen(false);
-      setNewCombo({ id: undefined, name: "", basePrice: "", points: "0", description: "", imageUrl: "", comboItemsData: [] });
+      setNewCombo({ id: undefined, name: "", basePrice: "", points: "0", description: "", allergenInfo: "", imageUrl: "", comboItemsData: [] });
     }
     else { toast.error("Error al guardar combo"); }
   };
@@ -283,7 +283,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
               </div>
 
               <Button onClick={() => {
-                setNewCombo({ id: undefined, name: "", basePrice: "", points: "0", description: "", imageUrl: "", comboItemsData: [] });
+                setNewCombo({ id: undefined, name: "", basePrice: "", points: "0", description: "", allergenInfo: "", imageUrl: "", comboItemsData: [] });
                 setComboDialogOpen(true);
               }}><Plus className="w-4 h-4 mr-2" /> Agregar Combo</Button>
               <Dialog open={isComboDialogOpen} onOpenChange={setComboDialogOpen}>
@@ -436,7 +436,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                     <Switch checked={combo.isActive} onCheckedChange={() => handleToggleProduct(combo.id, combo.isActive)} />
                     <Button variant="ghost" size="icon" className="text-blue-500 hover:bg-blue-50 mt-2" onClick={() => {
                       setNewCombo({
-                        id: combo.id, name: combo.name, basePrice: combo.basePrice.toString(), points: combo.points.toString(), description: combo.description || "", imageUrl: combo.imageUrl || "",
+                        id: combo.id, name: combo.name, basePrice: combo.basePrice.toString(), points: combo.points.toString(), description: combo.description || "", allergenInfo: combo.allergenInfo || "", imageUrl: combo.imageUrl || "",
                         comboItemsData: combo.comboItemsConfig?.map((ci: any) => ({
                           id: ci.productId,
                           quantity: ci.quantity,
@@ -489,7 +489,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                   <Pen className="w-4 h-4" />
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => {
-                  setNewProduct({ id: undefined, name: "", basePrice: "", points: "0", description: "", categoryId: cat.id, imageUrl: "", ingredientsData: [], extraIds: [], allowHalf: false, onlyHalf: false, allowRemoveIngredients: true, availableDays: [], isCombo: false, comboItemsData: [] });
+                  setNewProduct({ id: undefined, name: "", basePrice: "", points: "0", description: "", allergenInfo: "", categoryId: cat.id, imageUrl: "", ingredientsData: [], extraIds: [], allowHalf: false, onlyHalf: false, allowRemoveIngredients: true, availableDays: [], isCombo: false, comboItemsData: [] });
                   setProductDialogOpen(true);
                 }}><Plus className="w-4 h-4 mr-2" /> Producto</Button>
                 <Dialog open={isProductDialogOpen && newProduct.categoryId === cat.id} onOpenChange={(open) => {
@@ -553,6 +553,14 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                       <div className="space-y-2">
                         <Label>Descripción</Label>
                         <Textarea className="min-h-20 resize-none" value={newProduct.description} onChange={e => setNewProduct({ ...newProduct, description: e.target.value })} />
+                      </div>
+                      <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <Label>Alérgenos declarados por el comercio (opcional)</Label>
+                        <Textarea maxLength={500} className="min-h-16 resize-none"
+                          value={newProduct.allergenInfo}
+                          placeholder="Ej.: Contiene trigo, leche y huevo. Puede contener trazas de maní."
+                          onChange={e => setNewProduct({ ...newProduct, allergenInfo: e.target.value })}/>
+                        <p className="text-[11px] text-amber-900">Declaración del comercio: comprobá ingredientes y posibles trazas antes de informar.</p>
                       </div>
                       <div className="space-y-2">
                         <MediaPickerInput
@@ -754,7 +762,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                         <div className="flex flex-col items-center gap-1 ml-2">
                           <Button variant="ghost" size="icon" className="text-blue-500 hover:bg-blue-50 h-8 w-8" onClick={() => {
                             setNewProduct({
-                              id: prod.id, name: prod.name, basePrice: prod.basePrice.toString(), points: prod.points.toString(), description: prod.description || "", categoryId: prod.categoryId, imageUrl: prod.imageUrl || "", allowHalf: prod.allowHalf, onlyHalf: prod.onlyHalf, allowRemoveIngredients: prod.allowRemoveIngredients ?? true, availableDays: parseAvailableDays(prod.availableDays), isCombo: false,
+                              id: prod.id, name: prod.name, basePrice: prod.basePrice.toString(), points: prod.points.toString(), description: prod.description || "", allergenInfo: prod.allergenInfo || "", categoryId: prod.categoryId, imageUrl: prod.imageUrl || "", allowHalf: prod.allowHalf, onlyHalf: prod.onlyHalf, allowRemoveIngredients: prod.allowRemoveIngredients ?? true, availableDays: parseAvailableDays(prod.availableDays), isCombo: false,
                               ingredientsData: prod.ingredients?.map((i: any) => ({ id: i.ingredientId, quantity: i.quantity })) || [], extraIds: prod.extras?.map((e: any) => e.extraId) || [], comboItemsData: []
                             });
                             setProductDialogOpen(true);

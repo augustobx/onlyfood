@@ -259,7 +259,10 @@ export default async function ProfilePage() {
             <div className="p-3.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-xs flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-yellow-400" />
-                <span>Multiplicador activo: <strong className="text-yellow-300">{activeTier.pointsMultiplier}x puntos</strong></span>
+                <span>Tu nivel: <strong className="text-yellow-300">{activeTier.pointsMultiplier}x puntos</strong>
+                  {activeTier.paymentMode === "CASH" ? " · beneficios con efectivo" :
+                    activeTier.paymentMode === "MP" ? " · beneficios con Mercado Pago" :
+                    " · beneficios según el medio de pago"}</span>
               </div>
               {activeTier.discountPercent > 0 && (
                 <span className="font-black text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg">

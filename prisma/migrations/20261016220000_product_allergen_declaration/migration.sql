@@ -1,0 +1,1 @@
+ALTER TABLE `Product` ADD COLUMN `allergenInfo` VARCHAR(500) NULL;
