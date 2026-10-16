@@ -97,10 +97,10 @@ export async function approveClientPasswordResetRequest(input: string, identityC
   const tenant = await getTenantContext();
   const hash = await hashPassword(TEMP_PASSWORD);
   try {
-    const ok = await prisma.$transaction(async tx => {
+    const approved = await prisma.$transaction(async tx => {
       const request = await tx.clientPasswordResetRequest.findFirst({
         where: { tenantId: tenant.id, id: id.data, status: "PENDING" },
-        include: { client: { select: { email: true } } },
+        include: { client: { select: { email: true, phone: true, name: true } } },
       });
       if (!request || request.client.email) return false;
       const claim = await tx.clientPasswordResetRequest.updateMany({
@@ -120,12 +120,34 @@ export async function approveClientPasswordResetRequest(input: string, identityC
       await tx.clientRecoveryCode.deleteMany({ where: { tenantId: tenant.id, clientId: request.clientId } });
       await tx.clientPasskey.deleteMany({ where: { tenantId: tenant.id, clientId: request.clientId } });
       await tx.clientSecurityToken.deleteMany({ where: { tenantId: tenant.id, clientId: request.clientId } });
-      return true;
+      return { phone: request.client.phone, name: request.client.name };
     });
     revalidatePath("/admin/users");
-    return ok
-      ? { success: true as const, message: "Clave 12345678 habilitada por 24 horas. El cliente deberá crear una nueva antes de acceder." }
-      : { success: false as const, error: "Solicitud ya procesada o cuenta con correo." };
+    if (!approved) {
+      return { success: false as const, error: "Solicitud ya procesada o cuenta con correo." };
+    }
+    const config = await prisma.systemConfig.findFirst({
+      where: { tenantId: tenant.id },
+      select: { whatsappDefaultCountryCode: true },
+    });
+    const recipient = normalizeWhatsAppRecipient(
+      approved.phone, config?.whatsappDefaultCountryCode || "549",
+    );
+    const text = [
+      `Hola ${approved.name || "cliente"}, reseteamos tu clave de ${tenant.name}.`,
+      "Ingresá con tu teléfono y la clave temporal: 12345678.",
+      "Recordá agregar tu correo y crear una contraseña nueva para gestionar",
+      "la recuperación automática de tu cuenta.",
+      "La clave temporal vence en 24 horas y se desactiva al crear tu nueva contraseña.",
+    ].join(" ");
+    const whatsappUrl = recipient
+      ? `https://wa.me/${recipient}?text=${encodeURIComponent(text)}`
+      : null;
+    return {
+      success: true as const,
+      message: "Clave 12345678 habilitada por 24 horas. El cliente debe registrar correo y contraseña nueva.",
+      whatsappUrl,
+    };
   } catch {
     return { success: false as const, error: "No se pudo aprobar la solicitud." };
   }
