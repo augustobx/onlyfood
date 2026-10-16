@@ -31,6 +31,7 @@ export function AuthModal({
   const [isLoading, setIsLoading] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState("");
+  const [resetRequestConfirmed, setResetRequestConfirmed] = useState(false);
   const [recoveryChannel, setRecoveryChannel] = useState<"EMAIL" | "ASSISTED">("EMAIL");
   useEffect(() => {
     setPasskeySupported(typeof window !== "undefined" && !!window.PublicKeyCredential && !!navigator.credentials);
@@ -227,6 +228,11 @@ export function AuthModal({
               </p>
             </div>
 
+            {mode === "LOGIN" && resetRequestConfirmed && (
+              <p role="status" className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs font-semibold text-emerald-900">
+                ¡Solicitud de clave enviada! Aguardá unos minutos, ya te avisamos.
+              </p>
+            )}
             <form onSubmit={handleAction} className="space-y-3.5">
               {mode === "REGISTER" && (
                 <div className="space-y-1">
@@ -376,6 +382,7 @@ export function AuthModal({
               </>
             ) : (
               <AssistedRecoveryPanel initialPhone={formData.identifier} onRequested={() => {
+                setResetRequestConfirmed(true);
                 setMode("LOGIN");
                 setRecoveryMessage("");
                 setFormData(previous => ({ ...previous, password: "" }));
