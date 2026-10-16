@@ -460,15 +460,20 @@ export default function CheckoutPage() {
 
   let couponDiscount = 0;
   let productCouponBonus = 0;
-  const couponAllowed = !selectedCoupon?.reward?.minTier ||
-    allowsTierBenefit(selectedCoupon.reward.minTier.paymentMode, formData.paymentMethod);
-  if (selectedCoupon?.reward && couponAllowed) {
-    if (selectedCoupon.reward.type === "PERCENT") {
-      couponDiscount = discountedSubtotal * ((selectedCoupon.reward.value || 0) / 100);
-    } else if (selectedCoupon.reward.type === "AMOUNT") {
-      couponDiscount = Math.min(discountedSubtotal, selectedCoupon.reward.value || 0);
-    } else if (selectedCoupon.reward.type === "PRODUCT" || selectedCoupon.reward.type === "COMBO") {
-      const targetProdId = selectedCoupon.reward.productId || selectedCoupon.reward.product?.id;
+  // Preferir siempre el cupón actualizado desde DB al guardado en localStorage:
+  // puede haberse cambiado la regla del nivel después de que se guardó.
+  const pricedCoupon = selectedCoupon
+    ? availableCoupons.find(c => c.id === selectedCoupon.id) || selectedCoupon
+    : null;
+  const couponAllowed = !pricedCoupon?.reward?.minTier ||
+    allowsTierBenefit(pricedCoupon.reward.minTier.paymentMode, formData.paymentMethod);
+  if (pricedCoupon?.reward && couponAllowed) {
+    if (pricedCoupon.reward.type === "PERCENT") {
+      couponDiscount = discountedSubtotal * ((pricedCoupon.reward.value || 0) / 100);
+    } else if (pricedCoupon.reward.type === "AMOUNT") {
+      couponDiscount = Math.min(discountedSubtotal, pricedCoupon.reward.value || 0);
+    } else if (pricedCoupon.reward.type === "PRODUCT" || pricedCoupon.reward.type === "COMBO") {
+      const targetProdId = pricedCoupon.reward.productId || pricedCoupon.reward.product?.id;
       const matchingItem = items.find((i) => (i.product?.id === targetProdId || (i as any).productId === targetProdId) && !i.isReward);
       if (matchingItem) {
         productCouponBonus = matchingItem.unitPrice;
@@ -514,7 +519,7 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
-      const rewardRedemptionId = selectedCoupon?.id || items.find((i) => i.rewardRedemptionId)?.rewardRedemptionId || null;
+      const rewardRedemptionId = pricedCoupon?.id || items.find((i) => i.rewardRedemptionId)?.rewardRedemptionId || null;
       const result = await createOrder({
         ...formData,
         items,
