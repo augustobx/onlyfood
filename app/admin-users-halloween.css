@@ -1,0 +1,90 @@
+/* OnlyFood Admin · Clientes y cuentas — Halloween.
+ * Scope estrictamente local: no modifica caja, pedidos ni el resto del admin.
+ */
+.halloween-users {
+  color: #f5edf8;
+  border: 1px solid #4a304a;
+  border-radius: 1.5rem;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+  background: radial-gradient(circle at 100% 0%, #362041 0, transparent 32%),
+              linear-gradient(145deg, #18121f, #121016 72%);
+  box-shadow: 0 16px 40px rgba(22, 12, 27, .12);
+}
+.halloween-users .bg-white,
+.halloween-users .bg-slate-50,
+.halloween-users .bg-slate-100,
+.halloween-users .bg-neutral-50 {
+  background-color: #231b2b !important;
+}
+.halloween-users .text-slate-950,
+.halloween-users .text-slate-900,
+.halloween-users .text-slate-800,
+.halloween-users .text-purple-900 {
+  color: #fbf7ff !important;
+}
+.halloween-users .text-slate-700,
+.halloween-users .text-slate-600,
+.halloween-users .text-slate-500 {
+  color: #d6c5dc !important;
+}
+.halloween-users .text-slate-400 { color: #b6a2bd !important; }
+.halloween-users .text-orange-600 { color: #ffa34b !important; }
+.halloween-users .border,
+.halloween-users .border-slate-100,
+.halloween-users .border-slate-200 { border-color: #4b374f; }
+.halloween-users input:not([type="checkbox"]),
+.halloween-users button[role="combobox"] {
+  background-color: #1e1825;
+  color: #fbf7ff;
+  border-color: #55415e;
+}
+.halloween-users input::placeholder { color: #ae9eb4; }
+.halloween-users .client-action-group button {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.25rem;
+  height: auto;
+  padding: .42rem .35rem;
+  white-space: normal;
+  line-height: 1.15;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+  background: #292035;
+  color: #f7eaff;
+  border: 1px solid #574460;
+  border-radius: .75rem;
+  transition: background .15s, border-color .15s;
+}
+.halloween-users .client-action-group button:hover:not(:disabled) {
+  background-color: #382a45;
+  border-color: #fa923b;
+}
+.halloween-users .client-action-group button:disabled { opacity: .42; }
+.halloween-users .client-action-group button[title*="Editar"] { color: #ffb86b; border-color: #ad683c; }
+.halloween-users .client-action-group button[title*="recompensa"] { color: #d8b4fe; border-color: #7c3aed; }
+.halloween-users .client-action-group button[title*="puntos"] { color: #fde68a; border-color: #a16207; }
+.halloween-users .client-action-group button[title*="Desbloquear"] { color: #a7f3d0; border-color: #047857; }
+.halloween-users .client-action-group button[title*="recuperación"] { color: #fdba74; border-color: #9a5b31; }
+.halloween-users .client-action-group button[title*="Unir"] { color: #bae6fd; border-color: #0369a1; }
+.halloween-users .client-action-group button:focus-visible {
+  outline: 2px solid #fb923c; outline-offset: 2px;
+}
+.halloween-users [aria-label="Secciones de clientes"] button[aria-current="page"] {
+  background-color: #f97316;
+  color: #1c1026;
+}
+.halloween-users [aria-label="Secciones de clientes"] button:not([aria-current="page"]) {
+  background-color: #231b2b;
+  color: #d8c4e2;
+  border: 1px solid #5b4262;
+}
+.client-account-list { container: client-panel / inline-size; min-width: 0; }
+.client-desktop-table { display: none; }
+.client-card-grid { display: grid; }
+@container client-panel (min-width: 1180px) {
+  .client-desktop-table { display: block; }
+  .client-card-grid { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .halloween-users .client-action-group button { transition: none; }
+}
