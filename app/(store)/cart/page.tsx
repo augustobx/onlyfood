@@ -98,6 +98,7 @@ function getThemeClasses(theme: string) {
         emptyIcon: "text-yellow-200",
         trustText: "text-violet-300/50",
       };
+    case "HALLOWEEN":
     case "URBAN_DARK":
       return {
         page: "bg-[#080a0f] text-slate-100",

@@ -800,6 +800,24 @@ export function SettingsForm({
                 <Label className="text-base font-black text-slate-900">Diseño y Tema Visual de la PWA</Label>
                 <p className="text-xs text-muted-foreground">Elegí el concepto visual para la tienda online de tus clientes. Podés alternar libremente en cualquier momento.</p>
                 <div className="grid gap-3.5 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => updateField("storeTheme", "HALLOWEEN")}
+                    aria-pressed={cfg.storeTheme === "HALLOWEEN"}
+                    className={`relative overflow-hidden rounded-3xl border-2 p-4 text-left transition-all ${
+                      cfg.storeTheme === "HALLOWEEN"
+                        ? "border-orange-400 bg-[#211329] text-white ring-2 ring-orange-500/40 shadow-xl shadow-orange-500/20"
+                        : "border-[#67406a] bg-[#1a1121] text-slate-100 hover:border-orange-400"
+                    }`}
+                  >
+                    <span className="block text-xs font-black uppercase tracking-wide text-orange-300">🎃 Temporada especial</span>
+                    <span className="mt-2 block text-lg font-black">Halloween Night</span>
+                    <span className="mt-1 block text-xs text-purple-200">
+                      Noche violeta, naranja calabaza, acentos verdes y detalles festivos.
+                      Mantiene productos, carrito y pagos sin cambios.
+                    </span>
+                    {cfg.storeTheme === "HALLOWEEN" && <span className="mt-2 block text-xs font-black text-orange-300">ACTIVO ✓</span>}
+                  </button>
                   {/* Tema 1: Urban Dark Smash */}
                   <button
                     type="button"

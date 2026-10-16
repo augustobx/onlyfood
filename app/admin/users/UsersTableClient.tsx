@@ -384,8 +384,80 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
 
   const currentReward = rewards.find((r) => r.id === selectedRewardId);
 
+
+  // Las acciones se reutilizan en tabla ancha y tarjetas responsive, sin
+  // duplicar handlers de recuperar, editar, puntos, premia, unir o desbloquear.
+  const renderActions = (u: any) => (
+                  <div className="client-action-group grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <Button size="sm" variant="outline" onClick={() => setEditClient(u)}
+                      className="rounded-xl text-[11px] font-bold h-7 px-2 border-orange-300 text-orange-800"
+                      title="Editar datos de la cuenta"><Pencil className="w-3 h-3 mr-1" /> Editar</Button>
+                    {u.email && !u.emailVerifiedAt && <Button
+                      size="sm" variant="ghost" disabled={verifyingClientId === u.id}
+                      onClick={() => handleSendClientVerification(u)}
+                      className="rounded-xl text-[11px] font-bold h-7 px-2 text-emerald-700"
+                      title="Enviar enlace de confirmación al correo del cliente">
+                      {verifyingClientId === u.id ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <MailCheck className="w-3 h-3 mr-1" />}
+                      Verificar correo
+                    </Button>}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openAssignModal(u)}
+                      className="rounded-xl text-[11px] font-black border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100 h-7 px-2"
+                      title="Otorgar recompensa del catálogo descontando puntos"
+                    >
+                      <Gift className="w-3 h-3 mr-1 text-purple-600" /> Premiar
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => openAdjustModal(u)}
+                      className="rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-100 h-7 px-2"
+                      title="Sumar o restar puntos manualmente"
+                    >
+                      <Star className="w-3 h-3 mr-1 text-yellow-500" /> Puntos
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={resettingId === u.id || !u.emailVerifiedAt}
+                      onClick={() => handleResetPassword(u)}
+                      className="rounded-xl text-[11px] font-bold text-amber-700 hover:bg-amber-50 hover:text-amber-800 h-7 px-2"
+                      title="Enviar recuperación segura al correo verificado del cliente"
+                    >
+                      {resettingId === u.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <KeyRound className="w-3 h-3 mr-1 text-amber-600" />
+                      )}
+                      Recuperar
+                    </Button>
+
+                    <Button size="sm" variant="outline"
+                      disabled={unlockingId === u.id}
+                      onClick={() => void handleUnlockLogin(u)}
+                      className="rounded-xl text-[11px] font-bold h-7 px-2 border-emerald-300 text-emerald-800"
+                      title="Desbloquear intentos de ingreso de esta cuenta sin cambiar contraseña">
+                      <ShieldCheck className="w-3 h-3 mr-1" /> {unlockingId === u.id ? "Desbloqueando..." : "Desbloquear"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => openManualMergeModal(u)}
+                      className="rounded-xl text-[11px] font-bold text-blue-700 hover:bg-blue-50 hover:text-blue-800 h-7 px-2"
+                      title="Unir este usuario con otra cuenta duplicada manualmente"
+                    >
+                      <GitMerge className="w-3 h-3 mr-1 text-blue-600" /> Unir
+                    </Button>
+                  </div>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="client-account-list space-y-4">
       {/* ═══ BARRA DE HERRAMIENTAS: BÚSQUEDA, FILTROS Y ACCIÓN DE DUPLICADOS ═══ */}
       <div className="bg-white border rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -530,23 +602,71 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
         </div>
       </div>
 
+
+      <section className="client-card-grid grid grid-cols-1 gap-3 md:grid-cols-2" aria-label="Clientes en tarjetas">
+        {filteredUsers.map(u => (
+          <article key={u.id} className="min-w-0 space-y-3 rounded-2xl border border-[#49304a] bg-[#1c1723] p-4 text-slate-100 shadow-lg">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h3 className="break-words text-base font-black text-white">{u.name || "Sin nombre"}</h3>
+                <p className="mt-1 break-all text-xs text-slate-300">{u.phone}</p>
+                <p className="mt-1 break-all text-xs text-slate-400">{u.email || "Sin correo"}</p>
+              </div>
+              <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${u.passwordSetupRequired || u.forcePasswordChange
+                ? "border-amber-500/50 bg-amber-500/15 text-amber-200"
+                : "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"}`}>
+                {u.forcePasswordChange ? "Cambio de clave" : u.passwordSetupRequired ? "Setup pendiente" : "✓ Activa"}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {u.tier ? (
+                <span className="max-w-full break-words rounded-lg px-3 py-1.5 text-xs font-black text-white"
+                  style={{ backgroundColor: u.tier.color || "#7c3aed" }}>👑 {u.tier.name}</span>
+              ) : <span className="text-xs text-slate-400">Cliente Base</span>}
+              {u.email && (
+                <span className={`text-xs ${u.emailVerifiedAt ? "text-emerald-300" : "text-amber-300"}`}>
+                  {u.emailVerifiedAt ? "Correo verificado" : "Correo pendiente"}
+                </span>
+              )}
+            </div>
+            <dl className="grid grid-cols-3 gap-2 rounded-xl border border-[#3b3043] bg-[#151119] p-3">
+              <div className="min-w-0"><dt className="text-[10px] text-slate-400">Compras</dt>
+                <dd className="mt-1 text-sm font-extrabold text-white">{u.ordersCount ?? u._count?.orders ?? 0}</dd></div>
+              <div className="min-w-0"><dt className="text-[10px] text-slate-400">Gastado</dt>
+                <dd className="mt-1 break-words text-sm font-extrabold text-white">${(u.totalSpent || 0).toLocaleString("es-AR")}</dd></div>
+              <div className="min-w-0"><dt className="text-[10px] text-slate-400">Puntos</dt>
+                <dd className="mt-1 text-sm font-extrabold text-amber-300">{u.points ?? 0}</dd></div>
+            </dl>
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-orange-300">Acciones</h4>
+              {renderActions(u)}
+            </div>
+          </article>
+        ))}
+        {filteredUsers.length === 0 && (
+          <div className="rounded-xl border border-[#49304a] p-6 text-sm text-slate-300">
+            No se encontraron clientes con esos filtros.
+          </div>
+        )}
+      </section>
+
       {/* ═══ TABLA DE CLIENTES ═══ */}
-      <div className="border rounded-2xl bg-white shadow-sm overflow-hidden">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 border-b text-slate-500 uppercase text-[10px] font-black tracking-wider">
+      <div className="client-desktop-table overflow-x-auto rounded-2xl border border-[#392b42] bg-[#19171f] shadow-xl">
+        <table className="w-full min-w-[1190px] table-fixed text-sm text-left">
+          <thead className="border-b border-[#453044] bg-[#231a2b] text-orange-300 uppercase text-[11px] font-black tracking-wider">
             <tr>
-              <th className="px-6 py-4">Usuario</th>
-              <th className="px-6 py-4">Insignia / Rango</th>
-              <th className="px-6 py-4 text-center">Compras</th>
-              <th className="px-6 py-4 text-right">Total Gastado</th>
-              <th className="px-6 py-4 text-right">Saldo de Puntos</th>
-              <th className="px-6 py-4 text-center">Acciones</th>
+              <th scope="col" className="w-[225px] px-4 py-4">Usuario</th>
+              <th scope="col" className="w-[185px] px-4 py-4">Insignia / Rango</th>
+              <th scope="col" className="w-[80px] px-3 py-4 text-center">Compras</th>
+              <th scope="col" className="w-[140px] px-3 py-4 text-right">Total Gastado</th>
+              <th scope="col" className="w-[135px] px-3 py-4 text-right">Saldo de Puntos</th>
+              <th scope="col" className="w-[425px] px-4 py-4 text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-xs">
+          <tbody className="divide-y divide-[#33283a] text-xs">
             {filteredUsers.map((u) => (
-              <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                <td className="px-6 py-4">
+              <tr key={u.id} className="transition-colors hover:bg-[#281e30]">
+                <td className="px-4 py-4 align-middle">
                   <div className="flex items-center gap-2">
                     <div className="font-extrabold text-slate-900">{u.name || "Sin nombre"}</div>
                     {u.passwordSetupRequired || u.forcePasswordChange ? (
@@ -571,98 +691,33 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                      </span>}
                    </div>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-4 py-4 align-middle">
                   {u.tier ? (
                     <span
-                      className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg text-white shadow-2xs"
+                      className="inline-flex max-w-full items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-black uppercase leading-tight text-white shadow-sm"
                       style={{ backgroundColor: u.tier.color || "#a855f7" }}
                     >
-                      👑 {u.tier.name}
+                      👑 <span className="min-w-0 break-words">{u.tier.name}</span>
                     </span>
                   ) : (
                     <span className="text-slate-400 text-xs">Cliente Base</span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-center font-black text-slate-800">
+                <td className="px-3 py-4 align-middle text-center font-black text-slate-800">
                   <span className="inline-flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-full text-xs font-bold text-slate-700">
                     <Receipt className="w-3.5 h-3.5 text-slate-500" /> {u.ordersCount ?? u._count?.orders ?? 0}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right font-black text-slate-900">
+                <td className="px-3 py-4 align-middle text-right font-black text-slate-900">
                   ${(u.totalSpent || 0).toLocaleString("es-AR")}
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-3 py-4 align-middle text-right">
                   <span className="font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl">
                     🪙 {u.points} pts
                   </span>
                 </td>
-                <td className="px-6 py-4 text-center">
-                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                    <Button size="sm" variant="outline" onClick={() => setEditClient(u)}
-                      className="rounded-xl text-[11px] font-bold h-7 px-2 border-orange-300 text-orange-800"
-                      title="Editar datos de la cuenta"><Pencil className="w-3 h-3 mr-1" /> Editar</Button>
-                    {u.email && !u.emailVerifiedAt && <Button
-                      size="sm" variant="ghost" disabled={verifyingClientId === u.id}
-                      onClick={() => handleSendClientVerification(u)}
-                      className="rounded-xl text-[11px] font-bold h-7 px-2 text-emerald-700"
-                      title="Enviar enlace de confirmación al correo del cliente">
-                      {verifyingClientId === u.id ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : <MailCheck className="w-3 h-3 mr-1" />}
-                      Verificar correo
-                    </Button>}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openAssignModal(u)}
-                      className="rounded-xl text-[11px] font-black border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100 h-7 px-2"
-                      title="Otorgar recompensa del catálogo descontando puntos"
-                    >
-                      <Gift className="w-3 h-3 mr-1 text-purple-600" /> Premiar
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => openAdjustModal(u)}
-                      className="rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-100 h-7 px-2"
-                      title="Sumar o restar puntos manualmente"
-                    >
-                      <Star className="w-3 h-3 mr-1 text-yellow-500" /> Puntos
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={resettingId === u.id || !u.emailVerifiedAt}
-                      onClick={() => handleResetPassword(u)}
-                      className="rounded-xl text-[11px] font-bold text-amber-700 hover:bg-amber-50 hover:text-amber-800 h-7 px-2"
-                      title="Enviar recuperación segura al correo verificado del cliente"
-                    >
-                      {resettingId === u.id ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <KeyRound className="w-3 h-3 mr-1 text-amber-600" />
-                      )}
-                      Recuperar
-                    </Button>
-
-                    <Button size="sm" variant="outline"
-                      disabled={unlockingId === u.id}
-                      onClick={() => void handleUnlockLogin(u)}
-                      className="rounded-xl text-[11px] font-bold h-7 px-2 border-emerald-300 text-emerald-800"
-                      title="Desbloquear intentos de ingreso de esta cuenta sin cambiar contraseña">
-                      <ShieldCheck className="w-3 h-3 mr-1" /> {unlockingId === u.id ? "Desbloqueando..." : "Desbloquear login"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => openManualMergeModal(u)}
-                      className="rounded-xl text-[11px] font-bold text-blue-700 hover:bg-blue-50 hover:text-blue-800 h-7 px-2"
-                      title="Unir este usuario con otra cuenta duplicada manualmente"
-                    >
-                      <GitMerge className="w-3 h-3 mr-1 text-blue-600" /> Unir
-                    </Button>
-                  </div>
+                <td className="px-3 py-4 align-middle text-center">
+                  {renderActions(u)}
                 </td>
               </tr>
             ))}

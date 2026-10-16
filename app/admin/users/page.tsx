@@ -88,47 +88,47 @@ export default async function AdminUsersPage({
   });
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="halloween-users mx-auto max-w-[1480px] min-w-0 space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-orange-600">
             <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" /> Base de Clientes, Insignias & Puntos
           </div>
-          <h2 className="text-3xl font-black tracking-tight text-slate-950">Clientes & Cuentas</h2>
-          <p className="text-muted-foreground text-sm">
+          <h2 className="text-2xl font-black tracking-tight text-orange-100 sm:text-3xl">Clientes & Cuentas</h2>
+          <p className="text-slate-300 text-sm">
             Administrá nombre, teléfono y correo de los clientes. Los correos nuevos requieren confirmación del destinatario.
           </p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="rounded-3xl border shadow-sm bg-white">
+        <Card className="rounded-2xl border border-[#4b3047] bg-[#241b2b] shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-wider text-slate-500">Clientes Registrados</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-wider text-[#d3b4cf]">Clientes Registrados</CardTitle>
             <User className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-900">{users.length}</div>
+            <div className="text-3xl font-black text-white">{users.length}</div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border shadow-sm bg-white">
+        <Card className="rounded-2xl border border-[#4b3047] bg-[#241b2b] shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-wider text-slate-500">Puntos Totales Acumulados</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-wider text-[#d3b4cf]">Puntos Totales Acumulados</CardTitle>
             <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-amber-700">🪙 {totalPointsGiven.toLocaleString("es-AR")}</div>
+            <div className="text-3xl font-black text-amber-300">🪙 {totalPointsGiven.toLocaleString("es-AR")}</div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border shadow-sm bg-white">
+        <Card className="rounded-2xl border border-[#4b3047] bg-[#241b2b] shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-black uppercase tracking-wider text-slate-500">Rangos de Membresía</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-wider text-[#d3b4cf]">Rangos de Membresía</CardTitle>
             <Crown className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-purple-900">{tiers.length} activos</div>
+            <div className="text-3xl font-black text-purple-200">{tiers.length} activos</div>
           </CardContent>
         </Card>
       </div>
