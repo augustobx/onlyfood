@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { House, Heart, ClipboardList, UserRound, ShoppingCart, Download, X } from "lucide-react";
+import { House, Heart, ClipboardList, UserRound, ShoppingCart, Download, X, ChevronRight } from "lucide-react";
 import { useCartStore } from "@/lib/store";
+import { customerOrderStatusLabel } from "@/lib/pwa-order-history";
+import { shouldShowActiveOrderShortcut } from "@/lib/pwa-navigation";
 
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{outcome: string}> };
 const links = [
@@ -15,14 +17,18 @@ const links = [
 ] as const;
 
 export function MobilePwaNavigation({
-  dark = false, activeOrderId,
-}: { dark?: boolean; activeOrderId?: string | null }) {
+  dark = false, activeOrderId, activeOrderStatus, activeOrderNeedsDelivery = false,
+}: { dark?: boolean; activeOrderId?: string | null; activeOrderStatus?: string | null; activeOrderNeedsDelivery?: boolean }) {
   const path = usePathname();
   const items = useCartStore(s => s.items);
   const count = items.reduce((sum,item)=>sum+item.quantity,0);
   const [install, setInstall] = useState<InstallEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [hash, setHash] = useState("");
+  const activeOrderLabel = activeOrderStatus
+    ? customerOrderStatusLabel(activeOrderStatus, activeOrderNeedsDelivery)
+    : "Pedido en curso";
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -39,14 +45,26 @@ export function MobilePwaNavigation({
     };
   }, []);
 
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, [path]);
+
   return (
     <>
-      {activeOrderId && !path.startsWith("/track/") && (
+      {activeOrderId && shouldShowActiveOrderShortcut(path) && (
         <Link href={`/track/${activeOrderId}`}
           className={`fixed bottom-[calc(4.3rem+env(safe-area-inset-bottom))] left-3 right-3 z-[65] mx-auto flex max-w-xs items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-black shadow-xl sm:hidden ${
             dark ? "border-orange-500/40 bg-[#281b32] text-orange-200" : "border-orange-300 bg-orange-50 text-orange-900"
           }`}>
-          <ClipboardList className="h-4 w-4"/> Ver pedido en curso
+          <ClipboardList className="h-4 w-4 shrink-0" aria-hidden="true"/>
+          <span className="min-w-0 flex-1 text-left leading-tight">
+            <span className="block truncate text-[11px] font-black">{activeOrderLabel}</span>
+            <span className="block text-[10px] font-semibold opacity-80">Ver seguimiento del pedido</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true"/>
         </Link>
       )}
       {install && !installed && !dismissed && !activeOrderId && path === "/" && (
@@ -71,7 +89,8 @@ export function MobilePwaNavigation({
           {links.map(item => {
             const Icon = item.icon;
             const active = item.href === "/" ? path === "/" :
-              item.href === "/profile#my-orders" ? false :
+              item.href === "/profile#my-orders" ? path === "/profile" && hash === "#my-orders" :
+              item.href === "/profile" ? path === "/profile" && hash !== "#my-orders" :
               path.startsWith(item.href);
             return (
               <Link key={item.name} href={item.href}
