@@ -38,7 +38,7 @@ const routes = [
   { name: "Métricas", href: "/admin/metricas", icon: TrendingUp, feature: "advancedReports" },
   { name: "Canje de Puntos", href: "/admin/rewards", icon: Gift, feature: "loyalty" },
   { name: "Ruleta de Premios", href: "/admin/games", icon: Dices, feature: "roulette" },
-  { name: "Clientes y puntos", href: "/admin/users", icon: Users, feature: "loyalty" },
+  { name: "Clientes y cuentas", href: "/admin/users", icon: Users },
   { name: "Puesta en Marcha", href: "/admin/wizard", icon: Sparkles },
   { name: "Guías", href: "/admin/guides", icon: BookOpenCheck },
   { name: "Configuración", href: "/admin/settings", icon: Settings },

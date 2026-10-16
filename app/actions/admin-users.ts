@@ -6,7 +6,95 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
-import { arePhonesEquivalent } from "@/lib/phone";
+import { arePhonesEquivalent, cleanPhoneNumber } from "@/lib/phone";
+
+const adminContactSchema = z.object({
+  clientId: z.string().uuid(),
+  name: z.string().trim().max(80),
+  phone: z.string().trim().max(32),
+  email: z.union([z.literal(""), z.string().trim().toLowerCase().email().max(254)]),
+}).strict();
+
+/**
+ * Cambia datos del cliente SOLO dentro del comercio actual.
+ * Nunca marca correos nuevos como verificados.
+ * No toca puntos, pedidos, claves ni passkeys.
+ */
+export async function updateClientContactDetails(input: unknown) {
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
+  const parsed = adminContactSchema.safeParse(input);
+  if (!parsed.success) return { success: false as const, error: "Revisá nombre, teléfono y correo del cliente." };
+  const phone = cleanPhoneNumber(parsed.data.phone);
+  if (!/^\\+?[0-9]{8,15}$/.test(phone)) {
+    return { success: false as const, error: "Ingresá un teléfono válido (8 a 15 dígitos)." };
+  }
+  const loginKey = phone.replace(/\\D/g, "").slice(-6);
+  const email = parsed.data.email || null;
+  const db = await getTenantDb();
+  const current = await db.client.findUnique({ where: { id: parsed.data.clientId } });
+  if (!current) return { success: false as const, error: "El cliente no pertenece a este comercio." };
+  const similar = await db.client.findMany({
+    where: {
+      id: { not: current.id },
+      OR: [
+        { phone },
+        { phoneLoginKey: loginKey },
+        ...(email ? [{ email }] : []),
+      ],
+    },
+    select: { id: true, phone: true, email: true },
+  });
+  if (similar.some(other => email && other.email === email)) {
+    return { success: false as const, error: "Ese correo ya pertenece a otra cuenta de este comercio." };
+  }
+  if (similar.some(other => arePhonesEquivalent(other.phone, phone))) {
+    return { success: false as const, error: "Ese teléfono coincide con otra cuenta del comercio." };
+  }
+  const emailChanged = (current.email || null) !== email;
+  const phoneChanged = current.phone !== phone;
+
+  try {
+    await db.$transaction(async tx => {
+      const result = await tx.client.updateMany({
+        where: { id: current.id, tenantId: tenant.id },
+        data: {
+          name: parsed.data.name || null,
+          phone,
+          phoneLoginKey: loginKey,
+          email,
+          ...(emailChanged ? { emailVerifiedAt: null } : {}),
+        },
+      });
+      if (result.count !== 1) throw new Error("CLIENT_NOT_FOUND");
+      if (emailChanged) {
+        await tx.clientSecurityToken.deleteMany({
+          where: { tenantId: tenant.id, clientId: current.id },
+        });
+      }
+      if (phoneChanged) {
+        // El cambio del identificador de ingreso cierra todas las sesiones anteriores.
+        await tx.session.deleteMany({
+          where: { tenantId: tenant.id, clientId: current.id },
+        });
+      }
+    });
+    revalidatePath("/admin/users");
+    revalidatePath("/profile");
+    return {
+      success: true as const,
+      client: {
+        id: current.id, name: parsed.data.name || null, phone, email,
+        emailVerifiedAt: emailChanged ? null : current.emailVerifiedAt,
+      },
+      requiresVerification: Boolean(emailChanged && email),
+      sessionsRevoked: phoneChanged,
+    };
+  } catch (error) {
+    console.error("Error updating tenant client contact:", error);
+    return { success: false as const, error: "No se guardaron los datos. Verificá que teléfono y correo sean únicos." };
+  }
+}
 
 export async function updateUserPoints(clientId: string, points: number) {
   await requireAdmin();
