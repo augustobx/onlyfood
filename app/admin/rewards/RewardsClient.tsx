@@ -1097,7 +1097,7 @@ export function RewardsClient({
                 Restringe descuentos, puntos extra y premios exclusivos de este nivel. Los niveles anteriores conservan sus propias reglas.
               </p>
             </div>
-            {/* Beneficios automáticos */
+            {/* Beneficios automáticos */}
             <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200 space-y-2.5">
               <span className="text-[11px] font-black uppercase tracking-wider text-purple-900 block">
                 Beneficios Automáticos de este Rango:
