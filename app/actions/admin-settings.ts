@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { getTenantDb } from "@/lib/tenant-db";
 import { getTenantContext } from "@/lib/tenant-context";
+import { isTenantEmailConfigured } from "@/lib/tenant-email";
 import { getTenantIntegration, saveTenantIntegration, setTenantIntegrationActive, type WhatsAppCredentials, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
@@ -73,13 +74,10 @@ export async function updateConfig(id: string, data: unknown) {
   const parsed = configSchema.safeParse(data);
   if (!parsedId.success || !parsed.success) return { success: false, error: parsed.error?.issues[0]?.message || "Configuracion invalida." };
   try {
-    if (parsed.data.requireLoginForCheckout && !(process.env.RESEND_API_KEY || process.env.BREVO_API_KEY) ) {
-      return { success: false, error: "Configurá primero un proveedor de correo (Resend/Brevo) para habilitar compra con cuenta." };
-    }
-    if (parsed.data.requireLoginForCheckout && !(process.env.EMAIL_FROM || process.env.SMTP_FROM)) {
-      return { success: false, error: "Configurá EMAIL_FROM para el correo de recuperación." };
-    }
     const tenant = await getTenantContext();
+    if (parsed.data.requireLoginForCheckout && !await isTenantEmailConfigured(tenant.id)) {
+      return { success: false, error: "Configurá primero el correo SMTP, Resend o Brevo en la pestaña Correo." };
+    }
     const [whatsappEnabled, printNodeEnabled] = await Promise.all([
       hasTenantFeature(tenant.id, "whatsapp"),
       hasTenantFeature(tenant.id, "printNode"),

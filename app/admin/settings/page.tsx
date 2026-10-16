@@ -7,12 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Clock, Users } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-session";
 import { getTenantContext } from "@/lib/tenant-context";
+import { getTenantEmailPublicSettings } from "@/lib/tenant-email";
 import { getTenantIntegration, type WhatsAppCredentials, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
 
 export default async function SettingsPage() {
   await requireAdmin(["OWNER", "MANAGER"]);
   const tenant = await getTenantContext();
   const db = await getTenantDb();
+  const emailSettings = await getTenantEmailPublicSettings(tenant.id);
   const [config, mpCredentials, whatsappCredentials, whatsappNotifications] = await Promise.all([
     db.systemConfig.findFirst(),
     getTenantIntegration<MercadoPagoCredentials>(tenant.id, "MERCADO_PAGO"),
@@ -80,7 +82,8 @@ export default async function SettingsPage() {
               vapidPrivateKey: null,
             }}
             mpIntegrationConfigured={Boolean(mpCredentials?.accessToken)}
-            emailServiceConfigured={Boolean((process.env.RESEND_API_KEY || process.env.BREVO_API_KEY) && (process.env.EMAIL_FROM || process.env.SMTP_FROM))}
+            emailServiceConfigured={emailSettings.configured}
+            emailSettings={emailSettings}
             printNodeApiKeyConfigured={Boolean(process.env.PRINTNODE_API_KEY?.trim())}
             whatsappIntegrationConfigured={Boolean(whatsappCredentials?.apiToken && whatsappCredentials.phoneNumberId && whatsappCredentials.verifyToken)}
             metaAppSecretConfigured={Boolean(process.env.META_APP_SECRET?.trim())}

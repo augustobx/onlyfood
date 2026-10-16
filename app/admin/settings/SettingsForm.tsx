@@ -10,12 +10,14 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { updateConfig, broadcastPushNotification, disconnectWhatsAppIntegration, retryWhatsAppNotification, testWhatsAppConnection } from "@/app/actions/admin-settings";
 import { testConfiguredPrinter } from "@/app/actions/admin-printing";
-import { Save, Store, Palette, Wallet, Megaphone, Send, Printer, CreditCard, MessageCircle, Calendar, Clock, CircleCheck, CircleAlert, RefreshCw, Unplug } from "lucide-react";
+import { Save, Store, Palette, Wallet, Megaphone, Send, Printer, CreditCard, MessageCircle, Calendar, Clock, CircleCheck, CircleAlert, RefreshCw, Unplug, Mail } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parseBusinessHours, DaySchedule } from "@/lib/business-hours";
 import { MediaPickerInput } from "@/components/admin/MediaPickerInput";
 import { PrintAgentManager } from "@/components/admin/PrintAgentManager";
+import { EmailSettingsPanel } from "@/components/admin/EmailSettingsPanel";
+import type { EmailProvider } from "@/lib/email-configuration";
 
 export function SettingsForm({
   initialConfig,
@@ -28,6 +30,7 @@ export function SettingsForm({
   printNodeEnabled,
   mpIntegrationConfigured,
   emailServiceConfigured,
+  emailSettings,
 }: {
   initialConfig: any;
   printNodeApiKeyConfigured: boolean;
@@ -39,6 +42,17 @@ export function SettingsForm({
   printNodeEnabled: boolean;
   mpIntegrationConfigured?: boolean;
   emailServiceConfigured: boolean;
+  emailSettings: {
+    provider: EmailProvider;
+    smtpHost: string;
+    smtpPort: number;
+    smtpUser: string;
+    smtpFrom: string;
+    hasSmtpPassword: boolean;
+    hasResendApiKey: boolean;
+    hasBrevoApiKey: boolean;
+    configured: boolean;
+  };
 }) {
   const [cfg, setCfg] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
@@ -216,7 +230,7 @@ export function SettingsForm({
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 sm:grid-cols-8 bg-slate-200 h-auto p-1 gap-1">
+        <TabsList className="grid w-full grid-cols-4 sm:grid-cols-9 bg-slate-200 h-auto p-1 gap-1">
           <TabsTrigger value="general"><Store className="w-4 h-4 mr-2" /> Negocio</TabsTrigger>
           <TabsTrigger value="schedule"><Calendar className="w-4 h-4 mr-2" /> Horarios</TabsTrigger>
           <TabsTrigger value="finance"><Wallet className="w-4 h-4 mr-2" /> Pagos</TabsTrigger>
@@ -225,8 +239,12 @@ export function SettingsForm({
           <TabsTrigger value="marketing"><Megaphone className="w-4 h-4 mr-2" /> Splash</TabsTrigger>
           <TabsTrigger value="theme"><Palette className="w-4 h-4 mr-2" /> Diseño</TabsTrigger>
           <TabsTrigger value="printers"><Printer className="w-4 h-4 mr-2" /> Impresoras</TabsTrigger>
+          <TabsTrigger value="email"><Mail className="w-4 h-4 mr-2" /> Correo</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="email" className="space-y-4 mt-4">
+          <EmailSettingsPanel initialSettings={emailSettings} />
+        </TabsContent>
         <TabsContent value="general" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
@@ -253,7 +271,7 @@ export function SettingsForm({
               <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50">
                 <div className="space-y-1">
                   <Label className="text-base text-slate-800 font-bold">Exigir cuenta para comprar</Label>
-                  {!emailServiceConfigured && <p className="text-xs font-semibold text-amber-700">Configurá primero un proveedor de correo con remitente verificado para habilitar esta opción.</p>}
+                  {!emailServiceConfigured && <p className="text-xs font-semibold text-amber-700">Configurá primero SMTP, Resend o Brevo en la pestaña Correo para habilitar esta opción.</p>}
                   <p className="text-sm text-muted-foreground">Cuando está activo, cada cliente deberá registrarse o iniciar sesión para confirmar pedidos. No afecta al panel administrativo.</p>
                 </div>
                 <Switch checked={Boolean(cfg.requireLoginForCheckout)} onCheckedChange={v => updateField('requireLoginForCheckout', v)} />
