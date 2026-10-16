@@ -50,6 +50,8 @@ interface RewardsClientProps {
   isPointsCatalogActive: boolean;
 }
 
+const BADGE_TEXT_OPTIONS = ["BASIC","STARTER","BRONZE","SILVER","GOLD","PLATINUM","DIAMOND","VIP","VIP PLUS","PREMIUM","ELITE","LEGEND","LEGENDARY","SELECT","SELECT VIP","BLACK","BLACK VIP","EXCLUSIVE","CLUB","MEMBER","INSIDER","PRO","MASTER","CHAMPION","ROYAL","SUPREME","TITANIUM","RUBY","EMERALD","SAPPHIRE","PATRON","LOYAL","FAN","SUPER FAN","FOUNDER","PRIME","ULTRA","INFINITY"] as const;
+
 const TIER_ICONS: Record<string, any> = {
   Crown,
   Flame,
@@ -109,6 +111,7 @@ export function RewardsClient({
     minSpent: 0,
     discountPercent: 0,
     pointsMultiplier: 1.0,
+    paymentMode: "BOTH" as "BOTH" | "CASH" | "MP",
     color: "#f97316",
     bgGradient: "from-amber-500 to-yellow-600",
     iconName: "Crown",
@@ -276,6 +279,7 @@ export function RewardsClient({
       minSpent: tier.minSpent || 0,
       discountPercent: tier.discountPercent || 0,
       pointsMultiplier: tier.pointsMultiplier || 1.0,
+      paymentMode: tier.paymentMode || "BOTH",
       color: tier.color || "#f97316",
       bgGradient: tier.bgGradient || "from-amber-500 to-yellow-600",
       iconName: tier.iconName || "Crown",
@@ -300,6 +304,7 @@ export function RewardsClient({
         minSpent: Number(tierForm.minSpent),
         discountPercent: Number(tierForm.discountPercent),
         pointsMultiplier: Number(tierForm.pointsMultiplier),
+        paymentMode: tierForm.paymentMode,
         color: tierForm.color,
         bgGradient: tierForm.bgGradient,
         iconName: tierForm.iconName,
@@ -633,7 +638,10 @@ export function RewardsClient({
                         <span>Multiplicador de puntos:</span>
                         <span className="font-black text-purple-700">{tier.pointsMultiplier}x puntos</span>
                       </div>
-                      {tier.discountPercent > 0 && (
+                      <span className="text-[10px] font-bold text-slate-600">
+                    Beneficios: {tier.paymentMode === "CASH" ? "solo efectivo" : tier.paymentMode === "MP" ? "solo Mercado Pago" : "ambos medios"}
+                  </span>
+                  {tier.discountPercent > 0 && (
                         <div className="flex justify-between font-bold">
                           <span>Descuento automático:</span>
                           <span className="font-black text-emerald-600">{tier.discountPercent}% OFF</span>
@@ -981,13 +989,15 @@ export function RewardsClient({
               </div>
               <div>
                 <Label className="text-xs font-bold">Texto de la Insignia</Label>
-                <Input
-                  required
-                  value={tierForm.badgeText}
-                  onChange={(e) => setTierForm({ ...tierForm, badgeText: e.target.value.toUpperCase() })}
-                  placeholder="ej: SELECT VIP"
-                  className="h-9 text-xs mt-1 uppercase"
-                />
+                <Select value={tierForm.badgeText} onValueChange={v => setTierForm({ ...tierForm, badgeText: v || "VIP" })}>
+                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Elegí una insignia" /></SelectTrigger>
+                  <SelectContent>
+                    {!BADGE_TEXT_OPTIONS.includes(tierForm.badgeText as typeof BADGE_TEXT_OPTIONS[number]) && (
+                      <SelectItem value={tierForm.badgeText}>{tierForm.badgeText} (actual)</SelectItem>
+                    )}
+                    {BADGE_TEXT_OPTIONS.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -1071,7 +1081,22 @@ export function RewardsClient({
               </p>
             </div>
 
-            {/* Beneficios automáticos */}
+            <div className="space-y-1.5 rounded-xl border border-purple-200 bg-purple-50/60 p-3">
+              <Label className="text-xs font-bold text-purple-900">Medio de pago para beneficios del nivel</Label>
+              <Select value={tierForm.paymentMode} onValueChange={(value: "BOTH" | "CASH" | "MP" | null) =>
+                setTierForm({ ...tierForm, paymentMode: value || "BOTH" })}>
+                <SelectTrigger className="h-9 bg-white text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BOTH">Efectivo y Mercado Pago</SelectItem>
+                  <SelectItem value="CASH">Solo efectivo</SelectItem>
+                  <SelectItem value="MP">Solo Mercado Pago</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-slate-600">
+                Restringe descuentos, puntos extra y premios exclusivos de este nivel. Los niveles anteriores conservan sus propias reglas.
+              </p>
+            </div>
+            {/* Beneficios automáticos */
             <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200 space-y-2.5">
               <span className="text-[11px] font-black uppercase tracking-wider text-purple-900 block">
                 Beneficios Automáticos de este Rango:
