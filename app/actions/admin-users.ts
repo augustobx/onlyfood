@@ -8,6 +8,8 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
 import { arePhonesEquivalent, cleanPhoneNumber } from "@/lib/phone";
 import { sendAdminClientPasswordReset } from "@/app/actions/client-security";
+import { rateLimitKey } from "@/lib/request-security";
+import { prisma } from "@/lib/prisma";
 
 const adminContactSchema = z.object({
   clientId: z.string().uuid(),
@@ -114,6 +116,22 @@ export async function updateUserPoints(clientId: string, points: number) {
     await db.client.update({ where: { id: parsed.data.clientId }, data: { points: parsed.data.points } });
     revalidatePath("/admin/users"); return { success: true };
   } catch { return { success: false, error: "No se pudieron actualizar los puntos." }; }
+}
+
+/** Restablece sólo el contador de intentos de esta cuenta y tenant; no cambia la contraseña. */
+export async function unlockClientLoginAttempts(clientIdInput: string) {
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
+  const id = z.string().uuid().safeParse(clientIdInput);
+  if (!id.success) return { success: false as const, error: "Cliente inválido." };
+  const client = await prisma.client.findFirst({
+    where: { tenantId: tenant.id, id: id.data }, select: { id: true },
+  });
+  if (!client) return { success: false as const, error: "Cliente no encontrado." };
+  await prisma.rateLimitBucket.deleteMany({
+    where: { key: rateLimitKey("client-login-account", `${tenant.id}:${client.id}`) },
+  });
+  return { success: true as const, message: "Intentos de ingreso restablecidos para este cliente. No se cambió su contraseña." };
 }
 
 export async function resetUserPassword(clientId: string) {

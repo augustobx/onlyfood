@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
+import { allowsTierBenefit } from "@/lib/tier-payment-policy";
 
 /* ══ Theme class maps ══ */
 function getThemeClasses(theme: string) {
@@ -441,8 +442,9 @@ export default function CheckoutPage() {
   const discountMultiplier = 1 - (config?.globalDiscount || 0) / 100;
   let discountedSubtotal = afterQuantityDiscount * discountMultiplier;
 
-  // VIP Tier Discount
-  const tierDiscountPercent = loggedClient?.tier?.discountPercent || 0;
+  // Las reglas por medio de pago deben coincidir con el servidor.
+  const selectedTierBenefits = loggedClient?.tier?.paymentBenefits?.[formData.paymentMethod];
+  const tierDiscountPercent = selectedTierBenefits?.discountPercent ?? loggedClient?.tier?.discountPercent ?? 0;
   const tierDiscountAmount = tierDiscountPercent > 0 ? (afterQuantityDiscount * (tierDiscountPercent / 100)) : 0;
   discountedSubtotal = Math.max(0, discountedSubtotal - tierDiscountAmount);
 
@@ -458,13 +460,20 @@ export default function CheckoutPage() {
 
   let couponDiscount = 0;
   let productCouponBonus = 0;
-  if (selectedCoupon?.reward) {
-    if (selectedCoupon.reward.type === "PERCENT") {
-      couponDiscount = discountedSubtotal * ((selectedCoupon.reward.value || 0) / 100);
-    } else if (selectedCoupon.reward.type === "AMOUNT") {
-      couponDiscount = Math.min(discountedSubtotal, selectedCoupon.reward.value || 0);
-    } else if (selectedCoupon.reward.type === "PRODUCT" || selectedCoupon.reward.type === "COMBO") {
-      const targetProdId = selectedCoupon.reward.productId || selectedCoupon.reward.product?.id;
+  // Preferir siempre el cupón actualizado desde DB al guardado en localStorage:
+  // puede haberse cambiado la regla del nivel después de que se guardó.
+  const pricedCoupon = selectedCoupon
+    ? availableCoupons.find(c => c.id === selectedCoupon.id) || selectedCoupon
+    : null;
+  const couponAllowed = !pricedCoupon?.reward?.minTier ||
+    allowsTierBenefit(pricedCoupon.reward.minTier.paymentMode, formData.paymentMethod);
+  if (pricedCoupon?.reward && couponAllowed) {
+    if (pricedCoupon.reward.type === "PERCENT") {
+      couponDiscount = discountedSubtotal * ((pricedCoupon.reward.value || 0) / 100);
+    } else if (pricedCoupon.reward.type === "AMOUNT") {
+      couponDiscount = Math.min(discountedSubtotal, pricedCoupon.reward.value || 0);
+    } else if (pricedCoupon.reward.type === "PRODUCT" || pricedCoupon.reward.type === "COMBO") {
+      const targetProdId = pricedCoupon.reward.productId || pricedCoupon.reward.product?.id;
       const matchingItem = items.find((i) => (i.product?.id === targetProdId || (i as any).productId === targetProdId) && !i.isReward);
       if (matchingItem) {
         productCouponBonus = matchingItem.unitPrice;
@@ -476,11 +485,15 @@ export default function CheckoutPage() {
   const deliveryCost = formData.needsDelivery ? config?.deliveryCost || 0 : 0;
   const total = discountedSubtotal + deliveryCost;
 
-  const pointsMultiplier = loggedClient?.tier?.pointsMultiplier || 1.0;
+  const pointsMultiplier = selectedTierBenefits?.pointsMultiplier ?? loggedClient?.tier?.pointsMultiplier ?? 1.0;
   const totalEarnedPoints = Math.round(items.reduce((sum, item) => sum + (item.product?.points || 0) * item.quantity, 0) * pointsMultiplier);
 
   const validateAndSubmit = async () => {
     if (items.length === 0) return;
+    if (selectedCoupon && !couponAllowed) {
+      toast.error("Este cupón no está disponible para el medio de pago seleccionado.");
+      return;
+    }
     if (config?.requireLoginForCheckout && !loggedClient) {
       setShowAuthModal(true);
       toast.error("Para comprar, primero iniciá sesión o registrate.");
@@ -506,7 +519,7 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
-      const rewardRedemptionId = selectedCoupon?.id || items.find((i) => i.rewardRedemptionId)?.rewardRedemptionId || null;
+      const rewardRedemptionId = pricedCoupon?.id || items.find((i) => i.rewardRedemptionId)?.rewardRedemptionId || null;
       const result = await createOrder({
         ...formData,
         items,
@@ -918,14 +931,17 @@ export default function CheckoutPage() {
 
                   {availableCoupons.map((coupon) => {
                     const isSelected = selectedCoupon?.id === coupon.id;
+                    const compatible = !coupon.reward?.minTier ||
+                      allowsTierBenefit(coupon.reward.minTier.paymentMode, formData.paymentMethod);
                     return (
                       <div
                         key={coupon.id}
                         onClick={() => {
+                          if (!compatible) return;
                           setSelectedCoupon(coupon);
                           setUserOptedOutCoupon(false);
                         }}
-                        className={`p-2.5 rounded-xl border text-[11px] cursor-pointer transition-all flex items-center justify-between ${
+                        className={`p-2.5 rounded-xl border text-[11px] transition-all flex items-center justify-between ${compatible ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
                           isSelected ? t.couponActive : t.couponInactive
                         }`}
                       >
@@ -938,6 +954,9 @@ export default function CheckoutPage() {
                               ? `$${coupon.reward.value?.toLocaleString("es-AR")} de descuento`
                               : `Producto gratis`}
                           </span>
+                          {!compatible && <span className="text-[10px] font-bold text-red-600">
+                            Solo {coupon.reward.minTier.paymentMode === "CASH" ? "efectivo" : "Mercado Pago"}
+                          </span>}
                         </div>
                         {isSelected && <Check className="w-4 h-4 shrink-0" />}
                       </div>

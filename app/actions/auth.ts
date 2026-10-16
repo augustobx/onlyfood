@@ -6,11 +6,12 @@ import { prisma } from "@/lib/prisma";
 import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { hashPassword, verifyPassword, createSession, clearSession, getLoggedClient } from "@/lib/auth";
-import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
+import { consumeRateLimit, getRequestIp, isRateLimitBlocked, rateLimitKey } from "@/lib/request-security";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { normalizeClientLoginIdentifier, isEmailLoginIdentifier } from "@/lib/client-login-identifier";
 import { sendEmailVerification } from "@/app/actions/client-security";
 import { temporaryPasswordState } from "@/lib/temporary-password-policy";
+import { calculateTierPaymentBenefits } from "@/lib/tier-payment-policy";
 
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9]{8,15}$/);
@@ -136,8 +137,10 @@ export async function registerClient(formData: FormData) {
 export async function loginClient(formData: FormData) {
   try {
     const ip = await getRequestIp();
-    if (!(await consumeRateLimit("client-login", ip, 10, 15 * 60 * 1000))) {
-      return { success: false, error: "Demasiados intentos. Probá en 15 minutos." };
+    // Protección global de IP contra automatización; bloqueo individual separado
+    // para que el comercio pueda rehabilitar a un cliente sin abrir toda la IP.
+    if (!(await consumeRateLimit("client-login", ip, 60, 15 * 60 * 1000))) {
+      return { success: false, error: "Demasiados intentos desde tu red. Probá en 15 minutos." };
     }
     const rawIdentifier = String(formData.get("identifier") || formData.get("phone") || "");
     const identifier = normalizeClientLoginIdentifier(rawIdentifier);
@@ -157,6 +160,11 @@ export async function loginClient(formData: FormData) {
     if (clients.length === 0) return { success: false, error: "Credenciales incorrectas." };
 
     const activeClients = clients.filter((client) => !client.passwordSetupRequired);
+    for (const candidate of activeClients) {
+      if (await isRateLimitBlocked("client-login-account", `${tenant.id}:${candidate.id}`, 8)) {
+        return { success: false, error: "Demasiados intentos en esta cuenta. Solicitá desbloqueo al comercio o probá en 15 minutos." };
+      }
+    }
     if (activeClients.length === 0) {
       return {
         success: false,
@@ -176,7 +184,16 @@ export async function loginClient(formData: FormData) {
         break;
       }
     }
-    if (!matchedClient) return { success: false, error: "Credenciales incorrectas." };
+    if (!matchedClient) {
+      // Contabilizar SOLO credenciales inválidas. Éxitos no bloquean cuentas.
+      for (const candidate of activeClients) {
+        await consumeRateLimit("client-login-account", `${tenant.id}:${candidate.id}`, 8, 15 * 60_000);
+      }
+      return { success: false, error: "Credenciales incorrectas." };
+    }
+    await prisma.rateLimitBucket.deleteMany({
+      where: { key: rateLimitKey("client-login-account", `${tenant.id}:${matchedClient.id}`) },
+    });
     const temporaryState = temporaryPasswordState(matchedClient, new Date());
     if (temporaryState !== "NORMAL") {
       if (temporaryState === "EXPIRED") {
@@ -267,6 +284,11 @@ export async function fetchCurrentClient() {
       color: clientTier.color,
       discountPercent: tierDiscountPercent,
       pointsMultiplier: tierMultiplier,
+      paymentMode: clientTier.paymentMode || "BOTH",
+      paymentBenefits: {
+        CASH: calculateTierPaymentBenefits(clientTier, tiers, "CASH"),
+        MP: calculateTierPaymentBenefits(clientTier, tiers, "MP"),
+      },
     } : null,
     createdAt: client.createdAt,
     updatedAt: client.updatedAt,

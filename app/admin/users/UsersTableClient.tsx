@@ -32,7 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { adminAssignRewardToClient, adminAdjustClientPoints } from "@/app/actions/admin-rewards";
-import { resetUserPassword, detectDuplicateClients, mergeClients, type DuplicateClientGroup } from "@/app/actions/admin-users";
+import { resetUserPassword, unlockClientLoginAttempts, detectDuplicateClients, mergeClients, type DuplicateClientGroup } from "@/app/actions/admin-users";
 import { sendAdminClientEmailVerification } from "@/app/actions/client-security";
 import { ClientAccountEditor } from "@/components/admin/ClientAccountEditor";
 
@@ -50,6 +50,7 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [editClient, setEditClient] = useState<any | null>(null);
 
   const [verifyingClientId, setVerifyingClientId] = useState<string | null>(null);
@@ -180,6 +181,18 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
     } finally {
       setResettingId(null);
     }
+  };
+
+  const handleUnlockLogin = async (user: any) => {
+    if (!confirm(`¿Restablecer el contador de intentos de ingreso de ${user.name || user.phone}? Esto NO cambia la contraseña.`)) return;
+    setUnlockingId(user.id);
+    try {
+      const res = await unlockClientLoginAttempts(user.id);
+      if (res.success) toast.success(res.message);
+      else toast.error(res.error);
+    } catch {
+      toast.error("No se pudieron restablecer los intentos.");
+    } finally { setUnlockingId(null); }
   };
 
   const handleDetectDuplicates = async () => {
@@ -633,6 +646,13 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                       Recuperar
                     </Button>
 
+                    <Button size="sm" variant="outline"
+                      disabled={unlockingId === u.id}
+                      onClick={() => void handleUnlockLogin(u)}
+                      className="rounded-xl text-[11px] font-bold h-7 px-2 border-emerald-300 text-emerald-800"
+                      title="Desbloquear intentos de ingreso de esta cuenta sin cambiar contraseña">
+                      <ShieldCheck className="w-3 h-3 mr-1" /> {unlockingId === u.id ? "Desbloqueando..." : "Desbloquear login"}
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"
