@@ -47,12 +47,19 @@ export async function requestClientAdminPasswordReset(input: { name: string; pho
       select: { id: true },
     })).id;
   }
+  const config = await prisma.systemConfig.findFirst({
+    where: { tenantId: tenant.id },
+    select: { passwordResetWhatsAppPhone: true, whatsappDefaultCountryCode: true },
+  });
   const location = await prisma.location.findFirst({
     where: { tenantId: tenant.id, isActive: true, phone: { not: null } },
     orderBy: [{ isMain: "desc" }, { createdAt: "asc" }],
     select: { phone: true },
   });
-  const destination = location?.phone ? normalizeWhatsAppRecipient(location.phone) : null;
+  const phoneDestination = config?.passwordResetWhatsAppPhone?.trim() || location?.phone || "";
+  const destination = phoneDestination
+    ? normalizeWhatsAppRecipient(phoneDestination, config?.whatsappDefaultCountryCode || "549")
+    : null;
   const message = [
     `Hola ${tenant.name}, solicito recuperar mi clave de la tienda.`,
     `Nombre: ${data.data.name}`,

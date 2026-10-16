@@ -132,6 +132,8 @@ export function SettingsForm({
       printerKitchenName: cfg.printerKitchenName,
       printerKitchenSize: cfg.printerKitchenSize || "80mm",
 
+      passwordResetWhatsAppPhone: cfg.passwordResetWhatsAppPhone || "",
+
       // Notificaciones transaccionales por WhatsApp
       whatsappNotificationsEnabled: whatsappEnabled ? cfg.whatsappNotificationsEnabled : false,
       whatsappNotifyOrderConfirmed: Boolean(cfg.whatsappNotifyOrderConfirmed ?? true),
@@ -268,6 +270,20 @@ export function SettingsForm({
                 </div>
               </div>
 
+              <div className="space-y-2 rounded-xl border bg-slate-50 p-4">
+                <Label htmlFor="password-reset-whatsapp" className="font-bold text-slate-800">
+                  WhatsApp para solicitudes de reseteo de clave
+                </Label>
+                <Input id="password-reset-whatsapp" type="tel"
+                  value={cfg.passwordResetWhatsAppPhone || ""}
+                  onChange={e => updateField("passwordResetWhatsAppPhone", e.target.value)}
+                  placeholder="Ej. 5491123456789" />
+                <p className="text-xs text-muted-foreground">
+                  Se usa al solicitar recuperar una clave sin correo. No requiere la API de WhatsApp;
+                  se abre el chat con el mensaje preparado. Si queda vacío, se intenta el teléfono
+                  de la sede principal. El cliente debe confirmar el envío en WhatsApp.
+                </p>
+              </div>
               <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50">
                 <div className="space-y-1">
                   <Label className="text-base text-slate-800 font-bold">Exigir cuenta para comprar</Label>
