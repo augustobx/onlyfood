@@ -370,7 +370,7 @@ export function AuthModal({
                 window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
                 router.refresh();
               }} />
-            )}}
+            )}
             <button type="button" onClick={() => { setMode("LOGIN"); setRecoveryMessage(""); }}
               className="w-full text-xs font-bold text-slate-500 hover:text-orange-500">← Volver al inicio de sesión</button>
           </div>
