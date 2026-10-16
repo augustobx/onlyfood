@@ -13,7 +13,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams?: Promise<{ tab?: string }>;
 }) {
-  const params = searchParams ? await searchParams : {};
+  const params: { tab?: string } = searchParams ? await searchParams : {};
   await requireAdmin(["OWNER", "MANAGER"]);
   const tenant = await getTenantContext();
   const loyaltyEnabled = tenant.features.has("loyalty");
