@@ -23,6 +23,14 @@ export function rateLimitKey(namespace: string, identifier: string): string {
   return crypto.createHash("sha256").update(`${namespace}:${identifier}`).digest("hex");
 }
 
+export async function isRateLimitBlocked(namespace: string, identifier: string, limit: number): Promise<boolean> {
+  const current = await prisma.rateLimitBucket.findUnique({
+    where: { key: rateLimitKey(namespace, identifier) },
+    select: { count: true, resetAt: true },
+  });
+  return Boolean(current && current.resetAt > new Date() && current.count >= limit);
+}
+
 export async function consumeRateLimit(
   namespace: string,
   identifier: string,

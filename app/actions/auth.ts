@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { hashPassword, verifyPassword, createSession, clearSession, getLoggedClient } from "@/lib/auth";
-import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
+import { consumeRateLimit, getRequestIp, isRateLimitBlocked, rateLimitKey } from "@/lib/request-security";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { normalizeClientLoginIdentifier, isEmailLoginIdentifier } from "@/lib/client-login-identifier";
 import { sendEmailVerification } from "@/app/actions/client-security";
@@ -161,10 +161,7 @@ export async function loginClient(formData: FormData) {
 
     const activeClients = clients.filter((client) => !client.passwordSetupRequired);
     for (const candidate of activeClients) {
-      const allowed = await consumeRateLimit(
-        "client-login-account", `${tenant.id}:${candidate.id}`, 8, 15 * 60_000,
-      );
-      if (!allowed) {
+      if (await isRateLimitBlocked("client-login-account", `${tenant.id}:${candidate.id}`, 8)) {
         return { success: false, error: "Demasiados intentos en esta cuenta. Solicitá desbloqueo al comercio o probá en 15 minutos." };
       }
     }
@@ -187,7 +184,16 @@ export async function loginClient(formData: FormData) {
         break;
       }
     }
-    if (!matchedClient) return { success: false, error: "Credenciales incorrectas." };
+    if (!matchedClient) {
+      // Contabilizar SOLO credenciales inválidas. Éxitos no bloquean cuentas.
+      for (const candidate of activeClients) {
+        await consumeRateLimit("client-login-account", `${tenant.id}:${candidate.id}`, 8, 15 * 60_000);
+      }
+      return { success: false, error: "Credenciales incorrectas." };
+    }
+    await prisma.rateLimitBucket.deleteMany({
+      where: { key: rateLimitKey("client-login-account", `${tenant.id}:${matchedClient.id}`) },
+    });
     const temporaryState = temporaryPasswordState(matchedClient, new Date());
     if (temporaryState !== "NORMAL") {
       if (temporaryState === "EXPIRED") {
