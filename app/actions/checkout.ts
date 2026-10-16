@@ -19,6 +19,7 @@ import { reconcileMercadoPagoPayment } from "@/lib/mercadopago-payments";
 import { dispatchWhatsAppNotification, queueOrderWhatsAppNotification, queueRelatedOrderConfirmationNotifications } from "@/lib/whatsapp-notifications";
 import { requireAdmin } from "@/lib/admin-session";
 import { createOrderTrackingToken } from "@/lib/order-tracking";
+import { transferSettingsValid, normalizeTransferWhatsApp } from "@/lib/transfer-payment";
 import { calculateBestQuantityDiscount } from "@/lib/quantity-discounts";
 
 import { parseBusinessHours, isCurrentlyInBusinessHours } from "@/lib/business-hours";
@@ -51,7 +52,7 @@ const orderSchema = z.object({
   orderType: z.enum(["IMMEDIATE", "SCHEDULED_TOMORROW", "CUSTOM_DATE"]).default("IMMEDIATE"),
   scheduledDate: z.string().optional().nullable(),
   scheduledTime: z.string().max(80).optional().nullable(),
-  paymentMethod: z.enum(["CASH", "MP", "ADMIN"]).default("CASH"),
+  paymentMethod: z.enum(["CASH", "MP", "TRANSFER", "ADMIN"]).default("CASH"),
   paymentStatus: z.enum(["PAID", "PENDING"]).optional().nullable(),
   directDelivered: z.boolean().optional().default(false),
   items: z.array(cartItemSchema).max(40),
@@ -176,6 +177,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       return { success: false, error: parsed.error?.issues[0]?.message || "Los datos del pedido no son válidos." };
     }
     const data = parsed.data;
+    if (adminDirectPaid && data.paymentMethod === "TRANSFER") return { success: false, error: "La transferencia del cliente requiere aprobación manual desde la bandeja." };
     if (data.items.length === 0 && !data.redemptionId && !data.rouletteWinId) {
       return { success: false, error: "Tu carrito está vacío. Agregá productos para continuar." };
     }
@@ -205,6 +207,11 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         whatsappNotificationsEnabled: false,
         paymentCash: true,
         paymentMp: true,
+        paymentTransfer: false,
+        transferAlias: "",
+        transferCbu: "",
+        transferHolder: "",
+        transferWhatsApp: "",
         globalDiscount: 0,
         deliveryCost: 0,
         mpAccessToken: null,
@@ -235,6 +242,13 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
 
         if (data.paymentMethod === "CASH" && !config.paymentCash) throw new Error("PAYMENT_DISABLED");
         if (data.paymentMethod === "MP" && (!config.paymentMp || !mpCreds?.accessToken)) throw new Error("PAYMENT_DISABLED");
+        if (data.paymentMethod === "TRANSFER" && !transferSettingsValid({
+          enabled: config.paymentTransfer,
+          alias: config.transferAlias,
+          cbu: config.transferCbu,
+          holder: config.transferHolder,
+          whatsapp: config.transferWhatsApp,
+        })) throw new Error("PAYMENT_DISABLED");
       }
 
       let deliveryTimeDisplay = data.scheduledTime || "Horario del turno";
@@ -811,6 +825,12 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             scheduledDate: group.scheduledDate,
             scheduledTime: groupDeliveryTime,
             paymentMethod: data.paymentMethod,
+            transferInstructions: data.paymentMethod === "TRANSFER" ? {
+              alias: config.transferAlias.trim(),
+              cbu: config.transferCbu.trim(),
+              holder: config.transferHolder.trim(),
+              whatsapp: normalizeTransferWhatsApp(config.transferWhatsApp),
+            } : undefined,
             total: groupTotal,
             quantityDiscountAmount: groupQuantityDiscount,
             discountDetails: (quantityDiscount || consumedRouletteWinId || consumedRedemptionId) ? {
@@ -862,6 +882,19 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         }
 
         createdOrders.push(order);
+      }
+      if (data.paymentMethod === "TRANSFER") {
+        const amount = roundMoney(createdOrders.reduce((sum, order) => sum + order.total, 0));
+        await tx.order.updateMany({
+          where: { id: { in: createdOrders.map((order) => order.id) } },
+          data: { transferInstructions: {
+            alias: config.transferAlias.trim(),
+            cbu: config.transferCbu.trim(),
+            holder: config.transferHolder.trim(),
+            whatsapp: normalizeTransferWhatsApp(config.transferWhatsApp),
+            total: amount,
+          } },
+        });
       }
 
       if (consumedRedemptionId) {
@@ -993,7 +1026,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       SCHEDULED_TOMORROW_DISABLED: "Los pedidos programados para mañana no están habilitados actualmente.",
       ADVANCE_ORDERS_DISABLED: "Los pedidos por encargo no están habilitados actualmente.",
       PAYMENT_DISABLED: "Ese medio de pago no está disponible.",
-      TIER_PAYMENT_RESTRICTED: "Este premio es exclusivo para otro medio de pago. Cambiá a efectivo o Mercado Pago según las condiciones del nivel.",
+      TIER_PAYMENT_RESTRICTED: "Este premio no es válido para el medio de pago elegido. Seleccioná uno compatible con las condiciones del nivel.",
       SLOT_UNAVAILABLE: "El horario seleccionado acaba de agotarse.",
       SLOT_REQUIRED: "Seleccioná uno de los horarios disponibles para hoy.",
       PRODUCT_UNAVAILABLE: "Uno de los productos ya no está disponible.",
