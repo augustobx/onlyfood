@@ -68,7 +68,8 @@ export async function requestClientAdminPasswordReset(input: { name: string; pho
   };
 }
 
-export async function approveClientPasswordResetRequest(input: string) {
+export async function approveClientPasswordResetRequest(input: string, identityChecked: boolean) {
+  if (identityChecked !== true) return { success: false as const, error: "Confirmá que verificaste la identidad del solicitante." };
   await requireAdmin(["OWNER", "MANAGER"]);
   const id = z.string().uuid().safeParse(input);
   if (!id.success) return { success: false as const, error: "Solicitud inválida." };
@@ -96,6 +97,8 @@ export async function approveClientPasswordResetRequest(input: string) {
       if (changed.count !== 1) throw new Error("ACCOUNT_CHANGED");
       await tx.session.deleteMany({ where: { tenantId: tenant.id, clientId: request.clientId } });
       await tx.clientRecoveryCode.deleteMany({ where: { tenantId: tenant.id, clientId: request.clientId } });
+      await tx.clientPasskey.deleteMany({ where: { tenantId: tenant.id, clientId: request.clientId } });
+      await tx.clientSecurityToken.deleteMany({ where: { tenantId: tenant.id, clientId: request.clientId } });
       return true;
     });
     revalidatePath("/admin/users");
