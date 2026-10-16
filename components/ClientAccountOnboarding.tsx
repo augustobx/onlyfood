@@ -177,7 +177,7 @@ export function ClientAccountOnboarding() {
               <label htmlFor="onboarding-dni" className="block text-sm font-bold">Número de DNI (7 u 8 dígitos)</label>
               <input id="onboarding-dni" type="text" inputMode="numeric" autoComplete="off" pattern="[0-9]{7,8}"
                 minLength={7} maxLength={8} required disabled={busy} value={dni}
-                onChange={event => setDni(event.target.value.replace(/\\D/g, "").slice(0, 8))}
+                onChange={event => setDni(event.target.value.replace(/\D/g, "").slice(0, 8))}
                 placeholder="Solo números" className="w-full rounded-xl border border-slate-300 px-3 py-3 text-sm" />
               <p className="text-xs text-slate-500">
                 No almacenamos tu número de documento. Este paso no verifica identidad ni vincula el DNI a tu rostro.
