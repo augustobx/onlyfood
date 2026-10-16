@@ -49,7 +49,7 @@ export function MobilePwaNavigation({
           <ClipboardList className="h-4 w-4"/> Ver pedido en curso
         </Link>
       )}
-      {install && !installed && !dismissed && path === "/" && (
+      {install && !installed && !dismissed && !activeOrderId && path === "/" && (
         <aside className={`fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 right-3 z-[60] mx-auto flex max-w-sm items-center gap-2 rounded-2xl border p-3 shadow-xl sm:hidden ${
           dark ? "border-orange-500/40 bg-[#24172c] text-white" : "border-orange-200 bg-white text-slate-900"
         }`}>

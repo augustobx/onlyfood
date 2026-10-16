@@ -663,7 +663,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
           type="button"
           aria-label="Abrir ruleta de premios"
           onClick={() => loggedClient ? setIsRouletteOpen(true) : setIsAuthModalOpen(true)}
-          className="fixed bottom-[110px] left-4 z-[90] flex h-14 items-center gap-2 rounded-full border-2 border-violet-200 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-orange-500 px-4 font-black text-white shadow-[0_12px_35px_rgba(124,58,237,.45)] transition hover:scale-105 hover:brightness-110 active:scale-95 sm:left-6 sm:h-16"
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-4 z-[65] sm:bottom-[110px] sm:z-[90] flex h-14 items-center gap-2 rounded-full border-2 border-violet-200 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-orange-500 px-4 font-black text-white shadow-[0_12px_35px_rgba(124,58,237,.45)] transition hover:scale-105 hover:brightness-110 active:scale-95 sm:left-6 sm:h-16"
         >
           <Dices className="size-6" />
           <span className="text-left leading-tight">
@@ -985,7 +985,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="store-cart-bar fixed bottom-0 left-0 w-full p-4 md:p-6 z-50 pointer-events-none"
+            className="store-cart-bar pointer-events-none fixed bottom-0 left-0 z-50 hidden w-full p-4 sm:block md:p-6"
           >
             <div className="max-w-xl mx-auto pointer-events-auto">
               <Link href="/cart">
@@ -1015,7 +1015,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
 
       {/* Botón Flotante de Canje de Puntos */}
       {loyaltyEnabled && config?.isPointsCatalogActive !== false && !showSplash && (
-        <div className="fixed bottom-[110px] right-4 z-[90] sm:right-6">
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[65] sm:bottom-[110px] sm:z-[90] sm:right-6">
           <motion.div
             animate={{ y: [0, -6, 0] }}
             transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
