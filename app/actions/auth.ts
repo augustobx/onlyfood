@@ -6,6 +6,7 @@ import { createTenantDb } from "@/lib/tenant-db";
 import { hashPassword, verifyPassword, createSession, clearSession, getLoggedClient } from "@/lib/auth";
 import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
 import { cleanPhoneNumber } from "@/lib/phone";
+import { sendEmailVerification } from "@/app/actions/client-security";
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9]{8,15}$/);
 const loginIdentifierSchema = z.string().trim().min(1).max(50);
@@ -64,6 +65,8 @@ async function mergeDuplicateClients(tenantId: string, primary: LoginClient, cli
     await tx.order.updateMany({ where: { clientId: { in: duplicateIds } }, data: { clientId: primary.id } });
     await tx.rouletteWin.updateMany({ where: { clientId: { in: duplicateIds } }, data: { clientId: primary.id } });
     await tx.session.deleteMany({ where: { clientId: { in: duplicateIds } } });
+    await tx.clientPasskey.updateMany({ where: { clientId: { in: duplicateIds } }, data: { clientId: primary.id } });
+    await tx.clientSecurityToken.updateMany({ where: { clientId: { in: duplicateIds } }, data: { clientId: primary.id } });
     if (transferredPoints > 0) {
       await tx.client.update({ where: { id: primary.id }, data: { points: { increment: transferredPoints } } });
     }
@@ -114,23 +117,29 @@ export async function registerClient(formData: FormData) {
     const parsed = z.object({
       phone: phoneSchema,
       password: passwordSchema,
+      email: z.string().trim().toLowerCase().email().max(254),
       name: z.string().trim().max(80).optional(),
     }).safeParse({
       phone: cleanedPhone,
       password: formData.get("password"),
+      email: formData.get("email"),
       name: formData.get("name") || undefined,
     });
-    if (!parsed.success) return { success: false, error: "Revisá el teléfono y usá una clave de al menos 8 caracteres." };
+    if (!parsed.success) return { success: false, error: "Ingresá teléfono, correo válido y clave de al menos 8 caracteres." };
 
     const tenant = await getTenantContext();
     const db = createTenantDb(tenant.id);
 
+    const existingEmail = await db.client.findFirst({ where: { email: parsed.data.email } });
+    if (existingEmail && existingEmail.phone !== parsed.data.phone) return { success: false, error: "Ese correo ya pertenece a otra cuenta del comercio." };
     const existing = await findClientsByIdentifier(tenant.id, parsed.data.phone);
     if (existing.length > 0 && existing.every((client) => client.passwordSetupRequired)) {
       const clientId = await activateImportedClients(tenant.id, existing as LoginClient[], parsed.data.phone, parsed.data.password);
       if (!clientId) return { success: false, error: "No se pudo activar la cuenta. Intentá nuevamente." };
+      await db.client.updateMany({ where: { id: clientId }, data: { email: parsed.data.email, emailVerifiedAt: null } });
       await createSession(clientId, tenant.id);
-      return { success: true, accountActivated: true };
+      const verification = await sendEmailVerification(parsed.data.email);
+      return { success: true, accountActivated: true, verificationSent: verification.success };
     }
     if (existing.length > 0) {
       return {
@@ -146,10 +155,12 @@ export async function registerClient(formData: FormData) {
         phoneLoginKey: phoneLoginKey(parsed.data.phone),
         password: await hashPassword(parsed.data.password),
         name: parsed.data.name || undefined,
+        email: parsed.data.email,
       },
     });
     await createSession(client.id, tenant.id);
-    return { success: true };
+    const verification = await sendEmailVerification(parsed.data.email);
+    return { success: true, verificationSent: verification.success };
   } catch (error) {
     console.error("Auth register error:", error);
     return { success: false, error: "Hubo un error al registrarse." };
@@ -213,64 +224,6 @@ export async function loginClient(formData: FormData) {
   }
 }
 
-export async function requestPasswordResetStatus(phone: string) {
-  try {
-    const tenant = await getTenantContext();
-    const cleaned = cleanPhoneNumber(phone);
-    if (!phoneSchema.safeParse(cleaned).success) {
-      return { success: false, error: "Ingresá un número de teléfono válido." };
-    }
-    const clients = await findClientsByIdentifier(tenant.id, cleaned);
-    if (clients.length === 0) {
-      return { success: false, error: "No encontramos ninguna cuenta registrada con este número." };
-    }
-
-    const canSelfReset = clients.every((c) => c.passwordSetupRequired);
-    return {
-      success: true,
-      canSelfReset,
-      phone: cleaned,
-      clientName: clients[0]?.name || null,
-    };
-  } catch (error) {
-    console.error("Reset status error:", error);
-    return { success: false, error: "No se pudo verificar el estado de la cuenta." };
-  }
-}
-
-export async function resetClientPasswordWithSetup(phone: string, newPassword: string) {
-  try {
-    const tenant = await getTenantContext();
-    const cleaned = cleanPhoneNumber(phone);
-    const parsedPass = passwordSchema.safeParse(newPassword);
-    if (!parsedPass.success) {
-      return { success: false, error: "La clave debe tener al menos 8 caracteres." };
-    }
-
-    const clients = await findClientsByIdentifier(tenant.id, cleaned);
-    if (clients.length === 0) {
-      return { success: false, error: "No encontramos ninguna cuenta con este número." };
-    }
-
-    const hasSetupRequired = clients.some((c) => c.passwordSetupRequired);
-    if (!hasSetupRequired) {
-      return {
-        success: false,
-        error: "Esta cuenta ya tiene una clave activa. Podés solicitar al local por WhatsApp que restablezca tu acceso.",
-        requireAdminReset: true,
-      };
-    }
-
-    const clientId = await activateImportedClients(tenant.id, clients as LoginClient[], cleaned, newPassword);
-    if (!clientId) return { success: false, error: "No se pudo actualizar la contraseña. Intentá nuevamente." };
-    await createSession(clientId, tenant.id);
-    return { success: true };
-  } catch (error) {
-    console.error("Password reset error:", error);
-    return { success: false, error: "Error al actualizar la contraseña." };
-  }
-}
-
 export async function logoutClient() {
   await clearSession();
   return { success: true };
@@ -317,6 +270,8 @@ export async function fetchCurrentClient() {
     id: client.id,
     phone: client.phone,
     name: client.name,
+    email: client.email,
+    emailVerified: Boolean(client.emailVerifiedAt),
     points: dbClient?.points ?? client.points,
     tier: clientTier ? {
       id: clientTier.id,

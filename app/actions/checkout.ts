@@ -196,6 +196,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       const config = (await tx.systemConfig.findFirst()) || {
         appName: tenant.name,
         isStoreOpen: true,
+        requireLoginForCheckout: false,
         allowImmediateOrders: true,
         allowScheduledTomorrow: true,
         allowAdvanceOrders: true,
