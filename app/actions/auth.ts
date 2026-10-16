@@ -137,8 +137,10 @@ export async function registerClient(formData: FormData) {
 export async function loginClient(formData: FormData) {
   try {
     const ip = await getRequestIp();
-    if (!(await consumeRateLimit("client-login", ip, 10, 15 * 60 * 1000))) {
-      return { success: false, error: "Demasiados intentos. Probá en 15 minutos." };
+    // Protección global de IP contra automatización; bloqueo individual separado
+    // para que el comercio pueda rehabilitar a un cliente sin abrir toda la IP.
+    if (!(await consumeRateLimit("client-login", ip, 60, 15 * 60 * 1000))) {
+      return { success: false, error: "Demasiados intentos desde tu red. Probá en 15 minutos." };
     }
     const rawIdentifier = String(formData.get("identifier") || formData.get("phone") || "");
     const identifier = normalizeClientLoginIdentifier(rawIdentifier);
@@ -158,6 +160,14 @@ export async function loginClient(formData: FormData) {
     if (clients.length === 0) return { success: false, error: "Credenciales incorrectas." };
 
     const activeClients = clients.filter((client) => !client.passwordSetupRequired);
+    for (const candidate of activeClients) {
+      const allowed = await consumeRateLimit(
+        "client-login-account", `${tenant.id}:${candidate.id}`, 8, 15 * 60_000,
+      );
+      if (!allowed) {
+        return { success: false, error: "Demasiados intentos en esta cuenta. Solicitá desbloqueo al comercio o probá en 15 minutos." };
+      }
+    }
     if (activeClients.length === 0) {
       return {
         success: false,
