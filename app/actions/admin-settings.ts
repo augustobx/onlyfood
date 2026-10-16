@@ -7,6 +7,7 @@ import { isTenantEmailConfigured } from "@/lib/tenant-email";
 import { getTenantIntegration, saveTenantIntegration, setTenantIntegrationActive, type WhatsAppCredentials, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
+import { transferSettingsValid } from "@/lib/transfer-payment";
 import { sendOrderPush } from "@/lib/push-notifications";
 import { dispatchWhatsAppNotification } from "@/lib/whatsapp-notifications";
 import { hasTenantFeature, requireTenantFeature } from "@/lib/features";
@@ -28,7 +29,12 @@ const configSchema = z.object({
   noticeBoardDuration: z.number().int().min(3).max(120),
   deliveryCost: z.number().min(0).max(10_000_000), globalDiscount: z.number().min(0).max(100),
   splashUrl: optionalAssetUrl, splashVideoUrl: optionalAssetUrl, logoUrl: optionalAssetUrl, backgroundUrl: optionalAssetUrl, backgroundBlur: z.boolean(),
-  paymentCash: z.boolean(), paymentMp: z.boolean(), autoPrintTickets: z.boolean(),
+  paymentCash: z.boolean(), paymentMp: z.boolean(), paymentTransfer: z.boolean(),
+  transferAlias: z.string().trim().max(60),
+  transferCbu: z.string().trim().regex(/^$|^\d{22}$/, "Ingresá un CBU/CVU de 22 dígitos o dejalo vacío."),
+  transferHolder: z.string().trim().max(120),
+  transferWhatsApp: z.string().trim().regex(/^$|^\d{10,15}$/, "Usá el número de WhatsApp con código de país, solo dígitos."),
+  autoPrintTickets: z.boolean(),
   kitchenPattyCountEnabled: z.boolean(),
   kitchenPattyKeywords: z.string().trim().min(1).max(250),
   printingMode: z.enum(["BROWSER", "PRINTNODE", "NANOLABS_AGENT"]),
@@ -64,7 +70,10 @@ const configSchema = z.object({
   .refine((value) => !value.noticeBoardEnabled || (value.noticeBoardTitle.length > 0 && value.noticeBoardMessage.length > 0), {
     message: "Para activar el tablón completá el título y el mensaje.",
   })
-  .refine((value) => value.paymentCash || value.paymentMp, { message: "Debe habilitar al menos un medio de pago." })
+  .refine((value) => value.paymentCash || value.paymentMp || value.paymentTransfer, { message: "Debe habilitar al menos un medio de pago." })
+  .refine((value) => !value.paymentTransfer || transferSettingsValid({ enabled: true, alias: value.transferAlias, cbu: value.transferCbu, holder: value.transferHolder, whatsapp: value.transferWhatsApp }), {
+    message: "Para habilitar transferencias completá alias o CBU/CVU válido, titular y WhatsApp (con código de país).",
+  })
   .refine((value) => value.printingMode !== "PRINTNODE" || (value.printNodeCounterPrinterId && value.printNodeKitchenPrinterId), {
     message: "Para usar PrintNode completá los IDs de cocina y mostrador.",
   });
