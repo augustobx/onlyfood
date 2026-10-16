@@ -72,8 +72,8 @@ export async function getReorderPreview(orderIdInput: string) {
       items: {
         select: {
           id: true, productId: true, quantity: true, isHalfAndHalf: true, notes: true,
-          addedExtras: { select: { id: true } },
-          removedIngredients: { select: { id: true } },
+          addedExtras: { select: { extraId: true } },
+          removedIngredients: { select: { ingredientId: true } },
           comboItems: { select: { id: true } },
           product: { select: { name: true } },
         },
