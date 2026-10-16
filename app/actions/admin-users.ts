@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/admin-session";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
 import { arePhonesEquivalent, cleanPhoneNumber } from "@/lib/phone";
+import { sendAdminClientPasswordReset } from "@/app/actions/client-security";
 
 const adminContactSchema = z.object({
   clientId: z.string().uuid(),
@@ -110,24 +111,9 @@ export async function updateUserPoints(clientId: string, points: number) {
 }
 
 export async function resetUserPassword(clientId: string) {
-  await requireAdmin();
-  const tenant = await getTenantContext();
-  const parsed = z.string().min(1).max(100).safeParse(clientId);
-  if (!parsed.success) return { success: false, error: "Cliente inválido." };
-  try {
-    const db = await getTenantDb();
-    await db.client.update({
-      where: { id: parsed.data },
-      data: { passwordSetupRequired: true },
-    });
-    // Invalidate existing sessions so client has to establish new credentials
-    await db.session.deleteMany({ where: { clientId: parsed.data } });
-    revalidatePath("/admin/users");
-    return { success: true };
-  } catch (error) {
-    console.error("Error resetting user password:", error);
-    return { success: false, error: "No se pudo restablecer la contraseña." };
-  }
+  // No permitir un reseteo al simple conocimiento del teléfono.
+  // La entrega se hace SOLO al correo previamente verificado por su dueño.
+  return sendAdminClientPasswordReset(clientId);
 }
 
 export type DuplicateClientGroup = {

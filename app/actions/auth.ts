@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword, createSession, clearSession, getLoggedCli
 import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { sendEmailVerification } from "@/app/actions/client-security";
+import { pendingClientNeedsVerifiedEmailActivation } from "@/lib/client-account-policy";
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9]{8,15}$/);
 const loginIdentifierSchema = z.string().trim().min(1).max(50);
@@ -134,6 +135,9 @@ export async function registerClient(formData: FormData) {
     if (existingEmail && existingEmail.phone !== parsed.data.phone) return { success: false, error: "Ese correo ya pertenece a otra cuenta del comercio." };
     const existing = await findClientsByIdentifier(tenant.id, parsed.data.phone);
     if (existing.length > 0 && existing.every((client) => client.passwordSetupRequired)) {
+      if (pendingClientNeedsVerifiedEmailActivation(existing)) {
+        return { success: false, error: "Esta cuenta histórica ya tiene un correo asociado. Confirmalo y recuperá tu contraseña; si no tenés acceso, contactá al comercio." };
+      }
       const clientId = await activateImportedClients(tenant.id, existing as LoginClient[], parsed.data.phone, parsed.data.password);
       if (!clientId) return { success: false, error: "No se pudo activar la cuenta. Intentá nuevamente." };
       await db.client.updateMany({ where: { id: clientId }, data: { email: parsed.data.email, emailVerifiedAt: null } });
@@ -189,6 +193,9 @@ export async function loginClient(formData: FormData) {
 
     const activeClients = clients.filter((client) => !client.passwordSetupRequired);
     if (activeClients.length === 0) {
+      if (pendingClientNeedsVerifiedEmailActivation(clients)) {
+        return { success: false, error: "La cuenta tiene un correo asociado y debe activarse de forma segura. Pedí la confirmación al comercio y usá «¿Olvidaste tu contraseña?»." };
+      }
       if (!passwordSchema.safeParse(parsed.data.password).success) {
         return { success: false, error: "Para activar tu cuenta elegí una clave de al menos 8 caracteres." };
       }

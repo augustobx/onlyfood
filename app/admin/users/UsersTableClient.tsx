@@ -159,7 +159,7 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
   const handleResetPassword = async (user: any) => {
     if (
       !confirm(
-        `¿Restablecer el acceso de ${user.name || user.phone}? El cliente podrá definir una nueva clave la próxima vez que ingrese o en "¿Olvidaste tu clave?".`
+        `¿Enviar enlace para recuperar la contraseña a ${user.name || user.phone}? Requiere un correo previamente verificado.`
       )
     ) {
       return;
@@ -169,9 +169,9 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
       const res = await resetUserPassword(user.id);
       if (res.success) {
         toast.success(`Acceso restablecido para ${user.name || user.phone}`, {
-          description: "El cliente ya puede ingresar una nueva contraseña directamente desde la tienda.",
+          description: res.message || "El cliente deberá usar el enlace recibido por email.",
         });
-        setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, passwordSetupRequired: true } : u)));
+        // No se cambia ni invalida la contraseña mientras no se use el enlace.
       } else {
         toast.error(res.error);
       }
@@ -621,14 +621,14 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                       disabled={resettingId === u.id}
                       onClick={() => handleResetPassword(u)}
                       className="rounded-xl text-[11px] font-bold text-amber-700 hover:bg-amber-50 hover:text-amber-800 h-7 px-2"
-                      title="Restablecer contraseña para que el cliente pueda definir una nueva"
+                      title="Enviar recuperación segura al correo verificado del cliente"
                     >
                       {resettingId === u.id ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
                         <KeyRound className="w-3 h-3 mr-1 text-amber-600" />
                       )}
-                      Clave
+                      Recuperar
                     </Button>
 
                     <Button
