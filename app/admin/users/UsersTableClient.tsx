@@ -107,8 +107,8 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
         if (pointsFilter === "ZERO_POINTS" && u.points > 0) return false;
 
         // Filtro por Estado de Clave
-        if (passwordFilter === "ACTIVE" && u.passwordSetupRequired) return false;
-        if (passwordFilter === "PENDING" && !u.passwordSetupRequired) return false;
+        if (passwordFilter === "ACTIVE" && (u.passwordSetupRequired || u.forcePasswordChange)) return false;
+        if (passwordFilter === "PENDING" && !u.passwordSetupRequired && !u.forcePasswordChange) return false;
 
         // Filtro por Compras
         const ordersCount = u.ordersCount ?? u._count?.orders ?? 0;
@@ -536,9 +536,9 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <div className="font-extrabold text-slate-900">{u.name || "Sin nombre"}</div>
-                    {u.passwordSetupRequired ? (
+                    {u.passwordSetupRequired || u.forcePasswordChange ? (
                       <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        Setup Pendiente
+                        {u.forcePasswordChange ? "Cambio de clave obligatorio" : "Setup Pendiente"}
                       </span>
                     ) : (
                       <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-0.5">

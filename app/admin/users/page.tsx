@@ -73,6 +73,7 @@ export default async function AdminUsersPage() {
       email: u.email,
       emailVerifiedAt: u.emailVerifiedAt,
       passwordSetupRequired: u.passwordSetupRequired,
+      forcePasswordChange: u.forcePasswordChange,
       points: u.points,
       createdAt: u.createdAt,
       ordersCount,
