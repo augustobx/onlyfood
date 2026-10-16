@@ -50,6 +50,10 @@ export async function sendEmailVerification(emailInput?: string) {
     return { success: true, message: "Tu correo ya está verificado." };
   }
 
+  // El enlace más reciente reemplaza cualquier verificación pendiente de esta cuenta.
+  await prisma.clientSecurityToken.deleteMany({
+    where: { tenantId: tenant.id, clientId: client.id, purpose: "VERIFY_EMAIL", usedAt: null },
+  });
   const record = await issueToken(tenant.id, client.id, email.data, "VERIFY_EMAIL", 60);
   const origin = await getRequestOrigin();
   const href = `${origin}/verify-email?token=${encodeURIComponent(record.token)}`;
@@ -57,7 +61,7 @@ export async function sendEmailVerification(emailInput?: string) {
     `<p>Confirmá tu correo para recuperar tu acceso a ${escapeHtml(tenant.name)}.</p><p><a href="${href}">Verificar correo</a></p><p>El enlace vence en 60 minutos. Si no lo solicitaste, ignorá este mensaje.</p>`, tenant.id);
   if (!ok) {
     await prisma.clientSecurityToken.deleteMany({ where: { id: record.id, tenantId: tenant.id } });
-    return { success: false, error: "No se pudo enviar el mensaje. El comercio debe configurar Resend o Brevo." };
+    return { success: false, error: "No se pudo enviar el mensaje. Solicitá al comercio que revise su configuración de correo." };
   }
   return { success: true, message: "Revisá tu correo para confirmar la dirección." };
 }
@@ -81,6 +85,12 @@ export async function confirmClientEmailToken(tokenInput: string) {
         where: { id: record.clientId, tenantId: tenant.id },
         data: { email: record.email, emailVerifiedAt: new Date() },
       });
+      if (updated.count === 1) {
+        // Nunca aceptar enlaces de recuperación destinados a un correo anterior.
+        await tx.clientSecurityToken.deleteMany({
+          where: { tenantId: tenant.id, clientId: record.clientId, id: { not: record.id } },
+        });
+      }
       return updated.count === 1;
     });
     return applied ? { success: true } : { success: false, error: "El enlace ya fue utilizado." };
