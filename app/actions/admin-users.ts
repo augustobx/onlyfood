@@ -72,6 +72,9 @@ export async function updateClientContactDetails(input: unknown) {
         await tx.clientSecurityToken.deleteMany({
           where: { tenantId: tenant.id, clientId: current.id },
         });
+        await tx.clientRecoveryCode.deleteMany({
+          where: { tenantId: tenant.id, clientId: current.id },
+        });
       }
       if (phoneChanged) {
         // El cambio del identificador de ingreso cierra todas las sesiones anteriores.

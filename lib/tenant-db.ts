@@ -17,6 +17,7 @@ const TENANT_SCOPED_MODELS = new Set([
   "ClientPasskey",
   "ClientPasskeyChallenge",
   "ClientSecurityToken",
+  "ClientRecoveryCode",
   "PointReward",
   "PointRedemption",
   "RoulettePrize",

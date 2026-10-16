@@ -8,7 +8,7 @@ import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { normalizeClientLoginIdentifier, isEmailLoginIdentifier } from "@/lib/client-login-identifier";
 import { sendEmailVerification } from "@/app/actions/client-security";
-import { pendingClientNeedsVerifiedEmailActivation } from "@/lib/client-account-policy";
+
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9]{8,15}$/);
 const loginIdentifierSchema = z.string().trim().min(1).max(254);
@@ -50,16 +50,6 @@ async function findClientsByIdentifier(tenantId: string, identifier: string) {
   });
 }
 
-function preferredClient(clients: LoginClient[], identifier: string) {
-  const cleaned = cleanPhoneNumber(identifier);
-  return [...clients].sort((left, right) => {
-    if ((left.phone === cleaned || left.phone === identifier) && right.phone !== cleaned && right.phone !== identifier) return -1;
-    if ((right.phone === cleaned || right.phone === identifier) && left.phone !== cleaned && left.phone !== identifier) return 1;
-    if (left.points !== right.points) return right.points - left.points;
-    return left.createdAt.getTime() - right.createdAt.getTime();
-  })[0];
-}
-
 async function mergeDuplicateClients(tenantId: string, primary: LoginClient, clients: LoginClient[]) {
   const duplicates = clients.filter((client) => client.id !== primary.id);
   if (duplicates.length === 0) return primary.id;
@@ -80,37 +70,6 @@ async function mergeDuplicateClients(tenantId: string, primary: LoginClient, cli
     await tx.client.deleteMany({ where: { id: { in: duplicateIds } } });
   });
   return primary.id;
-}
-
-async function activateImportedClients(tenantId: string, clients: LoginClient[], identifier: string, password: string) {
-  const primary = preferredClient(clients, identifier);
-  if (!primary) return null;
-
-  const db = createTenantDb(tenantId);
-  const passwordHash = await hashPassword(password);
-  const claimed = await db.$transaction(async (tx) => {
-    const result = await tx.client.updateMany({
-      where: { id: primary.id, passwordSetupRequired: true },
-      data: {
-        password: passwordHash,
-        passwordSetupRequired: false,
-        phoneLoginKey: phoneLoginKey(identifier),
-      },
-    });
-    if (result.count === 1) await tx.session.deleteMany({ where: { clientId: primary.id } });
-    return result;
-  });
-
-  if (claimed.count === 1) {
-    await mergeDuplicateClients(tenantId, primary, clients);
-    return primary.id;
-  }
-
-  // Si dos solicitudes intentan activar la misma cuenta simultáneamente, solo
-  // continúa la que coincida con la contraseña que finalmente quedó guardada.
-  const current = await db.client.findUnique({ where: { id: primary.id } });
-  if (!current || current.passwordSetupRequired) return null;
-  return (await verifyPassword(password, current.password)).valid ? current.id : null;
 }
 
 export async function registerClient(formData: FormData) {
@@ -140,17 +99,9 @@ export async function registerClient(formData: FormData) {
     const existingEmail = await db.client.findFirst({ where: { email: parsed.data.email } });
     if (existingEmail && existingEmail.phone !== parsed.data.phone) return { success: false, error: "Ese correo ya pertenece a otra cuenta del comercio." };
     const existing = await findClientsByIdentifier(tenant.id, parsed.data.phone);
-    if (existing.length > 0 && existing.every((client) => client.passwordSetupRequired)) {
-      if (pendingClientNeedsVerifiedEmailActivation(existing)) {
-        return { success: false, error: "Esta cuenta histórica ya tiene un correo asociado. Confirmalo y recuperá tu contraseña; si no tenés acceso, contactá al comercio." };
-      }
-      const clientId = await activateImportedClients(tenant.id, existing as LoginClient[], parsed.data.phone, parsed.data.password);
-      if (!clientId) return { success: false, error: "No se pudo activar la cuenta. Intentá nuevamente." };
-      await db.client.updateMany({ where: { id: clientId }, data: { email: parsed.data.email, emailVerifiedAt: null } });
-      await createSession(clientId, tenant.id);
-      const verification = await sendEmailVerification(parsed.data.email);
-      return { success: true, accountActivated: true, verificationSent: verification.success };
-    }
+    // No permitir apropiación de cuentas importadas con solo conocer el teléfono.
+    // Para cuentas sin correo, el comercio debe verificar la identidad y emitir
+    // un código personal de recuperación, de un solo uso.
     if (existing.length > 0) {
       return {
         success: false,
@@ -202,16 +153,10 @@ export async function loginClient(formData: FormData) {
 
     const activeClients = clients.filter((client) => !client.passwordSetupRequired);
     if (activeClients.length === 0) {
-      if (pendingClientNeedsVerifiedEmailActivation(clients)) {
-        return { success: false, error: "La cuenta tiene un correo asociado y debe activarse de forma segura. Pedí la confirmación al comercio y usá «¿Olvidaste tu contraseña?»." };
-      }
-      if (!passwordSchema.safeParse(parsed.data.password).success) {
-        return { success: false, error: "Para activar tu cuenta elegí una clave de al menos 8 caracteres." };
-      }
-      const clientId = await activateImportedClients(tenant.id, clients as LoginClient[], parsed.data.phone, parsed.data.password);
-      if (!clientId) return { success: false, error: "No se pudo activar la cuenta. Intentá nuevamente." };
-      await createSession(clientId, tenant.id);
-      return { success: true, accountActivated: true };
+      return {
+        success: false,
+        error: "Esta cuenta requiere activación segura. Si no tenés correo, pedí un código al comercio desde «¿Olvidaste tu clave?».",
+      };
     }
 
     // Si una variante del mismo número ya fue activada, su contraseña tiene

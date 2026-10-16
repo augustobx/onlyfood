@@ -144,6 +144,9 @@ export async function confirmClientEmailToken(tokenInput: string) {
         data: { email: record.email, emailVerifiedAt: new Date() },
       });
       if (updated.count === 1) {
+        await tx.clientRecoveryCode.deleteMany({
+          where: { tenantId: tenant.id, clientId: record.clientId },
+        });
         // Nunca aceptar enlaces de recuperación destinados a un correo anterior.
         await tx.clientSecurityToken.deleteMany({
           where: { tenantId: tenant.id, clientId: record.clientId, id: { not: record.id } },
