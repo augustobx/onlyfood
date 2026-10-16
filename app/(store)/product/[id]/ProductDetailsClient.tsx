@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, Minus, Plus, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/lib/store";
+import { FavoriteButton } from "@/components/pwa/FavoriteButton";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -106,10 +107,13 @@ export function ProductDetailsClient({ product, halfSiblings = [] }: { product: 
 
       <div className="p-6 md:p-8 space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <h1 className="min-w-0 text-3xl font-bold tracking-tight">
             {product.onlyHalf && <span className="text-orange-600 mr-2 uppercase text-sm align-middle font-bold border border-orange-200 bg-orange-50 px-2 py-0.5 rounded-full">Media</span>}
             {product.allowHalf && secondHalf ? `Mitad ${product.name} / Mitad ${secondHalf.name}` : product.name}
-          </h1>
+            </h1>
+            <FavoriteButton productId={product.id}/>
+          </div>
           <p className="text-muted-foreground text-lg">{product.description}</p>
         </div>
 

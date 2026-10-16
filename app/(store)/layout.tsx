@@ -1,4 +1,6 @@
 import { Navbar } from "@/components/Navbar";
+import { MobilePwaNavigation } from "@/components/pwa/MobilePwaNavigation";
+import { getLoggedClient } from "@/lib/auth";
 import { ClientAccountOnboarding } from "@/components/ClientAccountOnboarding";
 import { getTenantContext, normalizeHostname } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
@@ -62,6 +64,11 @@ export default async function StoreLayout({
 
   const db = createTenantDb(tenant.id);
   const config = await db.systemConfig.findFirst({ select: publicConfigSelect });
+  const account = await getLoggedClient(tenant.id);
+  const recentOrder = account ? await db.order.findFirst({
+    where: { clientId: account.id, status: { notIn: ["CANCELLED", "DELIVERED"] } },
+    orderBy: { createdAt: "desc" }, select: { id: true },
+  }) : null;
   
   const primary = config?.primaryColor || '#f97316';
   const secondary = config?.secondaryColor || '#9333ea';
@@ -171,9 +178,11 @@ export default async function StoreLayout({
       
       <Navbar config={config} />
       <ClientAccountOnboarding />
-      <main className="store-main flex-1 w-full">
+      <main className="store-main flex-1 w-full pb-20 sm:pb-0">
         {children}
       </main>
+      <MobilePwaNavigation dark={["URBAN_DARK","HALLOWEEN","SUSHI_ZEN","ARCADE_KITCHEN"].includes(theme)}
+        activeOrderId={recentOrder?.id}/>
       <footer
         className={`store-footer w-full py-6 mt-12 border-t ${
           isSushiZen

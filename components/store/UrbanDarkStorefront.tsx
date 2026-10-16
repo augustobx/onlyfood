@@ -349,7 +349,7 @@ export function UrbanDarkStorefront({
       />
 
       {/* ═══ MOBILE BOTTOM DOCK ═══ */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0c0e14]/95 backdrop-blur-xl border-t border-white/[0.06] px-2 pb-[env(safe-area-inset-bottom)] sm:hidden">
+      <nav className="legacy-store-bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-[#0c0e14]/95 backdrop-blur-xl border-t border-white/[0.06] px-2 pb-[env(safe-area-inset-bottom)] sm:hidden">
         <div className="flex items-center justify-around py-1.5">
           <Link href="/" className="flex flex-col items-center gap-0.5 py-1 text-orange-500">
             <ShoppingBag className="w-5 h-5" />
