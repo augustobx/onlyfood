@@ -73,6 +73,12 @@ export async function updateConfig(id: string, data: unknown) {
   const parsed = configSchema.safeParse(data);
   if (!parsedId.success || !parsed.success) return { success: false, error: parsed.error?.issues[0]?.message || "Configuracion invalida." };
   try {
+    if (parsed.data.requireLoginForCheckout && !(process.env.RESEND_API_KEY || process.env.BREVO_API_KEY) ) {
+      return { success: false, error: "Configurá primero un proveedor de correo (Resend/Brevo) para habilitar compra con cuenta." };
+    }
+    if (parsed.data.requireLoginForCheckout && !(process.env.EMAIL_FROM || process.env.SMTP_FROM)) {
+      return { success: false, error: "Configurá EMAIL_FROM para el correo de recuperación." };
+    }
     const tenant = await getTenantContext();
     const [whatsappEnabled, printNodeEnabled] = await Promise.all([
       hasTenantFeature(tenant.id, "whatsapp"),

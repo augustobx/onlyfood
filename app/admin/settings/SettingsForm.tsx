@@ -27,6 +27,7 @@ export function SettingsForm({
   whatsappEnabled,
   printNodeEnabled,
   mpIntegrationConfigured,
+  emailServiceConfigured,
 }: {
   initialConfig: any;
   printNodeApiKeyConfigured: boolean;
@@ -37,6 +38,7 @@ export function SettingsForm({
   whatsappEnabled: boolean;
   printNodeEnabled: boolean;
   mpIntegrationConfigured?: boolean;
+  emailServiceConfigured: boolean;
 }) {
   const [cfg, setCfg] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
@@ -251,6 +253,7 @@ export function SettingsForm({
               <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50">
                 <div className="space-y-1">
                   <Label className="text-base text-slate-800 font-bold">Exigir cuenta para comprar</Label>
+                  {!emailServiceConfigured && <p className="text-xs font-semibold text-amber-700">Configurá primero un proveedor de correo con remitente verificado para habilitar esta opción.</p>}
                   <p className="text-sm text-muted-foreground">Cuando está activo, cada cliente deberá registrarse o iniciar sesión para confirmar pedidos. No afecta al panel administrativo.</p>
                 </div>
                 <Switch checked={Boolean(cfg.requireLoginForCheckout)} onCheckedChange={v => updateField('requireLoginForCheckout', v)} />

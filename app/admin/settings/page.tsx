@@ -80,6 +80,7 @@ export default async function SettingsPage() {
               vapidPrivateKey: null,
             }}
             mpIntegrationConfigured={Boolean(mpCredentials?.accessToken)}
+            emailServiceConfigured={Boolean((process.env.RESEND_API_KEY || process.env.BREVO_API_KEY) && (process.env.EMAIL_FROM || process.env.SMTP_FROM))}
             printNodeApiKeyConfigured={Boolean(process.env.PRINTNODE_API_KEY?.trim())}
             whatsappIntegrationConfigured={Boolean(whatsappCredentials?.apiToken && whatsappCredentials.phoneNumberId && whatsappCredentials.verifyToken)}
             metaAppSecretConfigured={Boolean(process.env.META_APP_SECRET?.trim())}
