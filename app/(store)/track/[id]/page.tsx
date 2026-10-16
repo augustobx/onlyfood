@@ -1,6 +1,7 @@
 import { getTenantDb } from "@/lib/tenant-db";
 import { getLoggedClient } from "@/lib/auth";
 import { isValidOrderTrackingToken } from "@/lib/order-tracking";
+import { relatedOrdersAccessScope } from "@/lib/order-visibility";
 import { publicConfigSelect } from "@/lib/public-config";
 import { notFound } from "next/navigation";
 import { TrackOrderClient } from "./TrackOrderClient";
@@ -45,14 +46,7 @@ export default async function TrackOrderPage(props: {
         AND: [
           { id: { not: order.id } },
           { status: { not: "CANCELLED" } },
-          ...(ownsOrder ? [] : [{ trackingTokenHash: order.trackingTokenHash }]),
-          {
-            OR: [
-              ...(order.mpPreferenceId ? [{ mpPreferenceId: order.mpPreferenceId }] : []),
-              ...(order.clientId ? [{ clientId: order.clientId }] : []),
-              ...(order.clientPhone ? [{ clientPhone: order.clientPhone }] : []),
-            ],
-          },
+          relatedOrdersAccessScope(order, ownsOrder ? loggedClient!.id : null),
         ],
       },
       orderBy: [
