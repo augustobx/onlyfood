@@ -10,6 +10,7 @@ import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { normalizeClientLoginIdentifier, isEmailLoginIdentifier } from "@/lib/client-login-identifier";
 import { sendEmailVerification } from "@/app/actions/client-security";
+import { temporaryPasswordState } from "@/lib/temporary-password-policy";
 
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9]{8,15}$/);
@@ -176,9 +177,9 @@ export async function loginClient(formData: FormData) {
       }
     }
     if (!matchedClient) return { success: false, error: "Credenciales incorrectas." };
-    if (matchedClient.forcePasswordChange) {
-      if (!matchedClient.temporaryPasswordExpiresAt ||
-        matchedClient.temporaryPasswordExpiresAt <= new Date()) {
+    const temporaryState = temporaryPasswordState(matchedClient, new Date());
+    if (temporaryState !== "NORMAL") {
+      if (temporaryState === "EXPIRED") {
         return { success: false, error: "La clave temporal venció. Solicitá un nuevo reseteo al comercio." };
       }
       // No crear una sesión normal con contraseña temporal.
