@@ -122,7 +122,7 @@ export function ProductDetailsClient({ product, halfSiblings = [] }: { product: 
               <p className="mt-1 whitespace-pre-wrap">{product.allergenInfo}</p>
               <p className="mt-2 opacity-80">Ante una alergia, consultá al comercio antes de pedir.</p>
             </aside>
-          )
+          )}
         </div>
 
         <div className="flex items-center justify-between border-y py-6">
