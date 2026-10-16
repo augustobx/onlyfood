@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "./LogoutButton";
+import { ClientSecuritySettings } from "@/components/ClientSecuritySettings";
 
 const TIER_ICONS: Record<string, any> = {
   Crown,
@@ -211,6 +212,8 @@ export default async function ProfilePage() {
          </div>
          <LogoutButton />
       </div>
+
+      <ClientSecuritySettings initialEmail={client.email || ""} verified={Boolean(client.emailVerifiedAt)} />
 
       {/* ═══ VIP LOYALTY TIER & POINTS CARD ═══ */}
       {loyaltyEnabled && <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 rounded-[2.5rem] p-7 text-white shadow-xl mb-8 relative overflow-hidden border border-white/10">
