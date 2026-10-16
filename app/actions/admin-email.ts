@@ -10,12 +10,13 @@ import { saveTenantIntegration, getTenantIntegration, type EmailCredentials } fr
 import { isTenantEmailConfigured } from "@/lib/tenant-email";
 
 const safeText = z.string().trim().min(1).max(254).refine(value => !/[\r\n]/.test(value));
+const optionalText = z.string().trim().max(254).refine(value => !/[\r\n]/.test(value));
 const emailAddress = z.string().trim().email().max(254);
 const schema = z.object({
   provider: z.enum(["SMTP", "RESEND", "BREVO"]),
   smtpHost: z.string().trim().toLowerCase().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/).max(253),
   smtpPort: z.union([z.literal(465), z.literal(587)]),
-  smtpUser: safeText,
+  smtpUser: optionalText,
   smtpFrom: safeText.refine(value => {
     const address = value.match(/<([^<>]+)>$/)?.[1] || value;
     return emailAddress.safeParse(address).success;
@@ -23,7 +24,11 @@ const schema = z.object({
   smtpPass: z.string().max(500).optional(),
   resendApiKey: z.string().max(500).optional(),
   brevoApiKey: z.string().max(500).optional(),
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  if (value.provider === "SMTP" && !value.smtpUser) {
+    ctx.addIssue({ code: "custom", path: ["smtpUser"], message: "Ingresá el usuario de la casilla SMTP del comercio." });
+  }
+});
 
 export async function saveTenantEmailSettings(input: unknown) {
   await requireAdmin(["OWNER", "MANAGER"]);

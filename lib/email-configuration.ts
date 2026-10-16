@@ -19,6 +19,20 @@ export interface EmailTransportSettings {
   brevoApiKey?: string;
 }
 
+/** Muestra el servidor conocido pero NUNCA propone identidades o credenciales ajenas. */
+export function getUnconfiguredTenantEmailDefaults(): EmailTransportSettings {
+  return {
+    provider: "SMTP",
+    smtpHost: ONLYPADEL_SMTP_DEFAULTS.smtpHost,
+    smtpPort: ONLYPADEL_SMTP_DEFAULTS.smtpPort,
+    smtpUser: "",
+    smtpPass: "",
+    smtpFrom: "",
+    resendApiKey: "",
+    brevoApiKey: "",
+  };
+}
+
 export function isEmailTransportReady(settings: EmailTransportSettings): boolean {
   if (!settings.smtpFrom?.trim()) return false;
   if (settings.provider === "SMTP") {

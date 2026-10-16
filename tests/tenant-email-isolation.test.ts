@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getUnconfiguredTenantEmailDefaults } from "@/lib/tenant-email";
-import { isEmailTransportReady } from "@/lib/email-configuration";
+import { getUnconfiguredTenantEmailDefaults, isEmailTransportReady } from "@/lib/email-configuration";
 
 describe("Correo de seguridad: no usar credenciales de otro tenant", () => {
   it("el tenant sin configuración no usa usuario ni remitente de OnlyPadel", () => {

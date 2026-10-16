@@ -1,25 +1,9 @@
 import "server-only";
 
-import { ONLYPADEL_SMTP_DEFAULTS, type EmailTransportSettings, isEmailTransportReady, publicEmailTransportSettings } from "@/lib/email-configuration";
+import { getUnconfiguredTenantEmailDefaults, isEmailTransportReady, publicEmailTransportSettings, type EmailTransportSettings } from "@/lib/email-configuration";
 import { getTenantIntegration, type EmailCredentials } from "@/lib/tenant-integrations";
 
-/**
- * Defaults visuales, no credenciales. Para correos de seguridad nunca usar
- * silenciosamente la casilla SMTP global ni la de otro comercio.
- */
-export function getUnconfiguredTenantEmailDefaults(): EmailTransportSettings {
-  return {
-    provider: "SMTP",
-    smtpHost: ONLYPADEL_SMTP_DEFAULTS.smtpHost,
-    smtpPort: ONLYPADEL_SMTP_DEFAULTS.smtpPort,
-    smtpUser: "",
-    smtpPass: "",
-    smtpFrom: "",
-    resendApiKey: "",
-    brevoApiKey: "",
-  };
-}
-
+/** No se comparten credenciales de correo entre tenants ni se usa fallback global. */
 export async function resolveTenantEmailSettings(tenantId: string): Promise<EmailTransportSettings> {
   if (!tenantId) throw new Error("EMAIL_TENANT_REQUIRED");
   const saved = await getTenantIntegration<EmailCredentials>(tenantId, "EMAIL");

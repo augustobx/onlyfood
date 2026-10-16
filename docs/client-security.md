@@ -41,7 +41,7 @@ SMTP exige certificado TLS válido: no se copia `rejectUnauthorized:false` ni se
 ## Variables globales del servidor (referencia, no fallback de seguridad)
 Las variables `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` o `EMAIL_FROM` del entorno **no se aplican automáticamente** a los correos de recuperación de otros tenants. La configuración por comercio es obligatoria.
 
-No agregar claves reales al repositorio. Para las tiendas multitenant, usar el panel es preferible. La configuración por comercio reemplaza a los valores globales cuando existe.
+No agregar claves reales al repositorio. Los envíos de verificación y recuperación siempre requieren la configuración independiente del comercio.
 
 ## Seguridad y despliegue
 
