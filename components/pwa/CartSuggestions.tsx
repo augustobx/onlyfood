@@ -8,8 +8,8 @@ import { getOptionalCartSuggestions } from "@/app/actions/store-suggestions";
 
 type Suggestion = {id:string;name:string;basePrice:number};
 export function CartSuggestions() {
-  const ids = useCartStore(s => s.items.map(item => item.product.id));
-  const key = useMemo(()=>[...new Set(ids)].sort().join(","),[ids]);
+  const items = useCartStore(s => s.items);
+  const key = useMemo(()=>[...new Set(items.map(item => item.product.id))].sort().join(","),[items]);
   const [suggestions,setSuggestions] = useState<Suggestion[]>([]);
   useEffect(() => {
     if (!key) { setSuggestions([]); return; }
