@@ -24,3 +24,43 @@ export async function saveClientProfileName(nameInput: string) {
   revalidatePath("/profile");
   return { success: true as const, name: parsed.data };
 }
+
+
+/** Retorna solo datos necesarios para el alta guiada, nunca contraseñas ni DNI. */
+export async function getClientOnboardingStatus() {
+  const tenant = await getTenantContext();
+  const client = await getLoggedClient(tenant.id);
+  if (!client) return null;
+  const db = createTenantDb(tenant.id);
+  const passkeyCount = await db.clientPasskey.count({ where: { clientId: client.id } });
+  return {
+    clientId: client.id,
+    email: client.email,
+    emailVerified: Boolean(client.emailVerifiedAt),
+    dniProvided: Boolean(client.dniProvidedAt),
+    hasPasskey: passkeyCount > 0,
+  };
+}
+
+/**
+ * DNI ingresado sin conservar el número. El paso NO implica validación
+ * de identidad ni reconocimiento facial del titular del documento.
+ */
+export async function completeClientDniStep(dniInput: string) {
+  const tenant = await getTenantContext();
+  const client = await getLoggedClient(tenant.id);
+  if (!client) return { success: false as const, error: "Iniciá sesión para continuar." };
+  const dni = z.string().trim().regex(/^[0-9]{7,8}$/).safeParse(dniInput);
+  if (!dni.success) return { success: false as const, error: "Ingresá un DNI de 7 u 8 dígitos." };
+  const ip = await getRequestIp();
+  if (!await consumeRateLimit("client-dni-step", `${tenant.id}:${client.id}:${ip}`, 6, 60 * 60_000)) {
+    return { success: false as const, error: "Demasiados intentos. Probá más tarde." };
+  }
+  const db = createTenantDb(tenant.id);
+  await db.client.updateMany({
+    where: { id: client.id, dniProvidedAt: null },
+    data: { dniProvidedAt: new Date() },
+  });
+  revalidatePath("/profile");
+  return { success: true as const };
+}
