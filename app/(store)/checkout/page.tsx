@@ -11,12 +11,17 @@ import { createOrder, fetchConfig } from "@/app/actions/checkout";
 import { fetchCurrentClient } from "@/app/actions/auth";
 import { AuthModal } from "@/components/AuthModal";
 import { fetchClientAvailableCoupons } from "@/app/actions/client-rewards";
-import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X } from "lucide-react";
+import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X, Bike, Store, Banknote, CreditCard, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 import { allowsTierBenefit } from "@/lib/tier-payment-policy";
+import {
+  buildDeliveryAddress, isDeliveryAddressValid, isSlotSelectable,
+  checkoutActionLabel, checkoutPaymentLabel,
+  type FulfillmentChoice, type DeliveryAddressParts,
+} from "@/lib/checkout-presentation";
 
 /* ══ Theme class maps ══ */
 function getThemeClasses(theme: string) {
@@ -272,7 +277,11 @@ export default function CheckoutPage() {
   const quantityDiscount = useQuantityDiscountPreview(items);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // Requiere una elección explícita: retiro no puede quedar marcado por omisión.
+  const [fulfillmentChoice, setFulfillmentChoice] = useState<FulfillmentChoice | null>(null);
+  const [addressParts, setAddressParts] = useState<DeliveryAddressParts>({
+    street: "", unit: "", reference: "",
+  });
   const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
   const [selectedCoupon, setSelectedCoupon] = useState<any | null>(null);
   const [userOptedOutCoupon, setUserOptedOutCoupon] = useState(false);
@@ -291,6 +300,7 @@ export default function CheckoutPage() {
   });
 
   const [slots, setSlots] = useState<any[]>([]);
+  const [slotsLoadError, setSlotsLoadError] = useState(false);
   const [config, setConfig] = useState<any>(null);
 
   const theme = config?.storeTheme || "ORIGINAL";
@@ -363,17 +373,25 @@ export default function CheckoutPage() {
     });
 
     fetch("/api/slots")
-      .then((r) => r.json())
-      .then((d) => {
-        const available = d.filter((s: any) => s.available > 0);
-        setSlots(available);
-        if (available.length > 0) {
-          setFormData((prev) => ({
-            ...prev,
-            deliverySlotId: available[0].id,
-            scheduledTime: available[0].time,
-          }));
-        }
+      .then(async r => {
+        if (!r.ok) throw new Error("SLOTS_UNAVAILABLE");
+        const data = await r.json();
+        if (!Array.isArray(data)) throw new Error("INVALID_SLOTS");
+        return data;
+      })
+      .then((all: any[]) => {
+        setSlots(all);
+        setSlotsLoadError(false);
+        const available = all.filter(slot => isSlotSelectable(Number(slot.available)));
+        setFormData(prev => {
+          const chosen = available.find(slot => slot.id === prev.deliverySlotId) || available[0];
+          return { ...prev, deliverySlotId: chosen?.id || "", scheduledTime: chosen?.time || "" };
+        });
+      })
+      .catch(() => {
+        setSlots([]);
+        setSlotsLoadError(true);
+        setFormData(prev => ({ ...prev, deliverySlotId: "", scheduledTime: "" }));
       });
   }, [schedule.hasScheduledProducts, schedule.targetDateInfo]);
 
@@ -505,8 +523,20 @@ export default function CheckoutPage() {
       toast.error("Datos incompletos", { description: "Por favor, ingresá tu nombre y teléfono." });
       return;
     }
-    if (formData.needsDelivery && !formData.deliveryAddress) {
-      toast.error("Dirección requerida", { description: "Por favor, ingresá tu dirección de envío." });
+    if (!fulfillmentChoice) {
+      toast.error("Seleccioná entrega a domicilio o retiro en local.");
+      return;
+    }
+    if (formData.needsDelivery && !isDeliveryAddressValid(formData.deliveryAddress)) {
+      toast.error("Dirección incompleta", {
+        description: "Ingresá calle y altura. La dirección completa no puede superar 250 caracteres.",
+      });
+      addressInputRef.current?.focus();
+      return;
+    }
+    if ((config?.paymentCash === false && formData.paymentMethod === "CASH") ||
+      (config?.paymentMp === false && formData.paymentMethod === "MP")) {
+      toast.error("El medio de pago elegido no está disponible en este comercio.");
       return;
     }
     if (formData.orderType === "CUSTOM_DATE" && !formData.scheduledDate) {
@@ -560,24 +590,30 @@ export default function CheckoutPage() {
     }
   };
 
-  const handlePreSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.needsDelivery) {
-      setShowConfirmModal(true);
-    } else {
-      validateAndSubmit();
+  const chooseFulfillment = (choice: FulfillmentChoice) => {
+    setFulfillmentChoice(choice);
+    setFormData(prev => ({ ...prev, needsDelivery: choice === "DELIVERY" }));
+    if (choice === "DELIVERY") {
+      window.setTimeout(() => addressInputRef.current?.focus(), 150);
     }
   };
 
-  const confirmNoDelivery = () => {
-    setShowConfirmModal(false);
-    validateAndSubmit();
+  const changeAddressPart = (field: keyof DeliveryAddressParts, value: string) => {
+    const next = { ...addressParts, [field]: value };
+    setAddressParts(next);
+    setFormData(prev => ({ ...prev, deliveryAddress: buildDeliveryAddress(next) }));
   };
 
-  const cancelNoDelivery = () => {
-    setShowConfirmModal(false);
-    setFormData({ ...formData, needsDelivery: true });
-    setTimeout(() => addressInputRef.current?.focus(), 300);
+  const handlePreSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!fulfillmentChoice) {
+      toast.error("Elegí cómo querés recibir tu pedido", {
+        description: "Seleccioná Envío a domicilio o Retiro en local para continuar.",
+      });
+      document.getElementById("checkout-fulfillment")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    void validateAndSubmit();
   };
 
   if (items.length === 0) return null;
@@ -822,92 +858,218 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* DELIVERY */}
-            <div className={`border-t pt-4 ${t.divider}`}>
-              <div className={`flex items-center justify-between p-3 rounded-xl border ${t.switchBg}`}>
-                <Label htmlFor="delivery-toggle" className={`font-bold text-xs cursor-pointer ${t.switchLabel}`}>
-                  ¿Necesitás envío a domicilio?
-                </Label>
-                <Switch
-                  id="delivery-toggle"
-                  checked={formData.needsDelivery}
-                  onCheckedChange={(c) => setFormData({ ...formData, needsDelivery: c })}
-                  className="data-[state=checked]:bg-orange-500"
-                />
+            {/* CHECKOUT 2.0 — modalidad de entrega */}
+            <section id="checkout-fulfillment" aria-labelledby="checkout-fulfillment-title"
+              className={`scroll-mt-24 space-y-3 border-t pt-4 ${t.divider}`}>
+              <div className="space-y-1">
+                <h2 id="checkout-fulfillment-title" className={`text-base font-black ${t.heading}`}>
+                  ¿Cómo querés recibir tu pedido?
+                </h2>
+                <p className={`text-xs ${t.subtext}`}>
+                  Elegí si te lo llevamos a domicilio o si preferís retirarlo en el local.
+                </p>
               </div>
 
-              <AnimatePresence>
-                {formData.needsDelivery && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mt-2.5">
-                    <Label htmlFor="address" className={`font-bold text-xs ml-0.5 mb-1 block ${t.label}`}>Dirección de entrega</Label>
-                    <Input
-                      id="address"
-                      required={formData.needsDelivery}
-                      ref={addressInputRef}
-                      className={`h-10 rounded-xl transition-colors text-sm ${t.inputBg}`}
-                      placeholder="Calle, Altura, Departamento..."
-                      value={formData.deliveryAddress}
-                      onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                    />
+              <div className="grid grid-cols-2 gap-2.5">
+                <button type="button"
+                  aria-pressed={fulfillmentChoice === "DELIVERY"}
+                  onClick={() => chooseFulfillment("DELIVERY")}
+                  className={`relative flex min-h-[132px] flex-col items-start gap-1.5 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 sm:p-4 ${
+                    fulfillmentChoice === "DELIVERY" ? t.pillActive : t.pillInactive
+                  }`}>
+                  <div className="flex w-full items-start justify-between gap-2">
+                    <Bike className="h-6 w-6 shrink-0" aria-hidden="true"/>
+                    {fulfillmentChoice === "DELIVERY" && <Check className="h-5 w-5" aria-hidden="true"/>}
+                  </div>
+                  <span className="text-sm font-extrabold leading-snug">Envío a domicilio</span>
+                  <span className="text-[11px] leading-snug opacity-85">Te lo llevamos</span>
+                  <span className="mt-auto text-[11px] font-bold">
+                    {(config?.deliveryCost || 0) > 0
+                      ? `+ $${(config.deliveryCost as number).toLocaleString("es-AR")}`
+                      : "Sin cargo"}
+                  </span>
+                </button>
+                <button type="button"
+                  aria-pressed={fulfillmentChoice === "PICKUP"}
+                  onClick={() => chooseFulfillment("PICKUP")}
+                  className={`relative flex min-h-[132px] flex-col items-start gap-1.5 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 sm:p-4 ${
+                    fulfillmentChoice === "PICKUP" ? t.pillActive : t.pillInactive
+                  }`}>
+                  <div className="flex w-full items-start justify-between gap-2">
+                    <Store className="h-6 w-6 shrink-0" aria-hidden="true"/>
+                    {fulfillmentChoice === "PICKUP" && <Check className="h-5 w-5" aria-hidden="true"/>}
+                  </div>
+                  <span className="text-sm font-extrabold leading-snug">Retiro en local</span>
+                  <span className="text-[11px] leading-snug opacity-85">Pasás a buscarlo</span>
+                  <span className="mt-auto text-[11px] font-bold">Sin costo de envío</span>
+                </button>
+              </div>
+
+              <AnimatePresence initial={false}>
+                {fulfillmentChoice === "DELIVERY" && (
+                  <motion.div
+                    key="delivery-address"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className={`mt-1 space-y-3 rounded-2xl border p-3.5 sm:p-4 ${t.switchBg}`}>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0" aria-hidden="true"/>
+                        <h3 className={`text-sm font-extrabold ${t.label}`}>¿A qué dirección lo llevamos?</h3>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="delivery-street" className={`text-xs font-semibold ${t.label}`}>
+                          Calle y número *
+                        </Label>
+                        <Input id="delivery-street" ref={addressInputRef} required={formData.needsDelivery}
+                          autoComplete="street-address" maxLength={180}
+                          className={`h-11 rounded-xl text-sm ${t.inputBg}`}
+                          value={addressParts.street}
+                          onChange={e => changeAddressPart("street", e.target.value)}
+                          placeholder="Ej.: Mitre 1234"/>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="delivery-unit" className={`text-xs font-semibold ${t.label}`}>
+                          Piso, departamento o casa (opcional)
+                        </Label>
+                        <Input id="delivery-unit" maxLength={60} autoComplete="address-line2"
+                          className={`h-11 rounded-xl text-sm ${t.inputBg}`}
+                          value={addressParts.unit}
+                          onChange={e => changeAddressPart("unit", e.target.value)}
+                          placeholder="Ej.: Piso 2, depto B"/>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="delivery-reference" className={`text-xs font-semibold ${t.label}`}>
+                          Referencias para encontrar la dirección (opcional)
+                        </Label>
+                        <Input id="delivery-reference" maxLength={80}
+                          className={`h-11 rounded-xl text-sm ${t.inputBg}`}
+                          value={addressParts.reference}
+                          onChange={e => changeAddressPart("reference", e.target.value)}
+                          placeholder="Ej.: Portón negro, timbre rojo"/>
+                      </div>
+                      <p className={`text-[11px] leading-relaxed ${t.subtext}`}>
+                        Comprobá la dirección antes de confirmar. El comercio la recibirá junto con tu pedido.
+                      </p>
+                      {formData.deliveryAddress.length > 250 && (
+                        <p className="text-xs font-bold text-red-500" role="alert">
+                          Acortá la dirección o las referencias (máximo 250 caracteres entre todos los campos).
+                        </p>
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
 
-            {/* SLOT */}
-            <div className={`border-t pt-4 space-y-1.5 ${t.divider}`}>
-              <Label className={`font-bold text-xs ml-0.5 ${t.label}`}>
-                Franja horaria para {formData.needsDelivery ? "entrega" : "retiro"}
-              </Label>
-              {slots.length > 0 ? (
-                <select
-                  required
-                  className={`h-10 w-full rounded-xl border px-3 font-medium outline-none text-xs transition-colors ${t.selectBg}`}
-                  value={formData.deliverySlotId}
-                  onChange={(e) => {
-                    const selected = slots.find((s) => s.id === e.target.value);
-                    setFormData({
-                      ...formData,
-                      deliverySlotId: e.target.value,
-                      scheduledTime: selected ? selected.time : "",
-                    });
-                  }}
-                >
-                  {slots.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.time} hs {formData.orderType === "IMMEDIATE" ? `(${s.available} cupos)` : ""}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className={`text-[11px] p-2.5 rounded-xl border font-medium ${t.switchBg} ${t.subtext}`}>
+              {fulfillmentChoice === "PICKUP" && (
+                <p className={`flex items-start gap-2 rounded-xl border p-3 text-xs leading-relaxed ${t.switchBg}`}>
+                  <Info className="h-4 w-4 shrink-0" aria-hidden="true"/>
+                  Elegiste retiro. No se cobrará envío; pasá por el local en el horario seleccionado.
+                </p>
+              )}
+            </section>
+
+            {/* Selección visual de horarios — cupos reales de la API */}
+            <section aria-labelledby="checkout-slot-title" className={`space-y-2 border-t pt-4 ${t.divider}`}>
+              <div className="space-y-1">
+                <h2 id="checkout-slot-title" className={`text-sm font-black ${t.heading}`}>
+                  {formData.needsDelivery ? "¿En qué horario querés recibirlo?" : "¿En qué horario querés retirarlo?"}
+                </h2>
+                <p className={`text-[11px] ${t.subtext}`}>
                   {formData.orderType === "IMMEDIATE"
-                    ? "No hay horarios disponibles para hoy."
-                    : "Horario estándar del turno."}
-                </div>
-              )}
-            </div>
-
-            {/* PAYMENT */}
-            <div className={`border-t pt-4 space-y-1.5 ${t.divider}`}>
-              <Label className={`font-bold text-xs ml-0.5 ${t.label}`}>Método de pago</Label>
-              {total <= 0 ? (
-                <div className="p-3 rounded-xl border text-xs font-bold text-emerald-800 bg-emerald-50/80 border-emerald-200 flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Total $0 · Pedido bonificado al 100% por tu premio canjeado.</span>
+                    ? "Elegí uno de los horarios disponibles para hoy."
+                    : "Seleccioná tu horario preferido para el pedido programado."}
+                </p>
+              </div>
+              {slots.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="group" aria-label="Horarios del pedido">
+                  {slots.map(slot => {
+                    const available = isSlotSelectable(Number(slot.available));
+                    const selected = formData.deliverySlotId === slot.id;
+                    return (
+                      <button type="button" key={slot.id} disabled={!available}
+                        aria-pressed={selected}
+                        onClick={() => setFormData(prev => ({
+                          ...prev, deliverySlotId: slot.id, scheduledTime: slot.time,
+                        }))}
+                        className={`flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl border-2 p-2.5 text-center text-xs font-extrabold leading-tight transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${
+                          !available ? t.pillDisabled : selected ? t.pillActive : t.pillInactive
+                        }`}>
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true"/>
+                          {slot.time}
+                          {selected && <Check className="h-3.5 w-3.5" aria-hidden="true"/>}
+                        </span>
+                        <span className="text-[10px] font-medium opacity-80">
+                          {!available ? "Sin cupos" : formData.orderType === "IMMEDIATE"
+                            ? `${slot.available} cupos`
+                            : "Preferido"}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
-                <select
-                  required
-                  className={`h-10 w-full rounded-xl border px-3 font-medium outline-none text-xs transition-colors ${t.selectBg}`}
-                  value={formData.paymentMethod}
-                  onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as "CASH" | "MP" })}
-                >
-                  {config?.paymentCash !== false && <option value="CASH">Efectivo al recibir / retirar</option>}
-                  {config?.paymentMp !== false && <option value="MP">MercadoPago (Transferencia / Tarjeta)</option>}
-                </select>
+                <div className={`rounded-xl border p-3 text-xs ${t.warnBg}`} role="status">
+                  {slotsLoadError
+                    ? "No pudimos consultar los horarios. Volvé a cargar la página antes de confirmar."
+                    : formData.orderType === "IMMEDIATE"
+                      ? "No hay horarios disponibles para hoy."
+                      : "El local confirmará el horario de tu pedido programado."}
+                </div>
               )}
-            </div>
+            </section>
+
+            {/* Forma de pago sin desplegable */}
+            <section aria-labelledby="checkout-payment-title" className={`space-y-2 border-t pt-4 ${t.divider}`}>
+              <h2 id="checkout-payment-title" className={`text-sm font-black ${t.heading}`}>
+                ¿Cómo querés pagar?
+              </h2>
+              {total <= 0 ? (
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/90 p-3 text-xs font-bold text-emerald-900">
+                  <Check className="h-4 w-4 shrink-0" aria-hidden="true"/>
+                  Total $0 · Pedido bonificado por tu premio canjeado.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {config?.paymentCash !== false && (
+                    <button type="button" aria-pressed={formData.paymentMethod === "CASH"}
+                      onClick={() => setFormData(prev => ({ ...prev, paymentMethod: "CASH" }))}
+                      className={`flex min-h-[76px] items-center gap-2 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${
+                        formData.paymentMethod === "CASH" ? t.pillActive : t.pillInactive
+                      }`}>
+                      <Banknote className="h-6 w-6 shrink-0" aria-hidden="true"/>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black">Efectivo</span>
+                        <span className="block text-[11px] opacity-85">Al recibir o retirar</span>
+                      </span>
+                      {formData.paymentMethod === "CASH" && <Check className="h-4 w-4 shrink-0" aria-hidden="true"/>}
+                    </button>
+                  )}
+                  {config?.paymentMp !== false && (
+                    <button type="button" aria-pressed={formData.paymentMethod === "MP"}
+                      onClick={() => setFormData(prev => ({ ...prev, paymentMethod: "MP" }))}
+                      className={`flex min-h-[76px] items-center gap-2 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${
+                        formData.paymentMethod === "MP" ? t.pillActive : t.pillInactive
+                      }`}>
+                      <CreditCard className="h-6 w-6 shrink-0" aria-hidden="true"/>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black">Mercado Pago</span>
+                        <span className="block text-[11px] opacity-85">Pago online seguro</span>
+                      </span>
+                      {formData.paymentMethod === "MP" && <Check className="h-4 w-4 shrink-0" aria-hidden="true"/>}
+                    </button>
+                  )}
+                  {config?.paymentCash === false && config?.paymentMp === false && (
+                    <p className={`rounded-xl border p-3 text-xs ${t.warnBg}`}>
+                      El comercio todavía no tiene métodos de pago disponibles.
+                    </p>
+                  )}
+                </div>
+              )}
+            </section>
 
             {/* COUPONS */}
             {availableCoupons.length > 0 && (
@@ -967,8 +1129,35 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {/* SUMMARY */}
-            <div className={`p-3.5 rounded-2xl border space-y-1.5 ${t.summaryBg}`}>
+            {/* SUMMARY — estado de pedido claramente visible antes de confirmar */}
+            <section aria-label="Resumen de tu pedido"
+              className={`rounded-2xl border p-3.5 space-y-2.5 ${t.summaryBg}`}>
+              <h2 className={`text-sm font-black ${t.heading}`}>Revisá tu pedido</h2>
+              <div className={`grid grid-cols-1 gap-2 rounded-xl border p-3 text-xs sm:grid-cols-2 ${t.switchBg}`}>
+                <div className="flex items-start gap-2">
+                  {formData.needsDelivery ? <Bike className="h-4 w-4 shrink-0" aria-hidden="true"/> : <Store className="h-4 w-4 shrink-0" aria-hidden="true"/>}
+                  <div className="min-w-0">
+                    <div className="font-black">
+                      {fulfillmentChoice === "DELIVERY" ? "Envío a domicilio" :
+                        fulfillmentChoice === "PICKUP" ? "Retiro en local" : "Elegí envío o retiro"}
+                    </div>
+                    {fulfillmentChoice === "DELIVERY" && addressParts.street && (
+                      <div className="break-words opacity-80">{formData.deliveryAddress}</div>
+                    )}
+                    {fulfillmentChoice === "PICKUP" && <div className="opacity-80">Sin costo de envío</div>}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 shrink-0" aria-hidden="true"/>
+                    <span className="font-bold">{formData.scheduledTime || "Horario por confirmar"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 shrink-0" aria-hidden="true"/>
+                    <span className="font-bold">{checkoutPaymentLabel(formData.paymentMethod)}</span>
+                  </div>
+                </div>
+              </div>
               <div className={`flex justify-between font-medium text-[11px] ${t.summaryText}`}>
                 <span>Subtotal</span>
                 <span>${subtotal.toLocaleString("es-AR")}</span>
@@ -1039,51 +1228,20 @@ export default function CheckoutPage() {
                 <span className={t.heading}>Total</span>
                 <span className={t.summaryTotal}>${total.toLocaleString("es-AR")}</span>
               </div>
-            </div>
+            </section>
 
             <Button
               type="submit"
               className={`w-full h-12 rounded-2xl text-sm font-bold text-white shadow-lg group transition-all ${t.accentBg} ${t.accentBgHover}`}
-              disabled={isSubmitting}
+              disabled={isSubmitting || (config?.paymentCash === false && config?.paymentMp === false)}
             >
-              {isSubmitting ? "Enviando..." : "Confirmar Pedido"}
+              {isSubmitting ? "Procesando pedido..." : checkoutActionLabel(formData.paymentMethod, total)}
               {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
             </Button>
           </form>
         </div>
       </div>
 
-      {/* Confirmation Modal */}
-      <AnimatePresence>
-        {showConfirmModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className={`rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4 border ${t.modalBg}`}
-            >
-              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${theme === "URBAN_DARK" ? "bg-orange-500/15 text-orange-400" : "bg-orange-100 text-orange-500"}`}>
-                <MapPin className="w-7 h-7" />
-              </div>
-              <div className="text-center">
-                <h3 className={`text-lg font-black mb-1 ${t.modalText}`}>¿Sin Envío?</h3>
-                <p className={`text-xs leading-tight ${t.modalSub}`}>
-                  Indicaste que lo retirás por el local. ¿Es correcto?
-                </p>
-              </div>
-              <div className="space-y-1.5 pt-1">
-                <Button onClick={confirmNoDelivery} className={`w-full h-10 rounded-xl font-bold text-sm text-white ${t.accentBg}`}>
-                  Sí, retiro en local
-                </Button>
-                <Button onClick={cancelNoDelivery} variant="outline" className={`w-full h-10 rounded-xl font-bold text-sm border ${t.divider}`}>
-                  No, quiero envío
-                </Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </>
   );
 }
