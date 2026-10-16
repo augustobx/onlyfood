@@ -383,6 +383,15 @@ export default async function ProfilePage() {
         </div>
       )}
 
+      <div id="my-orders" className="scroll-mt-20 mb-5">
+        <h2 className={`text-2xl font-black ${["SUSHI_ZEN", "URBAN_DARK", "HALLOWEEN", "ARCADE_KITCHEN"].includes(config?.storeTheme || "") ? "text-white" : "text-slate-900"}`}>
+          Tus pedidos
+        </h2>
+        <p className={`text-sm ${["SUSHI_ZEN", "URBAN_DARK", "HALLOWEEN", "ARCADE_KITCHEN"].includes(config?.storeTheme || "") ? "text-slate-400" : "text-slate-600"}`}>
+          Seguí tus pedidos activos, los programados y tus compras anteriores.
+        </p>
+      </div>
+
       {/* 1. SECCIÓN: PEDIDOS EN CURSO PARA HOY */}
       {todayActiveOrders.length > 0 && (
         <div className="mb-8 space-y-3">
@@ -485,7 +494,7 @@ export default async function ProfilePage() {
       )}
 
       {/* 3. SECCIÓN: HISTORIAL DE COMPRAS PASADAS */}
-      <div id="my-orders" className="scroll-mt-20">
+      <div id="order-history" className="scroll-mt-20">
         <h3 className={`text-xl font-black mb-4 ${isSushiZen ? "text-white" : "text-slate-900"}`}>Historial de Compras</h3>
         {pastOrders.length === 0 ? (
            <div className={`text-center p-8 rounded-2xl border text-xs font-medium ${
