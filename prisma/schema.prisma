@@ -45,6 +45,11 @@ model SystemConfig {
 
   paymentCash               Boolean @default(true)
   paymentMp                 Boolean @default(true)
+  paymentTransfer           Boolean @default(false)
+  transferAlias             String  @default("") @db.VarChar(60)
+  transferCbu               String  @default("") @db.VarChar(22)
+  transferHolder            String  @default("") @db.VarChar(120)
+  transferWhatsApp          String  @default("") @db.VarChar(20)
   autoPrintTickets          Boolean @default(true)
   kitchenPattyCountEnabled  Boolean @default(false)
   kitchenPattyKeywords      String  @default("medallón,medallon")
@@ -385,7 +390,10 @@ model Order {
   scheduledTime String?
 
   status                 String   @default("NEW") // NEW, IN_PROCESS, FINISHED, DELIVERED, CANCELLED
-  paymentMethod          String // CASH, MP, ADMIN
+  paymentMethod          String // CASH, MP, TRANSFER, ADMIN
+  transferInstructions    Json? // Datos bancarios del momento de compra
+  transferApprovedAt      DateTime?
+  transferApprovedBy      String? @db.VarChar(100)
   paymentStatus          String   @default("PENDING") // PENDING, PAID, FAILED
   mpPreferenceId         String?
   total                  Float
@@ -416,6 +424,7 @@ model Order {
   @@index([tenantId, createdAt])
   @@index([tenantId, trackingTokenHash])
   @@index([tenantId, status, createdAt])
+  @@index([tenantId, paymentMethod, paymentStatus])
   @@index([tenantId, locationId, createdAt])
   @@index([tenantId, clientId])
   @@index([createdAt])
