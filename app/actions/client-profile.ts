@@ -52,6 +52,9 @@ export async function addMissingClientEmail(input: string) {
       data: { email: parsed.data },
     });
     if (saved.count !== 1) return { success: false as const, error: "La cuenta cambió. Recargá la página." };
+    await db.clientRecoveryCode.deleteMany({
+      where: { clientId: client.id },
+    });
     revalidatePath("/profile");
   } catch {
     return { success: false as const, error: "No se pudo guardar el correo. Comprobá que no esté utilizado." };
