@@ -27,6 +27,7 @@ import { LogoutButton } from "./LogoutButton";
 import { ClientSecuritySettings } from "@/components/ClientSecuritySettings";
 import { SavedAddressesManager } from "@/components/SavedAddressesManager";
 import { getClientSavedAddresses } from "@/app/actions/client-addresses";
+import { ReorderButton } from "@/components/pwa/ReorderButton";
 
 const TIER_ICONS: Record<string, any> = {
   Crown,
@@ -481,7 +482,7 @@ export default async function ProfilePage() {
       )}
 
       {/* 3. SECCIÓN: HISTORIAL DE COMPRAS PASADAS */}
-      <div>
+      <div id="my-orders" className="scroll-mt-20">
         <h3 className={`text-xl font-black mb-4 ${isSushiZen ? "text-white" : "text-slate-900"}`}>Historial de Compras</h3>
         {pastOrders.length === 0 ? (
            <div className={`text-center p-8 rounded-2xl border text-xs font-medium ${
@@ -492,7 +493,7 @@ export default async function ProfilePage() {
         ) : (
           <div className="space-y-3">
             {pastOrders.map(order => (
-              <div key={order.id} className={`rounded-2xl p-4 flex items-center justify-between shadow-2xs border ${
+              <div key={order.id} className={`rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs border ${
                 isSushiZen
                   ? "bg-[#121722] border-white/10 text-white"
                   : "bg-white border-slate-200 text-slate-900"
@@ -509,6 +510,7 @@ export default async function ProfilePage() {
                    <span className={`font-black block text-sm ${isSushiZen ? "text-amber-300" : "text-slate-900"}`}>${order.total.toLocaleString('es-AR')}</span>
                    {order.earnedPoints > 0 && <span className="text-xs font-black text-amber-400 block">+{order.earnedPoints} pts</span>}
                  </div>
+                 <ReorderButton orderId={order.id}/>
               </div>
             ))}
           </div>

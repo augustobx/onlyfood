@@ -324,7 +324,7 @@ export function FastNeoStorefront({
       />
 
       {/* ═══ BOTTOM DOCK FLOTANTE ═══ */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-1 pb-[env(safe-area-inset-bottom)]">
+      <nav className="legacy-store-bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-1 pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-md mx-auto flex items-center justify-around py-1.5">
           <button type="button" onClick={() => setSelectedCategory("all")} className="flex flex-col items-center gap-0.5 py-1 px-3 text-orange-600">
             <Utensils className="w-5 h-5" />
