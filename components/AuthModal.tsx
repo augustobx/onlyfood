@@ -172,7 +172,7 @@ export function AuthModal({
             type="button"
             onClick={() => {
               setMode("LOGIN");
-              setRecoveryState(null);
+              setRecoveryMessage("");
             }}
             className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${
               mode === "LOGIN"
@@ -186,7 +186,7 @@ export function AuthModal({
             type="button"
             onClick={() => {
               setMode("REGISTER");
-              setRecoveryState(null);
+              setRecoveryMessage("");
             }}
             className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${
               mode === "REGISTER"

@@ -29,8 +29,8 @@ export function ClientSecuritySettings({ initialEmail, verified }: { initialEmai
     setBusy(true);
     try {
       const result = await sendEmailVerification(email);
-      if (result.success) toast.success(result.message);
-      else toast.error(result.error);
+      if (result.success) toast.success(result.message || "Revisá tu correo.");
+      else toast.error(result.error || "No se pudo completar la operación.");
     } catch { toast.error("No se pudo enviar la verificación."); }
     finally { setBusy(false); }
   }

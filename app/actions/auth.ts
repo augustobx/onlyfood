@@ -28,7 +28,7 @@ function phoneLoginKey(value: string) {
   return digits.length >= 6 ? digits.slice(-6) : null;
 }
 
-export async function findClientsByIdentifier(tenantId: string, identifier: string) {
+async function findClientsByIdentifier(tenantId: string, identifier: string) {
   const cleaned = cleanPhoneNumber(identifier);
   const key = phoneLoginKey(cleaned);
   const db = createTenantDb(tenantId);

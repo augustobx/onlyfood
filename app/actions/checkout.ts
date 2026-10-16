@@ -10,6 +10,7 @@ import { getTenantIntegration, type MercadoPagoCredentials } from "@/lib/tenant-
 import { getLoggedClient, hashPassword } from "@/lib/auth";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { getPublicConfig } from "@/lib/public-config";
+import { requiresClientLogin } from "@/lib/checkout-auth-policy";
 import { consumeRateLimit, getRequestIp, getRequestOrigin } from "@/lib/request-security";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
 import { dispatchOrderPrint } from "@/lib/printnode";
@@ -210,7 +211,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         businessHours: null,
       };
       if (!config) throw new Error("STORE_UNAVAILABLE");
-      if (!adminDirectPaid && config.requireLoginForCheckout && !loggedClient) throw new Error("LOGIN_REQUIRED");
+      if (requiresClientLogin(config.requireLoginForCheckout, Boolean(loggedClient), adminDirectPaid)) throw new Error("LOGIN_REQUIRED");
       const whatsappOptIn = tenant.features.has("whatsapp") && config.whatsappNotificationsEnabled && data.whatsappOptIn;
 
       if (!adminDirectPaid) {
