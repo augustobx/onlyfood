@@ -11,12 +11,17 @@ import { createOrder, fetchConfig } from "@/app/actions/checkout";
 import { fetchCurrentClient } from "@/app/actions/auth";
 import { AuthModal } from "@/components/AuthModal";
 import { fetchClientAvailableCoupons } from "@/app/actions/client-rewards";
-import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X } from "lucide-react";
+import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X, Bike, Store, Banknote, CreditCard, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 import { allowsTierBenefit } from "@/lib/tier-payment-policy";
+import {
+  buildDeliveryAddress, isDeliveryAddressValid, isSlotSelectable,
+  checkoutActionLabel, checkoutPaymentLabel,
+  type FulfillmentChoice, type DeliveryAddressParts,
+} from "@/lib/checkout-presentation";
 
 /* ══ Theme class maps ══ */
 function getThemeClasses(theme: string) {
@@ -272,7 +277,11 @@ export default function CheckoutPage() {
   const quantityDiscount = useQuantityDiscountPreview(items);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // Requiere una elección explícita: retiro no puede quedar marcado por omisión.
+  const [fulfillmentChoice, setFulfillmentChoice] = useState<FulfillmentChoice | null>(null);
+  const [addressParts, setAddressParts] = useState<DeliveryAddressParts>({
+    street: "", unit: "", reference: "",
+  });
   const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
   const [selectedCoupon, setSelectedCoupon] = useState<any | null>(null);
   const [userOptedOutCoupon, setUserOptedOutCoupon] = useState(false);
@@ -291,6 +300,7 @@ export default function CheckoutPage() {
   });
 
   const [slots, setSlots] = useState<any[]>([]);
+  const [slotsLoadError, setSlotsLoadError] = useState(false);
   const [config, setConfig] = useState<any>(null);
 
   const theme = config?.storeTheme || "ORIGINAL";
@@ -363,17 +373,25 @@ export default function CheckoutPage() {
     });
 
     fetch("/api/slots")
-      .then((r) => r.json())
-      .then((d) => {
-        const available = d.filter((s: any) => s.available > 0);
-        setSlots(available);
-        if (available.length > 0) {
-          setFormData((prev) => ({
-            ...prev,
-            deliverySlotId: available[0].id,
-            scheduledTime: available[0].time,
-          }));
-        }
+      .then(async r => {
+        if (!r.ok) throw new Error("SLOTS_UNAVAILABLE");
+        const data = await r.json();
+        if (!Array.isArray(data)) throw new Error("INVALID_SLOTS");
+        return data;
+      })
+      .then((all: any[]) => {
+        setSlots(all);
+        setSlotsLoadError(false);
+        const available = all.filter(slot => isSlotSelectable(Number(slot.available)));
+        setFormData(prev => {
+          const chosen = available.find(slot => slot.id === prev.deliverySlotId) || available[0];
+          return { ...prev, deliverySlotId: chosen?.id || "", scheduledTime: chosen?.time || "" };
+        });
+      })
+      .catch(() => {
+        setSlots([]);
+        setSlotsLoadError(true);
+        setFormData(prev => ({ ...prev, deliverySlotId: "", scheduledTime: "" }));
       });
   }, [schedule.hasScheduledProducts, schedule.targetDateInfo]);
 
@@ -505,8 +523,20 @@ export default function CheckoutPage() {
       toast.error("Datos incompletos", { description: "Por favor, ingresá tu nombre y teléfono." });
       return;
     }
-    if (formData.needsDelivery && !formData.deliveryAddress) {
-      toast.error("Dirección requerida", { description: "Por favor, ingresá tu dirección de envío." });
+    if (!fulfillmentChoice) {
+      toast.error("Seleccioná entrega a domicilio o retiro en local.");
+      return;
+    }
+    if (formData.needsDelivery && !isDeliveryAddressValid(formData.deliveryAddress)) {
+      toast.error("Dirección incompleta", {
+        description: "Ingresá calle y altura. La dirección completa no puede superar 250 caracteres.",
+      });
+      addressInputRef.current?.focus();
+      return;
+    }
+    if ((config?.paymentCash === false && formData.paymentMethod === "CASH") ||
+      (config?.paymentMp === false && formData.paymentMethod === "MP")) {
+      toast.error("El medio de pago elegido no está disponible en este comercio.");
       return;
     }
     if (formData.orderType === "CUSTOM_DATE" && !formData.scheduledDate) {
@@ -560,24 +590,30 @@ export default function CheckoutPage() {
     }
   };
 
-  const handlePreSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.needsDelivery) {
-      setShowConfirmModal(true);
-    } else {
-      validateAndSubmit();
+  const chooseFulfillment = (choice: FulfillmentChoice) => {
+    setFulfillmentChoice(choice);
+    setFormData(prev => ({ ...prev, needsDelivery: choice === "DELIVERY" }));
+    if (choice === "DELIVERY") {
+      window.requestAnimationFrame(() => addressInputRef.current?.focus());
     }
   };
 
-  const confirmNoDelivery = () => {
-    setShowConfirmModal(false);
-    validateAndSubmit();
+  const changeAddressPart = (field: keyof DeliveryAddressParts, value: string) => {
+    const next = { ...addressParts, [field]: value };
+    setAddressParts(next);
+    setFormData(prev => ({ ...prev, deliveryAddress: buildDeliveryAddress(next) }));
   };
 
-  const cancelNoDelivery = () => {
-    setShowConfirmModal(false);
-    setFormData({ ...formData, needsDelivery: true });
-    setTimeout(() => addressInputRef.current?.focus(), 300);
+  const handlePreSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!fulfillmentChoice) {
+      toast.error("Elegí cómo querés recibir tu pedido", {
+        description: "Seleccioná Envío a domicilio o Retiro en local para continuar.",
+      });
+      document.getElementById("checkout-fulfillment")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    void validateAndSubmit();
   };
 
   if (items.length === 0) return null;
