@@ -1,0 +1,37 @@
+name: OnlyFood PR checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safe-pr-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: mysql://build:build@127.0.0.1:3306/build
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: SGVyZSBpcyBhIGRldGVybWluaXN0aWMgMzIgYnl0ZSBrZXkgIQ==
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Prisma validate
+        run: npx prisma validate
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: ESLint
+        run: npm run lint
+      - name: Unit tests (no DB)
+        run: npm test
+      - name: Production build
+        run: npm run build
