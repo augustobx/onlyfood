@@ -12,6 +12,20 @@ import { revalidatePath } from "next/cache";
 
 const TEMP_PASSWORD = "12345678";
 
+
+/** Conteo para la campanita global. Solo OWNER/MANAGER del tenant actual. */
+export async function getPendingClientPasswordResetCount() {
+  try {
+    await requireAdmin(["OWNER", "MANAGER"]);
+    const tenant = await getTenantContext();
+    return await prisma.clientPasswordResetRequest.count({
+      where: { tenantId: tenant.id, status: "PENDING" },
+    });
+  } catch {
+    return 0;
+  }
+}
+
 export async function requestClientAdminPasswordReset(input: { name: string; phone: string }) {
   const data = z.object({
     name: z.string().trim().min(2).max(80),
