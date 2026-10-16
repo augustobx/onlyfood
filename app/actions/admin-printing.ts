@@ -15,6 +15,9 @@ export async function printOrderNow(orderId: string) {
   const tenant = await getTenantContext();
   await requireTenantFeature(tenant.id, "orders");
   const db = await getTenantDb();
+  const order = await db.order.findFirst({ where: { id: orderId }, select: { paymentMethod: true, paymentStatus: true, status: true } });
+  if (!order || order.status === "CANCELLED") return { success: false, error: "Pedido no disponible." };
+  if (order.paymentMethod === "TRANSFER" && order.paymentStatus !== "PAID") return { success: false, error: "Aprobá primero la transferencia para imprimir." };
   const config = await db.systemConfig.findFirst({ select: { printingMode: true } });
   if (!config || config.printingMode === "BROWSER") {
     return { success: true, mode: "BROWSER" as const, url: `/admin/live/print/${orderId}` };
