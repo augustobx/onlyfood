@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -35,6 +35,7 @@ import { PushPrompt } from "./PushPrompt";
 import { orderHelpText } from "@/lib/order-status-guidance";
 import { realOrderEvents } from "@/lib/pwa-order-history";
 import { isPendingTransfer, transferReceiptUrl } from "@/lib/transfer-payment";
+import { saveGuestOrder } from "@/lib/guest-checkout";
 
 interface TrackOrderClientProps {
   order: any;
@@ -42,6 +43,7 @@ interface TrackOrderClientProps {
   config: any;
   deliveryCost: number;
   searchParams?: { status?: string; payment_id?: string; token?: string };
+  isGuestView?: boolean;
 }
 
 function getThemeStyles(theme: string) {
@@ -315,9 +317,24 @@ function parseDeliveryDate(order: any): {
   };
 }
 
-export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCost, searchParams }: TrackOrderClientProps) {
+export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCost, searchParams, isGuestView = false }: TrackOrderClientProps) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!isGuestView || !searchParams?.token || !config?.tenantId ||
+        !["CASH", "MP", "TRANSFER"].includes(order.paymentMethod)) return;
+    // El servidor ya verificó el token antes de mostrar esta página.
+    try {
+      saveGuestOrder(sessionStorage, config.tenantId, {
+        orderId: order.id,
+        token: searchParams.token,
+        createdAt: new Date(order.createdAt).getTime(),
+        paymentMethod: order.paymentMethod,
+      });
+      window.dispatchEvent(new Event("onlyfood:guest-order-changed"));
+    } catch { /* El seguimiento sigue accesible mediante el enlace. */ }
+  }, [isGuestView, config?.tenantId, order.id, order.createdAt, order.paymentMethod, searchParams?.token]);
 
   const theme = config?.storeTheme || "ORIGINAL";
   const appName = config?.appName || "OnlyFood";
@@ -876,15 +893,21 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
             <span>Volver a la Tienda / Hacer otro pedido</span>
           </Button>
 
+          {isGuestView && (
+            <p className="rounded-xl border border-slate-200/30 bg-slate-500/10 px-3 py-2 text-center text-xs">
+              Guardá o compartí el enlace privado de este pedido para consultarlo incluso después de cerrar el navegador.
+            </p>
+          )}
+
           {/* SECONDARY & AUXILIARY BUTTONS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Button
-              onClick={() => router.push("/profile")}
+              onClick={() => router.push(isGuestView ? "/orders" : "/profile")}
               variant="outline"
               className={`h-12 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 ${s.secondaryBtn}`}
             >
               <UserRound className="w-4 h-4 shrink-0" />
-              <span>Ver mis Pedidos</span>
+              <span>{isGuestView ? "Mis pedidos sin cuenta" : "Ver mis pedidos"}</span>
             </Button>
 
             <Button
