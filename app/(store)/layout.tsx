@@ -176,7 +176,7 @@ export default async function StoreLayout({
          </div>
       )}
       
-      <Navbar config={config} />
+      <Navbar config={config} isAuthenticated={Boolean(account)} />
       <ClientAccountOnboarding />
       <main className="store-main flex-1 w-full pb-20 sm:pb-0">
         {children}
