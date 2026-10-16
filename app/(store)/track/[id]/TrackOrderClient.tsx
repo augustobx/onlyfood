@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import AutoRefresh from "./AutoRefresh";
 import MPReturnHandler from "./MPReturnHandler";
 import { PushPrompt } from "./PushPrompt";
-import { orderHelpText } from "@/lib/pwa-order-helpers";
+import { orderHelpText } from "@/lib/order-status-guidance";
 
 interface TrackOrderClientProps {
   order: any;

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
+import { CartSuggestions } from "@/components/pwa/CartSuggestions";
 import { Button } from "@/components/ui/button";
 import { Trash2, ShoppingBag, ArrowRight, ArrowLeft, Plus, Minus, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -379,6 +380,8 @@ export default function CartPage() {
           </div>
         );
       })()}
+
+      <CartSuggestions />
 
       {/* CTA */}
       <div className="mt-5 space-y-2.5">
