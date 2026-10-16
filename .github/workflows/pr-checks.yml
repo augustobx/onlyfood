@@ -35,3 +35,38 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+
+  migration-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: ci-root-not-production
+          MARIADB_DATABASE: onlyfood_ci_test
+          MARIADB_USER: build
+          MARIADB_PASSWORD: build
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=25
+    env:
+      DATABASE_URL: mysql://build:build@127.0.0.1:3306/onlyfood_ci_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Apply migrations on disposable MariaDB
+        run: npx prisma migrate deploy
+      - name: Verify migration status
+        run: npx prisma migrate status
