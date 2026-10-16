@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { client as webauthn } from "@passwordless-id/webauthn";
 import { Fingerprint, MailCheck, ShieldCheck, IdCard, LogOut } from "lucide-react";
 import { toast } from "sonner";
-import { sendEmailVerification } from "@/app/actions/client-security";
-import { completeClientDniStep, getClientOnboardingStatus } from "@/app/actions/client-profile";
+
+import { addMissingClientEmail, completeClientDniStep, getClientOnboardingStatus } from "@/app/actions/client-profile";
 import { logoutClient } from "@/app/actions/auth";
 import { beginClientPasskeyRegistration, finishClientPasskeyRegistration } from "@/app/actions/client-passkeys";
 
@@ -61,12 +61,12 @@ export function ClientAccountOnboarding() {
     setBusy(true);
     setError("");
     try {
-      const result = await sendEmailVerification(email);
+      const result = await addMissingClientEmail(email);
       if (!result.success) { setError(result.error || "No pudimos enviar el correo."); return; }
       const current = await getClientOnboardingStatus();
       if (!current?.email) { setError("No se pudo guardar el correo. Volvé a intentar."); return; }
       setStatus(current);
-      toast.success("Correo agregado. Confirmá el enlace recibido para poder recuperar tu clave.", { duration: 8000 });
+      toast[result.verificationSent ? "success" : "warning"](result.message, { duration: 8000 });
       setStep(current.dniProvided ? null : "DNI");
       router.refresh();
     } catch { setError("No pudimos guardar el correo. Intentá nuevamente."); }

@@ -27,6 +27,54 @@ export async function saveClientProfileName(nameInput: string) {
 
 
 /** Retorna solo datos necesarios para el alta guiada, nunca contraseñas ni DNI. */
+/**
+ * No bloquear a los clientes históricos si el comercio todavía no configuró
+ * correo saliente: el email se almacena PENDIENTE y se puede verificar luego.
+ * Nunca se marca como verificado por el simple hecho de guardarlo.
+ */
+export async function addMissingClientEmail(input: string) {
+  const tenant = await getTenantContext();
+  const client = await getLoggedClient(tenant.id);
+  if (!client) return { success: false as const, error: "Iniciá sesión para continuar." };
+  const parsed = z.string().trim().toLowerCase().email().max(254).safeParse(input);
+  if (!parsed.success) return { success: false as const, error: "Ingresá un correo válido." };
+  if (client.email) return { success: false as const, error: "La cuenta ya tiene un correo. Actualizá la pantalla." };
+  const ip = await getRequestIp();
+  if (!await consumeRateLimit("client-onboarding-email", `${tenant.id}:${client.id}:${ip}`, 6, 60 * 60_000)) {
+    return { success: false as const, error: "Demasiados intentos. Intentá más tarde." };
+  }
+  const db = createTenantDb(tenant.id);
+  try {
+    const existing = await db.client.findFirst({ where: { email: parsed.data }, select: { id: true } });
+    if (existing) return { success: false as const, error: "Este correo pertenece a otra cuenta." };
+    const saved = await db.client.updateMany({
+      where: { id: client.id, email: null, emailVerifiedAt: null },
+      data: { email: parsed.data },
+    });
+    if (saved.count !== 1) return { success: false as const, error: "La cuenta cambió. Recargá la página." };
+    revalidatePath("/profile");
+  } catch {
+    return { success: false as const, error: "No se pudo guardar el correo. Comprobá que no esté utilizado." };
+  }
+  const { sendEmailVerification } = await import("@/app/actions/client-security");
+  try {
+    const delivery = await sendEmailVerification(parsed.data);
+    return {
+      success: true as const,
+      verificationSent: Boolean(delivery.success),
+      message: delivery.success
+        ? "Confirmá el enlace enviado a tu correo para habilitar la recuperación."
+        : "Tu correo se guardó como pendiente. El comercio debe habilitar el envío antes de verificarlo.",
+    };
+  } catch {
+    return {
+      success: true as const,
+      verificationSent: false,
+      message: "Correo guardado. Podrás verificarlo cuando el comercio habilite el envío.",
+    };
+  }
+}
+
 export async function getClientOnboardingStatus() {
   const tenant = await getTenantContext();
   const client = await getLoggedClient(tenant.id);
