@@ -177,6 +177,8 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       return { success: false, error: parsed.error?.issues[0]?.message || "Los datos del pedido no son válidos." };
     }
     const data = parsed.data;
+    // ADMIN solo es válido cuando la acción proviene del panel autenticado.
+    if (!adminDirectPaid && data.paymentMethod === "ADMIN") return { success: false, error: "El medio de pago no está permitido." };
     if (adminDirectPaid && data.paymentMethod === "TRANSFER") return { success: false, error: "La transferencia del cliente requiere aprobación manual desde la bandeja." };
     if (data.items.length === 0 && !data.redemptionId && !data.rouletteWinId) {
       return { success: false, error: "Tu carrito está vacío. Agregá productos para continuar." };
