@@ -305,7 +305,7 @@ export default function CheckoutPage() {
     orderType: "IMMEDIATE" as "IMMEDIATE" | "SCHEDULED_TOMORROW" | "CUSTOM_DATE",
     scheduledDate: "",
     scheduledTime: "",
-    paymentMethod: "CASH" as "CASH" | "MP",
+    paymentMethod: "CASH" as "CASH" | "MP" | "TRANSFER",
   });
 
   const [slots, setSlots] = useState<any[]>([]);
@@ -341,7 +341,8 @@ export default function CheckoutPage() {
       if (cfg) {
         if (!cfg.whatsappOptInEnabled) setFormData((p) => ({ ...p, whatsappOptIn: false }));
         if (!cfg.paymentCash && cfg.paymentMp) setFormData((p) => ({ ...p, paymentMethod: "MP" }));
-        if (cfg.paymentCash && !cfg.paymentMp) setFormData((p) => ({ ...p, paymentMethod: "CASH" }));
+        else if (!cfg.paymentCash && !cfg.paymentMp && cfg.paymentTransfer) setFormData((p) => ({ ...p, paymentMethod: "TRANSFER" }));
+        else if (cfg.paymentCash) setFormData((p) => ({ ...p, paymentMethod: "CASH" }));
 
         if (schedule.hasScheduledProducts && schedule.targetDateInfo) {
           const isToday = schedule.targetDateInfo.dayOffset === 0;
@@ -568,7 +569,8 @@ export default function CheckoutPage() {
       return;
     }
     if ((config?.paymentCash === false && formData.paymentMethod === "CASH") ||
-      (config?.paymentMp === false && formData.paymentMethod === "MP")) {
+      (config?.paymentMp === false && formData.paymentMethod === "MP") ||
+      (!config?.paymentTransfer && formData.paymentMethod === "TRANSFER")) {
       toast.error("El medio de pago elegido no está disponible en este comercio.");
       return;
     }
@@ -602,8 +604,10 @@ export default function CheckoutPage() {
           checkoutCompletedRef.current = true;
           setIsSuccess(true);
           clearCart();
-          toast.success("¡Pedido enviado con éxito!", {
-            description: total <= 0 ? "Tu pedido bonificado por tu premio ya fue registrado." : "Tu pedido ya fue registrado en el sistema.",
+          toast.success("¡Pedido recibido!", {
+            description: formData.paymentMethod === "TRANSFER"
+              ? "Ahora transferí y compartí el comprobante por WhatsApp. El pago queda pendiente de aprobación."
+              : total <= 0 ? "Tu pedido bonificado por tu premio ya fue registrado." : "Tu pedido ya fue registrado en el sistema.",
           });
           try {
             const audio = new Audio("/sounds/dingdong.mp3");
@@ -1206,7 +1210,18 @@ export default function CheckoutPage() {
                       {formData.paymentMethod === "MP" && <Check className="h-4 w-4 shrink-0" aria-hidden="true"/>}
                     </button>
                   )}
-                  {config?.paymentCash === false && config?.paymentMp === false && (
+                  {config?.paymentTransfer === true && (
+                    <button type="button" aria-pressed={formData.paymentMethod === "TRANSFER"}
+                      onClick={() => setFormData(prev => ({ ...prev, paymentMethod: "TRANSFER" }))}
+                      className={`flex min-h-[76px] items-center gap-2 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${formData.paymentMethod === "TRANSFER" ? t.pillActive : t.pillInactive}`}>
+                      <Banknote className="h-6 w-6 shrink-0" aria-hidden="true"/>
+                      <span className="min-w-0 flex-1"><span className="block text-sm font-black">Transferencia</span>
+                        <span className="block text-[11px] opacity-85">Comprobante por WhatsApp · aprobación manual</span>
+                      </span>
+                      {formData.paymentMethod === "TRANSFER" && <Check className="h-4 w-4 shrink-0" aria-hidden="true"/>}
+                    </button>
+                  )}
+                  {config?.paymentCash === false && config?.paymentMp === false && !config?.paymentTransfer && (
                     <p className={`rounded-xl border p-3 text-xs ${t.warnBg}`}>
                       El comercio todavía no tiene métodos de pago disponibles.
                     </p>
@@ -1377,7 +1392,7 @@ export default function CheckoutPage() {
             <Button
               type="submit"
               className={`w-full h-12 rounded-2xl text-sm font-bold text-white shadow-lg group transition-all ${t.accentBg} ${t.accentBgHover}`}
-              disabled={isSubmitting || (config?.paymentCash === false && config?.paymentMp === false)}
+              disabled={isSubmitting || (config?.paymentCash === false && config?.paymentMp === false && !config?.paymentTransfer)}
             >
               {isSubmitting ? "Procesando pedido..." : checkoutActionLabel(formData.paymentMethod, total)}
               {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
