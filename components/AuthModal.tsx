@@ -58,11 +58,7 @@ export function AuthModal({
       if (mode === "REGISTER") {
         const res = await registerClient(fd);
         if (res.success) {
-          toast.success(
-            res.accountActivated
-              ? "¡Cuenta activada! Tu nueva clave ya quedó guardada."
-              : "¡Bienvenido! Ya podés acumular puntos y beneficios."
-          );
+          toast.success("¡Bienvenido! Tu cuenta fue creada.");
           if (!res.verificationSent) toast.info("Tu cuenta está activa, pero aún no se envió el correo de verificación.");
           onClose();
           window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
@@ -76,11 +72,7 @@ export function AuthModal({
       } else if (mode === "LOGIN") {
         const res = await loginClient(fd);
         if (res.success) {
-          toast.success(
-            res.accountActivated
-              ? "¡Cuenta activada! Tu clave ya quedó registrada."
-              : "¡Hola de nuevo! Ya iniciaste sesión."
-          );
+          toast.success("¡Hola de nuevo! Ya iniciaste sesión.");
           onClose();
           window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
           router.refresh();
