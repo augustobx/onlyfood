@@ -136,12 +136,12 @@ export function AuthModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 bg-black/75 backdrop-blur-md">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden transition-all ${
+        className={`w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl relative transition-all ${
           isSushi
             ? "bg-[#121722] border border-amber-500/35 text-slate-100 shadow-black/80"
             : isDark
