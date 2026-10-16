@@ -1,6 +1,7 @@
 import "server-only";
 
 import fs from "node:fs/promises";
+import { canDispatchPaidOrder } from "@/lib/order-integrity-policy";
 import path from "node:path";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
@@ -323,7 +324,7 @@ async function submitPrintNodeJob(printerId: number, title: string, rawTicket: B
 export async function dispatchOrderPrint(orderId: string, options: { force?: boolean; tenantId?: string } = {}) {
   const order = await loadPrintableOrder(orderId);
   if (!order || order.status === "CANCELLED") return { success: false, skipped: true, jobs: [], error: "Pedido no disponible." };
-  if (order.paymentMethod === "TRANSFER" && order.paymentStatus !== "PAID") return { success: false, skipped: true, jobs: [], error: "Transferencia pendiente de aprobación." };
+  if (!canDispatchPaidOrder(order)) return { success: false, skipped: true, jobs: [], error: "Pago electrónico pendiente de confirmación." };
 
   if (options.tenantId && order.tenantId !== options.tenantId) {
     return { success: false, skipped: true, jobs: [], error: "Pedido no disponible para este comercio." };
