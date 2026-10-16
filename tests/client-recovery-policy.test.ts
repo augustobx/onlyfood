@@ -18,5 +18,6 @@ describe("Recuperación individual y temporal", () => {
   });
   it("normaliza guiones y espacios", () => {
     expect(normalizeRecoveryCode(" abcd-1234 ef90 ")).toBe("ABCD1234EF90");
+    expect(normalizeRecoveryCode(" 1234-5678 ")).toBe("12345678");
   });
 });
