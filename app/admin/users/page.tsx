@@ -4,14 +4,14 @@ import { User, Star, Gift, Crown } from "lucide-react";
 import { UsersTableClient } from "./UsersTableClient";
 import { requireAdmin } from "@/lib/admin-session";
 import { getTenantContext } from "@/lib/tenant-context";
-import { requireTenantFeature } from "@/lib/features";
+
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUsersPage() {
   await requireAdmin(["OWNER", "MANAGER"]);
   const tenant = await getTenantContext();
-  await requireTenantFeature(tenant.id, "loyalty");
+  const loyaltyEnabled = tenant.features.has("loyalty");
   const db = await getTenantDb();
   const [users, rewards, tiers] = await Promise.all([
     db.client.findMany({
@@ -27,14 +27,14 @@ export default async function AdminUsersPage() {
       },
       orderBy: { points: "desc" },
     }),
-    db.pointReward.findMany({
+    loyaltyEnabled ? db.pointReward.findMany({
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { pointsCost: "asc" }],
-    }),
-    db.customerTier.findMany({
+    }) : [],
+    loyaltyEnabled ? db.customerTier.findMany({
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { minSpent: "asc" }],
-    }),
+    }) : [],
   ]);
 
   const totalPointsGiven = users.reduce((acc, u) => acc + u.points, 0);
@@ -56,8 +56,16 @@ export default async function AdminUsersPage() {
       }) || tiers[0];
     }
 
+    // No enviar hashes de contraseñas ni otros campos internos al navegador.
     return {
-      ...u,
+      id: u.id,
+      name: u.name,
+      phone: u.phone,
+      email: u.email,
+      emailVerifiedAt: u.emailVerifiedAt,
+      passwordSetupRequired: u.passwordSetupRequired,
+      points: u.points,
+      createdAt: u.createdAt,
       ordersCount,
       totalSpent,
       tier,
@@ -71,9 +79,9 @@ export default async function AdminUsersPage() {
           <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-orange-600">
             <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" /> Base de Clientes, Insignias & Puntos
           </div>
-          <h2 className="text-3xl font-black tracking-tight text-slate-950">Clientes & Membresías VIP</h2>
+          <h2 className="text-3xl font-black tracking-tight text-slate-950">Clientes & Cuentas</h2>
           <p className="text-muted-foreground text-sm">
-            Consultá el historial de compras, rangos de membresía (Beaters Select, Gold, Club) y saldos de puntos.
+            Administrá nombre, teléfono y correo de los clientes. Los correos nuevos requieren confirmación del destinatario.
           </p>
         </div>
       </div>

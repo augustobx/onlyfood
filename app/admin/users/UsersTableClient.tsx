@@ -21,6 +21,8 @@ import {
   AlertCircle,
   Phone,
   ArrowUpDown,
+  Pencil,
+  MailCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +33,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { adminAssignRewardToClient, adminAdjustClientPoints } from "@/app/actions/admin-rewards";
 import { resetUserPassword, detectDuplicateClients, mergeClients, type DuplicateClientGroup } from "@/app/actions/admin-users";
+import { sendAdminClientEmailVerification } from "@/app/actions/client-security";
+import { ClientAccountEditor } from "@/components/admin/ClientAccountEditor";
 
 interface UsersTableClientProps {
   initialUsers: any[];
@@ -45,6 +49,8 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [editClient, setEditClient] = useState<any | null>(null);
+  const [verifyingClientId, setVerifyingClientId] = useState<string | null>(null);
 
   // Filtros y Buscador
   const [searchQuery, setSearchQuery] = useState("");
@@ -81,7 +87,8 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
           const q = searchQuery.toLowerCase().trim();
           const matchesName = (u.name || "").toLowerCase().includes(q);
           const matchesPhone = (u.phone || "").toLowerCase().includes(q);
-          if (!matchesName && !matchesPhone) return false;
+          const matchesEmail = (u.email || "").toLowerCase().includes(q);
+          if (!matchesName && !matchesPhone && !matchesEmail) return false;
         }
 
         // Filtro por Insignia / Rango
@@ -139,10 +146,20 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
     setSortBy("POINTS_DESC");
   };
 
+  const handleSendClientVerification = async (client: any) => {
+    setVerifyingClientId(client.id);
+    try {
+      const result = await sendAdminClientEmailVerification(client.id);
+      if (result.success) toast.success(result.message || "Enlace enviado.");
+      else toast.error(result.error || "No se pudo enviar.");
+    } catch { toast.error("No se pudo enviar el mensaje."); }
+    finally { setVerifyingClientId(null); }
+  };
+
   const handleResetPassword = async (user: any) => {
     if (
       !confirm(
-        `¿Restablecer el acceso de ${user.name || user.phone}? El cliente podrá definir una nueva clave la próxima vez que ingrese o en "¿Olvidaste tu clave?".`
+        `¿Enviar enlace para recuperar la contraseña a ${user.name || user.phone}? Requiere un correo previamente verificado.`
       )
     ) {
       return;
@@ -152,9 +169,9 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
       const res = await resetUserPassword(user.id);
       if (res.success) {
         toast.success(`Acceso restablecido para ${user.name || user.phone}`, {
-          description: "El cliente ya puede ingresar una nueva contraseña directamente desde la tienda.",
+          description: res.message || "El cliente deberá usar el enlace recibido por email.",
         });
-        setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, passwordSetupRequired: true } : u)));
+        // No se cambia ni invalida la contraseña mientras no se use el enlace.
       } else {
         toast.error(res.error);
       }
@@ -363,7 +380,7 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por nombre o número de teléfono..."
+              placeholder="Buscar por nombre, teléfono o correo..."
               className="pl-10 h-10 rounded-xl text-xs font-medium border-slate-200"
             />
             {searchQuery && (
@@ -528,6 +545,16 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                     )}
                   </div>
                   <div className="text-[11px] text-slate-400 font-mono mt-0.5">{u.phone}</div>
+                   <div className="text-[11px] mt-1">
+                     {u.email
+                       ? <span className="font-medium text-slate-700">{u.email}</span>
+                       : <span className="italic font-semibold text-amber-700">Sin correo</span>}
+                     {u.email && <span className={u.emailVerifiedAt
+                       ? "ml-2 text-emerald-700 font-semibold"
+                       : "ml-2 text-amber-700 font-semibold"}>
+                       {u.emailVerifiedAt ? "✓ Verificado" : "Pendiente de verificación"}
+                     </span>}
+                   </div>
                 </td>
                 <td className="px-6 py-4">
                   {u.tier ? (
@@ -556,6 +583,18 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                 </td>
                 <td className="px-6 py-4 text-center">
                   <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={() => setEditClient(u)}
+                      className="rounded-xl text-[11px] font-bold h-7 px-2 border-orange-300 text-orange-800"
+                      title="Editar datos de la cuenta"><Pencil className="w-3 h-3 mr-1" /> Editar</Button>
+                    {u.email && !u.emailVerifiedAt && <Button
+                      size="sm" variant="ghost" disabled={verifyingClientId === u.id}
+                      onClick={() => handleSendClientVerification(u)}
+                      className="rounded-xl text-[11px] font-bold h-7 px-2 text-emerald-700"
+                      title="Enviar enlace de confirmación al correo del cliente">
+                      {verifyingClientId === u.id ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <MailCheck className="w-3 h-3 mr-1" />}
+                      Verificar correo
+                    </Button>}
                     <Button
                       size="sm"
                       variant="outline"
@@ -582,14 +621,14 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                       disabled={resettingId === u.id}
                       onClick={() => handleResetPassword(u)}
                       className="rounded-xl text-[11px] font-bold text-amber-700 hover:bg-amber-50 hover:text-amber-800 h-7 px-2"
-                      title="Restablecer contraseña para que el cliente pueda definir una nueva"
+                      title="Enviar recuperación segura al correo verificado del cliente"
                     >
                       {resettingId === u.id ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
                         <KeyRound className="w-3 h-3 mr-1 text-amber-600" />
                       )}
-                      Clave
+                      Recuperar
                     </Button>
 
                     <Button
@@ -618,6 +657,14 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
         </table>
       </div>
 
+      <ClientAccountEditor
+        client={editClient}
+        onClose={() => setEditClient(null)}
+        onSaved={saved => {
+          setUsers(previous => previous.map(user => user.id === saved.id ? { ...user, ...saved } : user));
+          setEditClient(null);
+        }}
+      />
       {/* ═══ MODAL DETECCIÓN Y UNIFICACIÓN DE DUPLICADOS ═══ */}
       <Dialog open={isDuplicateModalOpen} onOpenChange={setIsDuplicateModalOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl p-6 bg-white">

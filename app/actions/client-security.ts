@@ -7,6 +7,8 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { getLoggedClient, hashPassword } from "@/lib/auth";
 import { getRequestIp, getRequestOrigin, consumeRateLimit } from "@/lib/request-security";
 import { sendSecurityEmail } from "@/lib/security-email";
+import { requireAdmin } from "@/lib/admin-session";
+import { canRecoverByEmail } from "@/lib/client-account-policy";
 
 const emailSchema = z.string().trim().toLowerCase().email().max(254);
 const passwordSchema = z.string().min(8).max(128);
@@ -31,6 +33,55 @@ async function issueToken(tenantId: string, clientId: string, email: string, pur
   return { token, id: row.id };
 }
 
+async function deliverClientVerification(tenantId: string, tenantName: string, clientId: string, email: string) {
+  await prisma.clientSecurityToken.deleteMany({
+    where: { tenantId, clientId, purpose: "VERIFY_EMAIL", usedAt: null },
+  });
+  const record = await issueToken(tenantId, clientId, email, "VERIFY_EMAIL", 60);
+  try {
+    const origin = await getRequestOrigin();
+    const href = `${origin}/verify-email?token=${encodeURIComponent(record.token)}`;
+    const ok = await sendSecurityEmail(email, `Verificá tu correo - ${tenantName}`,
+      `<p>Confirmá tu correo para recuperar tu acceso a ${escapeHtml(tenantName)}.</p><p><a href="${href}">Verificar correo</a></p><p>El enlace vence en 60 minutos. Si no lo solicitaste, ignorá este mensaje.</p>`, tenantId);
+    if (ok) return { success: true as const };
+  } catch (error) {
+    console.error("Client email verification delivery failed", { tenantId, error });
+  }
+  await prisma.clientSecurityToken.deleteMany({ where: { id: record.id, tenantId } });
+  return { success: false as const, error: "No se pudo enviar el correo. Revisá SMTP o proveedor." };
+}
+
+/**
+ * Permite invitar por email a los clientes históricos que no podían validar
+ * el correo desde la tienda. El propietario del buzón confirma el enlace.
+ * No se autentica al cliente ni se establece contraseña desde este endpoint.
+ */
+export async function sendAdminClientEmailVerification(clientIdInput: string) {
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
+  const id = z.string().uuid().safeParse(clientIdInput);
+  if (!id.success) return { success: false as const, error: "Cliente inválido." };
+  const client = await prisma.client.findFirst({
+    where: { tenantId: tenant.id, id: id.data },
+    select: { id: true, email: true, emailVerifiedAt: true },
+  });
+  if (!client) return { success: false as const, error: "El cliente no pertenece al comercio." };
+  if (!client.email) return { success: false as const, error: "Primero ingresá un correo en Editar cuenta." };
+  if (client.emailVerifiedAt) return { success: true as const, message: "El correo ya está verificado." };
+  const ip = await getRequestIp();
+  if (!await consumeRateLimit("admin-email-verification", `${tenant.id}:${client.id}:${ip}`, 3, 60 * 60_000))
+    return { success: false as const, error: "Límite de envíos para este cliente. Intentá más tarde." };
+  const existing = await prisma.client.findFirst({
+    where: { tenantId: tenant.id, email: client.email, id: { not: client.id } },
+    select: { id: true },
+  });
+  if (existing) return { success: false as const, error: "Ese correo ya está asociado a otro cliente." };
+  const result = await deliverClientVerification(tenant.id, tenant.name, client.id, client.email);
+  return result.success
+    ? { success: true as const, message: "Enlace de verificación enviado. El cliente debe confirmar el correo." }
+    : { success: false as const, error: result.error };
+}
+
 export async function sendEmailVerification(emailInput?: string) {
   const tenant = await getTenantContext();
   const client = await getLoggedClient(tenant.id);
@@ -50,16 +101,10 @@ export async function sendEmailVerification(emailInput?: string) {
     return { success: true, message: "Tu correo ya está verificado." };
   }
 
-  const record = await issueToken(tenant.id, client.id, email.data, "VERIFY_EMAIL", 60);
-  const origin = await getRequestOrigin();
-  const href = `${origin}/verify-email?token=${encodeURIComponent(record.token)}`;
-  const ok = await sendSecurityEmail(email.data, `Verificá tu correo - ${tenant.name}`,
-    `<p>Confirmá tu correo para recuperar tu acceso a ${escapeHtml(tenant.name)}.</p><p><a href="${href}">Verificar correo</a></p><p>El enlace vence en 60 minutos. Si no lo solicitaste, ignorá este mensaje.</p>`, tenant.id);
-  if (!ok) {
-    await prisma.clientSecurityToken.deleteMany({ where: { id: record.id, tenantId: tenant.id } });
-    return { success: false, error: "No se pudo enviar el mensaje. El comercio debe configurar Resend o Brevo." };
-  }
-  return { success: true, message: "Revisá tu correo para confirmar la dirección." };
+  const delivery = await deliverClientVerification(tenant.id, tenant.name, client.id, email.data);
+  return delivery.success
+    ? { success: true, message: "Revisá tu correo para confirmar la dirección." }
+    : { success: false, error: delivery.error };
 }
 
 export async function confirmClientEmailToken(tokenInput: string) {
@@ -81,12 +126,56 @@ export async function confirmClientEmailToken(tokenInput: string) {
         where: { id: record.clientId, tenantId: tenant.id },
         data: { email: record.email, emailVerifiedAt: new Date() },
       });
+      if (updated.count === 1) {
+        // Nunca aceptar enlaces de recuperación destinados a un correo anterior.
+        await tx.clientSecurityToken.deleteMany({
+          where: { tenantId: tenant.id, clientId: record.clientId, id: { not: record.id } },
+        });
+      }
       return updated.count === 1;
     });
     return applied ? { success: true } : { success: false, error: "El enlace ya fue utilizado." };
   } catch {
     return { success: false, error: "No se pudo verificar este correo. Revisá que no esté vinculado a otra cuenta." };
   }
+}
+
+async function deliverClientPasswordReset(tenantId: string, tenantName: string, clientId: string, email: string) {
+  const record = await issueToken(tenantId, clientId, email, "RESET_PASSWORD", 30);
+  try {
+    const href = `${await getRequestOrigin()}/reset-password?token=${encodeURIComponent(record.token)}`;
+    const ok = await sendSecurityEmail(email, `Recuperá tu contraseña - ${tenantName}`,
+      `<p>Recibimos una solicitud para restablecer tu contraseña de ${escapeHtml(tenantName)}.</p><p><a href="${href}">Crear nueva contraseña</a></p><p>Enlace válido por 30 minutos. Si no lo solicitaste, ignorá este correo.</p>`, tenantId);
+    if (ok) return true;
+  } catch (error) {
+    console.error("Password reset email delivery failed", { tenantId, error });
+  }
+  await prisma.clientSecurityToken.deleteMany({ where: { id: record.id, tenantId } });
+  return false;
+}
+
+/** El admin solicita la recuperación; nunca define ni restablece una clave en nombre del cliente. */
+export async function sendAdminClientPasswordReset(clientIdInput: string) {
+  await requireAdmin(["OWNER", "MANAGER"]);
+  const tenant = await getTenantContext();
+  const parsed = z.string().uuid().safeParse(clientIdInput);
+  if (!parsed.success) return { success: false as const, error: "Cliente inválido." };
+  const client = await prisma.client.findFirst({
+    where: { tenantId: tenant.id, id: parsed.data },
+    select: { id: true, email: true, emailVerifiedAt: true },
+  });
+  if (!client) return { success: false as const, error: "No existe el cliente en este comercio." };
+  if (!canRecoverByEmail(client)) {
+    return { success: false as const, error: "Primero cargá y verificá el correo de este cliente." };
+  }
+  const ip = await getRequestIp();
+  if (!await consumeRateLimit("admin-client-password-recovery", `${tenant.id}:${client.id}:${ip}`, 3, 60 * 60_000)) {
+    return { success: false as const, error: "Demasiados correos para este cliente." };
+  }
+  const ok = await deliverClientPasswordReset(tenant.id, tenant.name, client.id, client.email!);
+  return ok
+    ? { success: true as const, message: "Correo de recuperación enviado al cliente. Solo él puede definir su nueva contraseña." }
+    : { success: false as const, error: "No se pudo enviar el correo de recuperación." };
 }
 
 export async function requestClientPasswordReset(emailInput: string) {
@@ -97,19 +186,12 @@ export async function requestClientPasswordReset(emailInput: string) {
   const email = emailSchema.safeParse(emailInput);
   if (!email.success) return { success: true, message: genericMessage };
   const client = await prisma.client.findFirst({
-    where: { tenantId: tenant.id, email: email.data, emailVerifiedAt: { not: null }, passwordSetupRequired: false },
+    where: { tenantId: tenant.id, email: email.data, emailVerifiedAt: { not: null } },
     select: { id: true, email: true },
   });
   if (!client?.email) return { success: true, message: genericMessage };
 
-  const record = await issueToken(tenant.id, client.id, client.email, "RESET_PASSWORD", 30);
-  const href = `${await getRequestOrigin()}/reset-password?token=${encodeURIComponent(record.token)}`;
-  const ok = await sendSecurityEmail(client.email, `Recuperá tu contraseña - ${tenant.name}`,
-    `<p>Recibimos una solicitud para restablecer tu contraseña de ${escapeHtml(tenant.name)}.</p><p><a href="${href}">Crear nueva contraseña</a></p><p>Enlace válido por 30 minutos. Si no lo solicitaste, ignorá este correo.</p>`, tenant.id);
-  if (!ok) {
-    await prisma.clientSecurityToken.deleteMany({ where: { id: record.id, tenantId: tenant.id } });
-    console.error("Password reset email could not be delivered", tenant.id);
-  }
+  await deliverClientPasswordReset(tenant.id, tenant.name, client.id, client.email);
   return { success: true, message: genericMessage };
 }
 
