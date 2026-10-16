@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
+import { countOrderBuns } from "@/lib/bun-count";
 
 function TicketLogo({ src, appName }: { src: string; appName: string }) {
   return (
@@ -24,6 +25,7 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
   const pattyCount = config?.kitchenPattyCountEnabled
     ? countOrderPatties(order.items, config.kitchenPattyKeywords)
     : null;
+  const bunCount = countOrderBuns(order.items, config?.kitchenPattyKeywords);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,9 +158,10 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
             ))}
           </div>
 
-          {pattyCount !== null && (
-            <div className="ticket-section mb-4 border-y-2 border-black py-2 text-center text-xl font-black">
-              TOTAL MEDALLONES: {formatPattyCount(pattyCount)}
+          {(pattyCount !== null || bunCount > 0) && (
+            <div className="ticket-section mb-4 space-y-1 border-y-2 border-black py-2 text-center text-xl font-black">
+              {pattyCount !== null && <p>TOTAL MEDALLONES: {formatPattyCount(pattyCount)}</p>}
+              {bunCount > 0 && <p>TOTAL PANES: {bunCount}</p>}
             </div>
           )}
         </section>
