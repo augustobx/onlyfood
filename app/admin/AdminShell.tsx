@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { LogoutButton } from "./LogoutButton";
+import { ClientResetNotificationBell } from "@/components/admin/ClientResetNotificationBell";
 
 const routes = [
   { name: "Pedidos Hoy", href: "/admin/live", icon: LayoutDashboard, feature: "orders" },
@@ -133,8 +134,8 @@ export function AdminShell({ children, enabledFeatures = [] }: { children: React
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-white px-4 md:hidden">
-          <Sheet>
+        <header className="flex h-14 items-center gap-4 border-b bg-white px-4">
+          <div className="md:hidden"><Sheet>
             <SheetTrigger render={<Button variant="ghost" size="icon" className="shrink-0" />}>
               <Menu className="h-5 w-5" />
               <span className="sr-only">Abrir menú</span>
@@ -146,8 +147,9 @@ export function AdminShell({ children, enabledFeatures = [] }: { children: React
                 <div className="mt-auto border-t border-slate-800 pt-4"><LogoutButton /></div>
               </nav>
             </SheetContent>
-          </Sheet>
+          </Sheet></div>
           <span className="font-black text-slate-900">OnlyFood Admin</span>
+          <div className="ml-auto"><ClientResetNotificationBell /></div>
         </header>
         <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">{pageContent}</main>
       </div>

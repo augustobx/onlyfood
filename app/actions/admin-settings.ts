@@ -47,6 +47,7 @@ const configSchema = z.object({
   whatsappReadyPickupTemplate: z.string().trim().regex(/^[a-z0-9_]+$/).max(100),
   whatsappReadyDeliveryTemplate: z.string().trim().regex(/^[a-z0-9_]+$/).max(100),
   whatsappDefaultCountryCode: z.string().trim().regex(/^\d{1,4}$/),
+  passwordResetWhatsAppPhone: z.string().trim().max(30).regex(/^$|^\+?[0-9\s().-]{8,30}$/),
   metaApiToken: z.string().trim().max(4000).nullable().optional(),
   metaPhoneNumberId: z.union([z.literal(""), z.string().trim().regex(/^\d{5,30}$/).max(100)]).nullable().optional(),
   metaVerifyToken: z.union([z.literal(""), z.string().trim().min(16).max(500)]).nullable().optional(),

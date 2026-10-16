@@ -18,6 +18,7 @@ model SystemConfig {
   backgroundUrl   String?
   backgroundBlur  Boolean @default(false)
   whatsappMessage String  @default("Hola, tu pedido está en estado: {{estado}}. Gracias por elegirnos!")
+  passwordResetWhatsAppPhone String @default("") @db.VarChar(30)
   isStoreOpen     Boolean @default(true)
   requireLoginForCheckout Boolean @default(false)
   closedMessage   String  @default("Lo sentimos, actualmente nuestro local se encuentra cerrado.")

@@ -8,7 +8,12 @@ import { getTenantContext } from "@/lib/tenant-context";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminUsersPage() {
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
+  const params: { tab?: string } = searchParams ? await searchParams : {};
   await requireAdmin(["OWNER", "MANAGER"]);
   const tenant = await getTenantContext();
   const loyaltyEnabled = tenant.features.has("loyalty");
@@ -128,7 +133,7 @@ export default async function AdminUsersPage() {
         </Card>
       </div>
 
-      <ClientAccountsTabs initialUsers={usersWithTiers} rewards={rewards} tiers={tiers}
+      <ClientAccountsTabs initialTab={params.tab === "resets" ? "RESETS" : "CLIENTS"} initialUsers={usersWithTiers} rewards={rewards} tiers={tiers}
         resetRequests={resetRequests.map(req => ({ ...req, createdAt: req.createdAt.toISOString() }))} />
     </div>
   );

@@ -1,30 +1,65 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestClientAdminPasswordReset } from "@/app/actions/client-admin-reset";
 
-export function AssistedRecoveryPanel({ initialPhone }: { initialPhone: string }) {
+export function AssistedRecoveryPanel({ initialPhone, onRequested }: {
+  initialPhone: string;
+  onRequested: () => void;
+}) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState(initialPhone.includes("@") ? "" : initialPhone);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    // Abrimos la pestaña sincrónicamente: el navegador bloquea ventanas
+    // creadas después de esperar una Server Action.
+    const whatsappTab = window.open("about:blank", "_blank");
     setBusy(true);
     setError("");
     try {
       const result = await requestClientAdminPasswordReset({ name, phone });
-      if (!result.success) { setError(result.error); return; }
-      setMessage(result.message);
-      setWhatsappUrl(result.whatsappUrl);
-    } catch { setError("No se pudo registrar la solicitud."); }
-    finally { setBusy(false); }
+      if (!result.success) {
+        whatsappTab?.close();
+        setError(result.error);
+        return;
+      }
+      if (result.whatsappUrl) {
+        if (whatsappTab && !whatsappTab.closed) {
+          whatsappTab.opener = null;
+          whatsappTab.location.replace(result.whatsappUrl);
+        } else {
+          toast.info("Abrí WhatsApp para avisar al comercio.", {
+            action: { label: "Abrir WhatsApp", onClick: () => window.open(result.whatsappUrl!, "_blank", "noopener,noreferrer") },
+            duration: 15000,
+          });
+        }
+      } else {
+        whatsappTab?.close();
+        toast.warning("Solicitud registrada. No hay un WhatsApp del comercio configurado.", {
+          description: "El comercio igualmente puede verla en su panel.",
+          duration: 10000,
+        });
+      }
+      toast.success("¡Solicitud de clave enviada! Aguardá unos minutos, ya te avisamos.", {
+        description: result.whatsappUrl
+          ? "Confirmá el envío del mensaje que abrimos en WhatsApp."
+          : "Registramos el pedido en el sistema del comercio.",
+        duration: 9000,
+      });
+      onRequested();
+    } catch {
+      whatsappTab?.close();
+      setError("No se pudo registrar la solicitud.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -48,17 +83,6 @@ export function AssistedRecoveryPanel({ initialPhone }: { initialPhone: string }
           {busy ? "Registrando…" : "Solicitar reseteo"}
         </Button>
       </form>
-      {message && <p role="status" className="text-xs font-semibold">{message}</p>}
-      {whatsappUrl && (
-        <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"
-          className="block w-full rounded-xl bg-emerald-600 px-4 py-3 text-center text-sm font-bold text-white">
-          Abrir WhatsApp y enviar al comercio
-        </a>
-      )}
-      {message && !whatsappUrl && (
-        <p className="text-xs">La solicitud quedó disponible en el panel del comercio.
-          Si querés avisarles por WhatsApp, comunicate con su número habitual.</p>
-      )}
       {error && <p role="alert" className="text-xs font-bold text-red-600">{error}</p>}
       <p className="text-xs opacity-70">
         WhatsApp abrirá un mensaje preparado. Para enviarlo, confirmá el envío en WhatsApp.

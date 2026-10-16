@@ -21,24 +21,55 @@ export function ClientPasswordResetRequests({ initialRequests }: { initialReques
   const [identityChecked, setIdentityChecked] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [lastApproved, setLastApproved] = useState<string | null>(null);
+  const [lastWhatsappUrl, setLastWhatsappUrl] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => { setRequests(initialRequests); }, [initialRequests]);
 
   async function process(id: string, action: "APPROVE" | "REJECT") {
+    // Abrir la pestaña en el gesto original evita bloqueadores de popups.
+    const whatsappTab = action === "APPROVE" ? window.open("about:blank", "_blank") : null;
     setBusy(id);
     try {
       const result = action === "APPROVE"
         ? await approveClientPasswordResetRequest(id, Boolean(identityChecked[id]))
         : await rejectClientPasswordResetRequest(id);
-      if (!result.success) { toast.error(result.error); return; }
+      if (!result.success) { whatsappTab?.close(); toast.error(result.error); return; }
       setRequests(old => old.filter(req => req.id !== id));
+      window.dispatchEvent(new Event("onlyfood:reset-requests-changed"));
       if (action === "APPROVE") {
-        setLastApproved("Contraseña temporal: 12345678. Informásela únicamente al cliente verificado. Caduca a las 24 horas y obliga a registrar correo y contraseña nueva.");
-        toast.success("Restablecimiento aprobado.");
-      } else toast.success("Solicitud rechazada.");
+        setLastApproved("Clave temporal: 12345678 (24 horas). El cliente deberá registrar correo y contraseña nueva.");
+        const whatsappUrl = "whatsappUrl" in result && typeof result.whatsappUrl === "string"
+          ? result.whatsappUrl : null;
+        if (whatsappUrl) {
+          setLastWhatsappUrl(whatsappUrl);
+          if (whatsappTab && !whatsappTab.closed) {
+            whatsappTab.opener = null;
+            whatsappTab.location.replace(whatsappUrl);
+          } else {
+            toast.info("Abrí WhatsApp para avisar al cliente.", {
+              action: {
+                label: "Abrir chat",
+                onClick: () => { window.open(whatsappUrl, "_blank", "noopener,noreferrer"); },
+              },
+              duration: 12000,
+            });
+          }
+        } else {
+          whatsappTab?.close();
+          setLastWhatsappUrl(null);
+          toast.warning("Clave restablecida. No se pudo preparar WhatsApp: verificá el celular del cliente.");
+        }
+        toast.success("Restablecimiento aprobado. Confirmá el envío del mensaje en WhatsApp.");
+      } else {
+        whatsappTab?.close();
+        toast.success("Solicitud rechazada.");
+      }
       router.refresh();
-    } catch { toast.error("No se pudo procesar la solicitud."); }
+    } catch {
+      whatsappTab?.close();
+      toast.error("No se pudo procesar la solicitud.");
+    }
     finally { setBusy(null); }
   }
 
@@ -55,9 +86,14 @@ export function ClientPasswordResetRequests({ initialRequests }: { initialReques
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900"
           role="status">
           {lastApproved}
-          <button type="button" className="ml-2 underline" onClick={() => setLastApproved(null)}>
-            Ocultar
-          </button>
+          {lastWhatsappUrl && (
+            <a href={lastWhatsappUrl} target="_blank" rel="noopener noreferrer"
+              className="ml-2 underline">Abrir WhatsApp del cliente</a>
+          )}
+          <button type="button" className="ml-2 underline" onClick={() => {
+            setLastApproved(null);
+            setLastWhatsappUrl(null);
+          }}>Ocultar</button>
         </div>
       )}
       {requests.length === 0 ? (
