@@ -54,7 +54,7 @@ export async function sendEmailVerification(emailInput?: string) {
   const origin = await getRequestOrigin();
   const href = `${origin}/verify-email?token=${encodeURIComponent(record.token)}`;
   const ok = await sendSecurityEmail(email.data, `Verificá tu correo - ${tenant.name}`,
-    `<p>Confirmá tu correo para recuperar tu acceso a ${escapeHtml(tenant.name)}.</p><p><a href="${href}">Verificar correo</a></p><p>El enlace vence en 60 minutos. Si no lo solicitaste, ignorá este mensaje.</p>`);
+    `<p>Confirmá tu correo para recuperar tu acceso a ${escapeHtml(tenant.name)}.</p><p><a href="${href}">Verificar correo</a></p><p>El enlace vence en 60 minutos. Si no lo solicitaste, ignorá este mensaje.</p>`, tenant.id);
   if (!ok) {
     await prisma.clientSecurityToken.deleteMany({ where: { id: record.id, tenantId: tenant.id } });
     return { success: false, error: "No se pudo enviar el mensaje. El comercio debe configurar Resend o Brevo." };
@@ -105,7 +105,7 @@ export async function requestClientPasswordReset(emailInput: string) {
   const record = await issueToken(tenant.id, client.id, client.email, "RESET_PASSWORD", 30);
   const href = `${await getRequestOrigin()}/reset-password?token=${encodeURIComponent(record.token)}`;
   const ok = await sendSecurityEmail(client.email, `Recuperá tu contraseña - ${tenant.name}`,
-    `<p>Recibimos una solicitud para restablecer tu contraseña de ${escapeHtml(tenant.name)}.</p><p><a href="${href}">Crear nueva contraseña</a></p><p>Enlace válido por 30 minutos. Si no lo solicitaste, ignorá este correo.</p>`);
+    `<p>Recibimos una solicitud para restablecer tu contraseña de ${escapeHtml(tenant.name)}.</p><p><a href="${href}">Crear nueva contraseña</a></p><p>Enlace válido por 30 minutos. Si no lo solicitaste, ignorá este correo.</p>`, tenant.id);
   if (!ok) {
     await prisma.clientSecurityToken.deleteMany({ where: { id: record.id, tenantId: tenant.id } });
     console.error("Password reset email could not be delivered", tenant.id);
