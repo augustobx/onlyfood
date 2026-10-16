@@ -22,7 +22,14 @@ describe("Conteo de panes en comandas", () => {
       ] },
     ];
     expect(countOrderBuns(order)).toBe(4);
-    expect(countOrderPatties(order)).toBe(8);
+    expect(countOrderPatties([{
+      quantity: 2,
+      product: { ingredients: [] },
+      comboItems: [
+        { quantity: 2, product: doubleBurger },
+        { quantity: 1, product: frenchFries },
+      ],
+    }])).toBe(8);
   });
   it("mezcla productos sueltos y combos sin sumar papas, gaseosas o piezas sushi", () => {
     expect(countOrderBuns([
