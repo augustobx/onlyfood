@@ -87,6 +87,7 @@ export default async function TrackOrderPage(props: {
       config={config}
       deliveryCost={deliveryCost}
       searchParams={searchParams}
+      isGuestView={!ownsOrder}
     />
   );
 }

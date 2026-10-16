@@ -7,6 +7,7 @@ import { House, Heart, ClipboardList, UserRound, ShoppingCart, Download, X, Chev
 import { useCartStore } from "@/lib/store";
 import { customerOrderStatusLabel } from "@/lib/pwa-order-history";
 import { shouldShowActiveOrderShortcut } from "@/lib/pwa-navigation";
+import { guestTrackingHref, readGuestOrders, type GuestOrderLink } from "@/lib/guest-checkout";
 
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{outcome: string}> };
 const links = [
@@ -18,7 +19,9 @@ const links = [
 
 export function MobilePwaNavigation({
   dark = false, activeOrderId, activeOrderStatus, activeOrderNeedsDelivery = false,
-}: { dark?: boolean; activeOrderId?: string | null; activeOrderStatus?: string | null; activeOrderNeedsDelivery?: boolean }) {
+  tenantId, isAuthenticated = false, allowGuestCheckout = false,
+}: { dark?: boolean; activeOrderId?: string | null; activeOrderStatus?: string | null; activeOrderNeedsDelivery?: boolean;
+     tenantId: string; isAuthenticated?: boolean; allowGuestCheckout?: boolean }) {
   const path = usePathname();
   const items = useCartStore(s => s.items);
   const count = items.reduce((sum,item)=>sum+item.quantity,0);
@@ -26,6 +29,10 @@ export function MobilePwaNavigation({
   const [installed, setInstalled] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [hash, setHash] = useState("");
+  const [guestOrder, setGuestOrder] = useState<GuestOrderLink | null>(null);
+  const guestMode = allowGuestCheckout && !isAuthenticated;
+  const visibleLinks = guestMode ? links.filter(link => link.name === "Inicio" || link.name === "Pedidos") : links;
+  const shortcutHref = activeOrderId ? `/track/${activeOrderId}` : guestMode && guestOrder ? guestTrackingHref(guestOrder) : null;
   const activeOrderLabel = activeOrderStatus
     ? customerOrderStatusLabel(activeOrderStatus, activeOrderNeedsDelivery)
     : "Pedido en curso";
@@ -46,6 +53,16 @@ export function MobilePwaNavigation({
   }, []);
 
   useEffect(() => {
+    const syncGuest = () => {
+      try { setGuestOrder(guestMode ? readGuestOrders(sessionStorage, tenantId)[0] || null : null); }
+      catch { setGuestOrder(null); }
+    };
+    syncGuest();
+    window.addEventListener("onlyfood:guest-order-changed", syncGuest);
+    return () => window.removeEventListener("onlyfood:guest-order-changed", syncGuest);
+  }, [guestMode, tenantId]);
+
+  useEffect(() => {
     const syncHash = () => setHash(window.location.hash);
     syncHash();
     window.addEventListener("hashchange", syncHash);
@@ -54,20 +71,20 @@ export function MobilePwaNavigation({
 
   return (
     <>
-      {activeOrderId && shouldShowActiveOrderShortcut(path) && (
-        <Link href={`/track/${activeOrderId}`}
+      {shortcutHref && shouldShowActiveOrderShortcut(path) && (
+        <Link href={shortcutHref}
           className={`fixed bottom-[calc(4.3rem+env(safe-area-inset-bottom))] left-3 right-3 z-[65] mx-auto flex max-w-xs items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-black shadow-xl sm:hidden ${
             dark ? "border-orange-500/40 bg-[#281b32] text-orange-200" : "border-orange-300 bg-orange-50 text-orange-900"
           }`}>
           <ClipboardList className="h-4 w-4 shrink-0" aria-hidden="true"/>
           <span className="min-w-0 flex-1 text-left leading-tight">
-            <span className="block truncate text-[11px] font-black">{activeOrderLabel}</span>
+            <span className="block truncate text-[11px] font-black">{activeOrderId ? activeOrderLabel : "Tu último pedido sin cuenta"}</span>
             <span className="block text-[10px] font-semibold opacity-80">Ver seguimiento del pedido</span>
           </span>
           <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true"/>
         </Link>
       )}
-      {install && !installed && !dismissed && !activeOrderId && path === "/" && (
+      {install && !installed && !dismissed && !shortcutHref && path === "/" && (
         <aside className={`fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 right-3 z-[60] mx-auto flex max-w-sm items-center gap-2 rounded-2xl border p-3 shadow-xl sm:hidden ${
           dark ? "border-orange-500/40 bg-[#24172c] text-white" : "border-orange-200 bg-white text-slate-900"
         }`}>
@@ -86,14 +103,16 @@ export function MobilePwaNavigation({
           dark ? "border-white/10 bg-[#17101e]/95 text-slate-300" : "border-slate-200 bg-white/95 text-slate-600"
         }`}>
         <div className="mx-auto flex h-[62px] max-w-lg items-stretch justify-around">
-          {links.map(item => {
+          {visibleLinks.map(item => {
             const Icon = item.icon;
-            const active = item.href === "/" ? path === "/" :
-              item.href === "/profile#my-orders" ? path === "/profile" && hash === "#my-orders" :
-              item.href === "/profile" ? path === "/profile" && hash !== "#my-orders" :
-              path.startsWith(item.href);
+            const href = guestMode && item.name === "Pedidos" ? "/orders" : item.href;
+            const active = href === "/" ? path === "/" :
+              href === "/orders" ? path === "/orders" :
+              href === "/profile#my-orders" ? path === "/profile" && hash === "#my-orders" :
+              href === "/profile" ? path === "/profile" && hash !== "#my-orders" :
+              path.startsWith(href);
             return (
-              <Link key={item.name} href={item.href}
+              <Link key={item.name} href={href}
                 aria-current={active ? "page" : undefined}
                 className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[10px] font-bold focus-visible:outline-2 focus-visible:outline-orange-500 ${
                   active ? "text-orange-500" : ""

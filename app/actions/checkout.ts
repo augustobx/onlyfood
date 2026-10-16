@@ -7,7 +7,7 @@ import { after } from "next/server";
 import { getTenantContext } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { getTenantIntegration, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
-import { getLoggedClient, hashPassword } from "@/lib/auth";
+import { getLoggedClient } from "@/lib/auth";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { getPublicConfig } from "@/lib/public-config";
 import { requiresClientLogin } from "@/lib/checkout-auth-policy";
@@ -691,41 +691,10 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           targetClientId = adminClient?.id ?? null;
         }
       } else {
-        if (loggedClient?.id) {
-          targetClientId = loggedClient.id;
-        } else if (cleanPhone) {
-          // Buscar si el cliente ya existe por teléfono para atribuirle los puntos
-          const matchedClient = await tx.client.findFirst({
-            where: {
-              tenantId: tenant.id,
-              OR: [
-                { phone: cleanPhone },
-                ...(cleanPhone !== data.clientPhone ? [{ phone: data.clientPhone }] : []),
-                ...(phoneKey.length >= 6 ? [{ phoneLoginKey: phoneKey }] : []),
-              ],
-            },
-            orderBy: [{ points: "desc" }, { createdAt: "asc" }],
-            select: { id: true },
-          });
-
-          if (matchedClient) {
-            targetClientId = matchedClient.id;
-          } else {
-            // Crear cuenta pendiente de activación para que los puntos se acumulen sin perderse
-            const pendingClient = await tx.client.create({
-              data: {
-                tenantId: tenant.id,
-                phone: cleanPhone,
-                phoneLoginKey: phoneKey.length >= 6 ? phoneKey : null,
-                name: data.clientName,
-                password: await hashPassword(crypto.randomUUID()),
-                passwordSetupRequired: true,
-              },
-              select: { id: true },
-            });
-            targetClientId = pendingClient.id;
-          }
-        }
+        // Compra invitada real: nunca crear ni vincular una cuenta a partir de un
+        // teléfono ingresado sin autenticar. El token de tracking es la única
+        // credencial para consultar la compra anónima.
+        targetClientId = loggedClient?.id ?? null;
       }
 
       let tierMultiplier = 1.0;

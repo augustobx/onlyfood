@@ -176,12 +176,15 @@ export default async function StoreLayout({
          </div>
       )}
       
-      <Navbar config={config} />
+      <Navbar config={config} isAuthenticated={Boolean(account)} />
       <ClientAccountOnboarding />
       <main className="store-main flex-1 w-full pb-20 sm:pb-0">
         {children}
       </main>
       <MobilePwaNavigation dark={["URBAN_DARK","HALLOWEEN","SUSHI_ZEN","ARCADE_KITCHEN"].includes(theme)}
+        tenantId={tenant.id}
+        isAuthenticated={Boolean(account)}
+        allowGuestCheckout={!config?.requireLoginForCheckout}
         activeOrderId={recentOrder?.id}
         activeOrderStatus={recentOrder?.status}
         activeOrderNeedsDelivery={recentOrder?.needsDelivery}/>
