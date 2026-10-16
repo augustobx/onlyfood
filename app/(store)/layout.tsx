@@ -67,7 +67,7 @@ export default async function StoreLayout({
   const account = await getLoggedClient(tenant.id);
   const recentOrder = account ? await db.order.findFirst({
     where: { clientId: account.id, status: { notIn: ["CANCELLED", "DELIVERED"] } },
-    orderBy: { createdAt: "desc" }, select: { id: true },
+    orderBy: { createdAt: "desc" }, select: { id: true, status: true, needsDelivery: true },
   }) : null;
   
   const primary = config?.primaryColor || '#f97316';
@@ -182,7 +182,9 @@ export default async function StoreLayout({
         {children}
       </main>
       <MobilePwaNavigation dark={["URBAN_DARK","HALLOWEEN","SUSHI_ZEN","ARCADE_KITCHEN"].includes(theme)}
-        activeOrderId={recentOrder?.id}/>
+        activeOrderId={recentOrder?.id}
+        activeOrderStatus={recentOrder?.status}
+        activeOrderNeedsDelivery={recentOrder?.needsDelivery}/>
       <footer
         className={`store-footer w-full py-6 mt-12 border-t ${
           isSushiZen
