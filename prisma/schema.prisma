@@ -626,6 +626,7 @@ model Client {
   passwordSetupRequired Boolean  @default(false)
   email                 String?  @db.VarChar(254)
   emailVerifiedAt       DateTime?
+  dniProvidedAt         DateTime?
   name                  String?
   points                Int      @default(0)
   customTierId          String?

@@ -102,9 +102,26 @@ export async function sendEmailVerification(emailInput?: string) {
   }
 
   const delivery = await deliverClientVerification(tenant.id, tenant.name, client.id, email.data);
-  return delivery.success
-    ? { success: true, message: "Revisá tu correo para confirmar la dirección." }
-    : { success: false, error: delivery.error };
+  if (!delivery.success) return { success: false, error: delivery.error };
+
+  // Para clientes históricos sin correo, registrar el email recibido como
+  // PENDIENTE DE VERIFICACIÓN. El login por email y el reset requieren confirmar.
+  // Si ya existe un correo verificado distinto, NO sustituirlo antes de la prueba.
+  if (!client.emailVerifiedAt && client.email !== email.data) {
+    try {
+      const updated = await prisma.client.updateMany({
+        where: { id: client.id, tenantId: tenant.id, emailVerifiedAt: null },
+        data: { email: email.data, emailVerifiedAt: null },
+      });
+      if (updated.count !== 1) throw new Error("CLIENT_EMAIL_CHANGED");
+    } catch {
+      await prisma.clientSecurityToken.deleteMany({
+        where: { tenantId: tenant.id, clientId: client.id, purpose: "VERIFY_EMAIL", usedAt: null },
+      });
+      return { success: false, error: "No se pudo asociar el correo. Comprobá que no esté registrado por otra cuenta." };
+    }
+  }
+  return { success: true, message: "Guardamos tu correo como pendiente. Confirmá el enlace recibido para ingresar por email y recuperar tu contraseña." };
 }
 
 export async function confirmClientEmailToken(tokenInput: string) {
