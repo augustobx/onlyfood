@@ -39,15 +39,17 @@ export function ClientPasswordResetRequests({ initialRequests }: { initialReques
       window.dispatchEvent(new Event("onlyfood:reset-requests-changed"));
       if (action === "APPROVE") {
         setLastApproved("Clave temporal: 12345678 (24 horas). El cliente deberá registrar correo y contraseña nueva.");
-        if ("whatsappUrl" in result && result.whatsappUrl) {
-          setLastWhatsappUrl(result.whatsappUrl);
+        const whatsappUrl = "whatsappUrl" in result && typeof result.whatsappUrl === "string"
+          ? result.whatsappUrl : null;
+        if (whatsappUrl) {
+          setLastWhatsappUrl(whatsappUrl);
           if (whatsappTab && !whatsappTab.closed) {
-            whatsappTab.location.replace(result.whatsappUrl);
+            whatsappTab.location.replace(whatsappUrl);
           } else {
             toast.info("Abrí WhatsApp para avisar al cliente.", {
               action: {
                 label: "Abrir chat",
-                onClick: () => window.open(result.whatsappUrl!, "_blank", "noopener,noreferrer"),
+                onClick: () => { window.open(whatsappUrl, "_blank", "noopener,noreferrer"); },
               },
               duration: 12000,
             });
