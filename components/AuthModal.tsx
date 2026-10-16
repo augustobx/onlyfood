@@ -23,7 +23,7 @@ export function AuthModal({
   theme?: string;
 }) {
   const [mode, setMode] = useState<"LOGIN" | "REGISTER" | "RECOVERY">("LOGIN");
-  const [formData, setFormData] = useState({ name: "", phone: "", email: "", password: "" });
+  const [formData, setFormData] = useState({ name: "", phone: "", identifier: "", email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
@@ -49,7 +49,7 @@ export function AuthModal({
 
     try {
       const fd = new FormData();
-      fd.append("phone", formData.phone);
+      fd.append("phone", mode === "LOGIN" ? formData.identifier : formData.phone);
       fd.append("password", formData.password);
       if (mode === "REGISTER") { fd.append("name", formData.name); fd.append("email", formData.email); }
 
@@ -63,6 +63,7 @@ export function AuthModal({
           );
           if (!res.verificationSent) toast.info("Tu cuenta está activa, pero aún no se envió el correo de verificación.");
           onClose();
+          window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
           router.refresh();
         } else {
           toast.error(res.error);
@@ -79,6 +80,7 @@ export function AuthModal({
               : "¡Hola de nuevo! Ya iniciaste sesión."
           );
           onClose();
+          window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
           router.refresh();
         } else {
           toast.error(res.error, {
@@ -117,6 +119,7 @@ export function AuthModal({
       if (!verified.success) { toast.error(verified.error); return; }
       toast.success("Sesión iniciada con biometría.");
       onClose();
+      window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
       router.refresh();
     } catch (error) {
       if (!(error instanceof DOMException && ["NotAllowedError", "AbortError"].includes(error.name))) {
@@ -243,14 +246,15 @@ export function AuthModal({
               )}
               <div className="space-y-1">
                 <Label className={`font-bold ml-1 text-xs ${isSushi || isDark ? "text-slate-200" : "text-slate-700"}`}>
-                  Teléfono celular
+                  {mode === "REGISTER" ? "Teléfono celular" : "Teléfono o correo electrónico"}
                 </Label>
                 <Input
-                  type="tel"
+                  type={mode === "LOGIN" ? "text" : "tel"}
                   required
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="Ej. 11 2345 6789"
+                  autoComplete={mode === "LOGIN" ? "username" : "tel"}
+                  value={mode === "LOGIN" ? formData.identifier : formData.phone}
+                  onChange={(e) => setFormData({ ...formData, [mode === "LOGIN" ? "identifier" : "phone"]: e.target.value })}
+                  placeholder={mode === "LOGIN" ? "Celular o tu@email.com" : "Ej. 11 2345 6789"}
                   className={`h-11 rounded-xl font-medium ${
                     isSushi
                       ? "bg-[#0c1017] border-white/15 text-white placeholder:text-slate-500"

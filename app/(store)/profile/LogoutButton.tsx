@@ -10,6 +10,7 @@ export function LogoutButton() {
 
   const handleLogout = async () => {
     await logoutClient();
+    window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
     toast.success("Sesión cerrada");
     router.push("/");
     router.refresh();

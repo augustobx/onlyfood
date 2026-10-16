@@ -6,11 +6,12 @@ import { createTenantDb } from "@/lib/tenant-db";
 import { hashPassword, verifyPassword, createSession, clearSession, getLoggedClient } from "@/lib/auth";
 import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
 import { cleanPhoneNumber } from "@/lib/phone";
+import { normalizeClientLoginIdentifier, isEmailLoginIdentifier } from "@/lib/client-login-identifier";
 import { sendEmailVerification } from "@/app/actions/client-security";
 import { pendingClientNeedsVerifiedEmailActivation } from "@/lib/client-account-policy";
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9]{8,15}$/);
-const loginIdentifierSchema = z.string().trim().min(1).max(50);
+const loginIdentifierSchema = z.string().trim().min(1).max(254);
 const passwordSchema = z.string().min(8).max(128);
 
 type LoginClient = {
@@ -30,9 +31,14 @@ function phoneLoginKey(value: string) {
 }
 
 async function findClientsByIdentifier(tenantId: string, identifier: string) {
+  const db = createTenantDb(tenantId);
+  if (isEmailLoginIdentifier(identifier)) {
+    return db.client.findMany({
+      where: { email: normalizeClientLoginIdentifier(identifier), emailVerifiedAt: { not: null } },
+    });
+  }
   const cleaned = cleanPhoneNumber(identifier);
   const key = phoneLoginKey(cleaned);
-  const db = createTenantDb(tenantId);
   return db.client.findMany({
     where: {
       OR: [
@@ -177,13 +183,16 @@ export async function loginClient(formData: FormData) {
     if (!(await consumeRateLimit("client-login", ip, 10, 15 * 60 * 1000))) {
       return { success: false, error: "Demasiados intentos. Probá en 15 minutos." };
     }
-    const rawPhone = String(formData.get("phone") || "");
-    const cleanedPhone = cleanPhoneNumber(rawPhone);
+    const rawIdentifier = String(formData.get("identifier") || formData.get("phone") || "");
+    const identifier = normalizeClientLoginIdentifier(rawIdentifier);
     const parsed = z.object({ phone: loginIdentifierSchema, password: z.string().min(1).max(128) }).safeParse({
-      phone: cleanedPhone,
+      phone: identifier,
       password: formData.get("password"),
     });
-    if (!parsed.success) return { success: false, error: "Credenciales incorrectas." };
+    if (!parsed.success || (isEmailLoginIdentifier(parsed.data.phone) &&
+      !z.string().email().safeParse(parsed.data.phone).success)) {
+      return { success: false, error: "Credenciales incorrectas." };
+    }
 
     const tenant = await getTenantContext();
     const db = createTenantDb(tenant.id);
@@ -279,6 +288,7 @@ export async function fetchCurrentClient() {
     name: client.name,
     email: client.email,
     emailVerified: Boolean(client.emailVerifiedAt),
+    dniProvided: Boolean(client.dniProvidedAt),
     points: dbClient?.points ?? client.points,
     tier: clientTier ? {
       id: clientTier.id,

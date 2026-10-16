@@ -1,4 +1,5 @@
 import { Navbar } from "@/components/Navbar";
+import { ClientAccountOnboarding } from "@/components/ClientAccountOnboarding";
 import { getTenantContext, normalizeHostname } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
@@ -166,6 +167,7 @@ export default async function StoreLayout({
       )}
       
       <Navbar config={config} />
+      <ClientAccountOnboarding />
       <main className="store-main flex-1 w-full">
         {children}
       </main>
