@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/admin-session";
 import { getTenantContext } from "@/lib/tenant-context";
 import { getTenantDb } from "@/lib/tenant-db";
 import { dispatchOrderPrint, testPrintNode } from "@/lib/printnode";
+import { canDispatchPaidOrder } from "@/lib/order-integrity-policy";
 import { requireTenantFeature } from "@/lib/features";
 
 const idSchema = z.string().uuid();
@@ -17,7 +18,7 @@ export async function printOrderNow(orderId: string) {
   const db = await getTenantDb();
   const order = await db.order.findFirst({ where: { id: orderId }, select: { paymentMethod: true, paymentStatus: true, status: true } });
   if (!order || order.status === "CANCELLED") return { success: false, error: "Pedido no disponible." };
-  if (order.paymentMethod === "TRANSFER" && order.paymentStatus !== "PAID") return { success: false, error: "Aprobá primero la transferencia para imprimir." };
+  if (!canDispatchPaidOrder(order)) return { success: false, error: "Confirmá primero el pago electrónico antes de imprimir." };
   const config = await db.systemConfig.findFirst({ select: { printingMode: true } });
   if (!config || config.printingMode === "BROWSER") {
     return { success: true, mode: "BROWSER" as const, url: `/admin/live/print/${orderId}` };

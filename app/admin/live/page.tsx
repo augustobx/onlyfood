@@ -51,6 +51,7 @@ import {
 import { toast } from "sonner";
 import { updateOrderStatus, assignMessenger, dispatchMessengerRoadmap, reconcilePendingMercadoPagoOrders, approveTransferPayment } from "@/app/actions/admin-orders";
 import { isPendingTransfer } from "@/lib/transfer-payment";
+import { canDispatchPaidOrder } from "@/lib/order-integrity-policy";
 import { setStoreOpen, updateSlotAvailable, setModuleState } from "@/app/actions/admin-settings";
 import { printOrderNow } from "@/app/actions/admin-printing";
 import { AnimatePresence, motion } from "framer-motion";
@@ -186,7 +187,7 @@ export default function LiveDashboardPage() {
           const newOrders = await ordersRes.json();
           setOrders(newOrders);
 
-          const arrivingOrders = newOrders.filter((order: any) => order.status === "NEW" && !isPendingTransfer(order) && !knownOrderIdsRef.current.has(order.id));
+          const arrivingOrders = newOrders.filter((order: any) => order.status === "NEW" && canDispatchPaidOrder(order) && !knownOrderIdsRef.current.has(order.id));
 
           if (hasLoadedOrdersRef.current && isMonitoring && arrivingOrders.length > 0) {
             playAlert();
@@ -198,7 +199,7 @@ export default function LiveDashboardPage() {
               });
             }
           }
-          knownOrderIdsRef.current = new Set(newOrders.filter((order: any) => !isPendingTransfer(order)).map((order: any) => order.id));
+          knownOrderIdsRef.current = new Set(newOrders.filter((order: any) => canDispatchPaidOrder(order)).map((order: any) => order.id));
           hasLoadedOrdersRef.current = true;
         }
 
@@ -604,7 +605,7 @@ export default function LiveDashboardPage() {
                   <Trash2 className="w-3.5 h-3.5 mr-1" /> Rechazar
                 </Button>
                 <Button
-                  disabled={isUpdating || hasStockIssues || (order.paymentMethod === "MP" && !isPaid)}
+                  disabled={isUpdating || hasStockIssues || !canDispatchPaidOrder(order)}
                   size="sm"
                   className="flex-1 bg-amber-500 hover:bg-amber-600 font-black text-white text-xs h-9 rounded-xl shadow-sm"
                   onClick={() => handleStatusChange(order.id, "IN_PROCESS")}

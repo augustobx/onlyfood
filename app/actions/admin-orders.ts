@@ -13,6 +13,7 @@ import { startOfBusinessDayUtc } from "@/lib/time";
 import { dispatchWhatsAppNotification, queueRelatedOrderConfirmationNotifications, queueOrderWhatsAppNotification } from "@/lib/whatsapp-notifications";
 import { notificationEventForStatus } from "@/lib/whatsapp-message-utils";
 import { isPendingTransfer } from "@/lib/transfer-payment";
+import { blockedStatusTransition } from "@/lib/order-integrity-policy";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
 
@@ -28,8 +29,8 @@ const transitions: Record<string, string[]> = {
   PENDING_DELIVERY: ["NEW", "IN_PROCESS", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"],
   OUT_FOR_DELIVERY: ["NEW", "IN_PROCESS", "PENDING_DELIVERY", "FINISHED", "DELIVERED", "CANCELLED"],
   FINISHED: ["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"],
-  DELIVERED: ["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "CANCELLED"],
-  CANCELLED: ["NEW", "IN_PROCESS", "PENDING_DELIVERY", "OUT_FOR_DELIVERY", "FINISHED", "DELIVERED"],
+  DELIVERED: [],
+  CANCELLED: [],
 };
 
 const adminOrderProductSelect = {
@@ -319,7 +320,8 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         },
       });
       if (!current) throw new Error("ORDER_NOT_FOUND");
-      if (isPendingTransfer(current) && parsedStatus.data !== "CANCELLED") throw new Error("PAYMENT_PENDING_TRANSFER");
+      const paymentGate = blockedStatusTransition(current, parsedStatus.data);
+      if (paymentGate) throw new Error(paymentGate);
       if (parsedStatus.data === current.status) return current;
       if (!transitions[current.status]?.includes(parsedStatus.data)) throw new Error("INVALID_TRANSITION");
 
@@ -428,7 +430,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         return { success: false, error: "No alcanza el stock para preparar este pedido." };
       }
     }
-    return { success: false, error: code === "PAYMENT_PENDING_TRANSFER" ? "Aprobá primero la transferencia desde la bandeja de pagos pendientes." : code === "PAYMENT_PENDING" ? "El pago de Mercado Pago todavía no está acreditado" : code === "REFUND_REQUIRED" ? "Reembolsá primero el pago en Mercado Pago y esperá la confirmación" : "No se puede aplicar ese cambio de estado" };
+    return { success: false, error: code === "PAYMENT_PENDING" ? "El pago electrónico todavía no está acreditado. Verificá Mercado Pago o aprobá la transferencia." : code === "REFUND_REQUIRED" ? "Reembolsá primero el pago en Mercado Pago y esperá la confirmación" : code === "CANCELLED_TERMINAL" || code === "DELIVERED_TERMINAL" ? "El pedido está finalizado. No puede reabrirse desde el circuito normal." : "No se puede aplicar ese cambio de estado" };
   }
 }
 
@@ -468,11 +470,11 @@ export async function dispatchMessengerRoadmap(messengerId: string) {
     const db = await getTenantDb();
     const orders = await db.$transaction(async (tx) => {
       const pending = await tx.order.findMany({
-        where: { messengerId, status: "PENDING_DELIVERY", NOT: { paymentMethod: "TRANSFER", paymentStatus: "PENDING" } },
+        where: { messengerId, status: "PENDING_DELIVERY", NOT: { OR: [{ paymentMethod: "TRANSFER", paymentStatus: { not: "PAID" } }, { paymentMethod: "MP", paymentStatus: { not: "PAID" } }] } },
         orderBy: { createdAt: "asc" },
       });
       if (!pending.length) return [];
-      await tx.order.updateMany({ where: { id: { in: pending.map((order) => order.id) }, status: "PENDING_DELIVERY" }, data: { status: "OUT_FOR_DELIVERY" } });
+      await tx.order.updateMany({ where: { id: { in: pending.map((order) => order.id) }, status: "PENDING_DELIVERY", NOT: { OR: [{ paymentMethod: "TRANSFER", paymentStatus: { not: "PAID" } }, { paymentMethod: "MP", paymentStatus: { not: "PAID" } }] } }, data: { status: "OUT_FOR_DELIVERY" } });
       await tx.orderHistory.createMany({ data: pending.map((order) => ({ orderId: order.id, status: "OUT_FOR_DELIVERY" })) });
       return pending;
     });
