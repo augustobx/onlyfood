@@ -641,6 +641,7 @@ model Client {
   pointRedemptions PointRedemption[]
   passkeys          ClientPasskey[]
   securityTokens    ClientSecurityToken[]
+  recoveryCodes      ClientRecoveryCode[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
@@ -731,6 +732,23 @@ model ClientPasskeyChallenge {
   createdAt DateTime @default(now())
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   @@index([tenantId, kind, expiresAt])
+}
+
+model ClientRecoveryCode {
+  id           String    @id @default(uuid())
+  tenantId     String
+  clientId     String
+  phoneAtIssue String    @db.VarChar(32)
+  codeHash     String    @unique @db.Char(64)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, clientId, expiresAt])
+  @@index([expiresAt])
 }
 
 model ClientSecurityToken {
@@ -850,6 +868,7 @@ model Tenant {
   clientPasskeys         ClientPasskey[]
   clientPasskeyChallenges ClientPasskeyChallenge[]
   clientSecurityTokens   ClientSecurityToken[]
+  clientRecoveryCodes    ClientRecoveryCode[]
 
   @@index([status])
 }
