@@ -253,6 +253,7 @@ model Product {
   categoryId    String?
   basePrice     Float
   description   String?
+  allergenInfo String? @db.VarChar(500)
   imageUrl      String?
   showImage     Boolean @default(true)
   isActive      Boolean @default(true)
