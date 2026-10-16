@@ -375,7 +375,11 @@ export function AuthModal({
                 {recoveryMessage && <p role="status" className="text-sm font-semibold">{recoveryMessage}</p>}
               </>
             ) : (
-              <AssistedRecoveryPanel initialPhone={formData.identifier} />
+              <AssistedRecoveryPanel initialPhone={formData.identifier} onRequested={() => {
+                setMode("LOGIN");
+                setRecoveryMessage("");
+                setFormData(previous => ({ ...previous, password: "" }));
+              }} />
             )}
             <button type="button" onClick={() => { setMode("LOGIN"); setRecoveryMessage(""); }}
               className="w-full text-xs font-bold text-slate-500 hover:text-orange-500">← Volver al inicio de sesión</button>
