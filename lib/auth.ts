@@ -89,6 +89,9 @@ export async function getLoggedClient(expectedTenantId?: string) {
   if (targetTenantId && (session.tenantId !== targetTenantId || session.client.tenantId !== targetTenantId)) {
     return null;
   }
+  // Reset administrativo: una sesión anterior o passkey no puede omitir
+  // el requisito de correo y nueva contraseña.
+  if (session.client.forcePasswordChange) return null;
 
   return session.client;
 }

@@ -624,6 +624,8 @@ model Client {
   phoneLoginKey         String?  @db.VarChar(6)
   password              String
   passwordSetupRequired Boolean  @default(false)
+  forcePasswordChange Boolean @default(false)
+  temporaryPasswordExpiresAt DateTime?
   email                 String?  @db.VarChar(254)
   emailVerifiedAt       DateTime?
   dniProvidedAt         DateTime?
@@ -642,6 +644,7 @@ model Client {
   passkeys          ClientPasskey[]
   securityTokens    ClientSecurityToken[]
   recoveryCodes      ClientRecoveryCode[]
+  passwordResetRequests ClientPasswordResetRequest[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
@@ -732,6 +735,20 @@ model ClientPasskeyChallenge {
   createdAt DateTime @default(now())
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   @@index([tenantId, kind, expiresAt])
+}
+
+model ClientPasswordResetRequest {
+  id String @id @default(uuid())
+  tenantId String
+  clientId String
+  claimedName String @db.VarChar(80)
+  status String @default("PENDING") @db.VarChar(20)
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, clientId, createdAt])
 }
 
 model ClientRecoveryCode {
@@ -869,6 +886,7 @@ model Tenant {
   clientPasskeyChallenges ClientPasskeyChallenge[]
   clientSecurityTokens   ClientSecurityToken[]
   clientRecoveryCodes    ClientRecoveryCode[]
+  clientPasswordResetRequests ClientPasswordResetRequest[]
 
   @@index([status])
 }
