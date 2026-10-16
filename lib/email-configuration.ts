@@ -1,4 +1,4 @@
-/** Datos públicos del formulario SMTP de OnlyPadel (sin copiar contraseñas). */
+/** Referencia técnica del SMTP de OnlyPadel: solo host y puerto se precargan por comercio. */
 export const ONLYPADEL_SMTP_DEFAULTS = Object.freeze({
   smtpHost: "c2801249.ferozo.com",
   smtpPort: 465,

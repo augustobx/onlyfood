@@ -14,7 +14,7 @@ const defaults = {
 };
 
 describe("OnlyFood email: configuración compartida de interfaz con OnlyPadel", () => {
-  it("usa los datos públicos del formulario de OnlyPadel, con branding OnlyFood", () => {
+  it("conserva la referencia pública del formulario de OnlyPadel, sin replicarla a otros comercios", () => {
     expect(defaults.smtpHost).toBe("c2801249.ferozo.com");
     expect(defaults.smtpPort).toBe(465);
     expect(defaults.smtpUser).toBe("psp@nanolabs.online");

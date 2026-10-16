@@ -15,6 +15,17 @@ Los siguientes valores eran **defaults en el código fuente**, no una lectura de
 
 El password SMTP de OnlyPadel **no se encuentra en GitHub** y no se ha copiado. Ingresar la contraseña real desde el panel OnlyFood → Admin → Configuración → **Correo**, si se autoriza usar esa misma casilla. Se guarda cifrada para el comercio; la entrada se vacía luego de guardar.
 
+## Remitente independiente por comercio — obligatorio
+
+Cada tienda debe guardar sus propias credenciales desde su panel. **No existe fallback automático al correo de OnlyFood, OnlyPadel u otro tenant**. Si no está configurado, se rechazan los envíos de seguridad de ese comercio y se informa al administrador. Esto evita suplantar el remitente y mezclar cuentas.
+
+| Comercio | Usuario SMTP | Remitente |
+|---|---|---|
+| Raptor | `raptor@nanolabs.online` | `Raptor <raptor@nanolabs.online>` |
+| Otro tenant | Casilla propia del comercio | Su propia casilla autorizada |
+
+Los valores `c2801249.ferozo.com` / `465` precargan **solamente host y puerto**, porque pueden compartirse entre casillas de Ferozo. El usuario SMTP, contraseña y remitente deben indicarse en cada comercio. Los correos de verificación de cuenta, recuperación y pruebas usan exclusivamente la configuración de ese tenant.
+
 ## Configuración desde el panel
 
 1. Ingresar a **Admin → Configuración → Correo**.
@@ -27,21 +38,8 @@ Si no hay credenciales o el servidor rechaza un email, el sistema **no simula un
 
 SMTP exige certificado TLS válido: no se copia `rejectUnauthorized:false` ni se permiten credenciales en texto plano. Las respuestas de error evitan exponer contraseñas. Para Resend/Brevo, el remitente debe estar validado ante el proveedor.
 
-## Alternativa: variables de entorno globales
-Sin configuración de email guardada para un comercio, se pueden utilizar variables en el servidor:
-
-```dotenv
-EMAIL_PROVIDER=SMTP
-SMTP_HOST=c2801249.ferozo.com
-SMTP_PORT=465
-SMTP_USER=psp@nanolabs.online
-SMTP_PASS=
-SMTP_FROM="OnlyFood <psp@nanolabs.online>"
-# En lugar de SMTP también puede utilizarse EMAIL_PROVIDER=RESEND o BREVO:
-RESEND_API_KEY=
-BREVO_API_KEY=
-EMAIL_FROM=
-```
+## Variables globales del servidor (referencia, no fallback de seguridad)
+Las variables `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` o `EMAIL_FROM` del entorno **no se aplican automáticamente** a los correos de recuperación de otros tenants. La configuración por comercio es obligatoria.
 
 No agregar claves reales al repositorio. Para las tiendas multitenant, usar el panel es preferible. La configuración por comercio reemplaza a los valores globales cuando existe.
 

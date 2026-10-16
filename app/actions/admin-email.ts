@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/admin-session";
 import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
 import { sendSecurityEmail } from "@/lib/security-email";
 import { saveTenantIntegration, getTenantIntegration, type EmailCredentials } from "@/lib/tenant-integrations";
-import { isTenantEmailConfigured, getEnvironmentEmailSettings } from "@/lib/tenant-email";
+import { isTenantEmailConfigured } from "@/lib/tenant-email";
 
 const safeText = z.string().trim().min(1).max(254).refine(value => !/[\r\n]/.test(value));
 const emailAddress = z.string().trim().email().max(254);
@@ -32,12 +32,11 @@ export async function saveTenantEmailSettings(input: unknown) {
   const { smtpPass, resendApiKey, brevoApiKey, ...visible } = parsed.data;
   const tenant = await getTenantContext();
   const previous = await getTenantIntegration<EmailCredentials>(tenant.id, "EMAIL");
-  const environment = getEnvironmentEmailSettings();
   const next: EmailCredentials = {
     ...visible,
-    smtpPass: smtpPass?.trim() || previous?.smtpPass || environment.smtpPass || "",
-    resendApiKey: resendApiKey?.trim() || previous?.resendApiKey || environment.resendApiKey || "",
-    brevoApiKey: brevoApiKey?.trim() || previous?.brevoApiKey || environment.brevoApiKey || "",
+    smtpPass: smtpPass?.trim() || previous?.smtpPass || "",
+    resendApiKey: resendApiKey?.trim() || previous?.resendApiKey || "",
+    brevoApiKey: brevoApiKey?.trim() || previous?.brevoApiKey || "",
   };
 
   await saveTenantIntegration(tenant.id, "EMAIL", next);
