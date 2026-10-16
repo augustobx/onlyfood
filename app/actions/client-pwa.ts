@@ -46,7 +46,7 @@ export async function toggleProductFavorite(idInput: string) {
   });
   if (!product) return { success: false as const, error: "El producto ya no está disponible." };
   try {
-    await db.clientFavorite.create({ data: { clientId: client.id, productId: product.id } });
+    await db.clientFavorite.create({ data: { tenantId: tenant.id, clientId: client.id, productId: product.id } });
   } catch {
     return { success: false as const, error: "No se pudo guardar este favorito." };
   }
