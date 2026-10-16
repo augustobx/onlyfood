@@ -43,7 +43,7 @@ export default async function PrintTicketPage({
 
   const config = await db.systemConfig.findFirst();
 
-  if (!order) return notFound();
+  if (!order || (order.paymentMethod === "TRANSFER" && order.paymentStatus !== "PAID")) return notFound();
 
   return <PrintTicketClient order={order} config={config} />;
 }
