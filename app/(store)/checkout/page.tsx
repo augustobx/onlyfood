@@ -594,7 +594,7 @@ export default function CheckoutPage() {
     setFulfillmentChoice(choice);
     setFormData(prev => ({ ...prev, needsDelivery: choice === "DELIVERY" }));
     if (choice === "DELIVERY") {
-      window.requestAnimationFrame(() => addressInputRef.current?.focus());
+      window.setTimeout(() => addressInputRef.current?.focus(), 150);
     }
   };
 
@@ -1129,8 +1129,35 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {/* SUMMARY */}
-            <div className={`p-3.5 rounded-2xl border space-y-1.5 ${t.summaryBg}`}>
+            {/* SUMMARY — estado de pedido claramente visible antes de confirmar */}
+            <section aria-label="Resumen de tu pedido"
+              className={`rounded-2xl border p-3.5 space-y-2.5 ${t.summaryBg}`}>
+              <h2 className={`text-sm font-black ${t.heading}`}>Revisá tu pedido</h2>
+              <div className={`grid grid-cols-1 gap-2 rounded-xl border p-3 text-xs sm:grid-cols-2 ${t.switchBg}`}>
+                <div className="flex items-start gap-2">
+                  {formData.needsDelivery ? <Bike className="h-4 w-4 shrink-0" aria-hidden="true"/> : <Store className="h-4 w-4 shrink-0" aria-hidden="true"/>}
+                  <div className="min-w-0">
+                    <div className="font-black">
+                      {fulfillmentChoice === "DELIVERY" ? "Envío a domicilio" :
+                        fulfillmentChoice === "PICKUP" ? "Retiro en local" : "Elegí envío o retiro"}
+                    </div>
+                    {fulfillmentChoice === "DELIVERY" && addressParts.street && (
+                      <div className="break-words opacity-80">{formData.deliveryAddress}</div>
+                    )}
+                    {fulfillmentChoice === "PICKUP" && <div className="opacity-80">Sin costo de envío</div>}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 shrink-0" aria-hidden="true"/>
+                    <span className="font-bold">{formData.scheduledTime || "Horario por confirmar"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 shrink-0" aria-hidden="true"/>
+                    <span className="font-bold">{checkoutPaymentLabel(formData.paymentMethod)}</span>
+                  </div>
+                </div>
+              </div>
               <div className={`flex justify-between font-medium text-[11px] ${t.summaryText}`}>
                 <span>Subtotal</span>
                 <span>${subtotal.toLocaleString("es-AR")}</span>
@@ -1201,51 +1228,20 @@ export default function CheckoutPage() {
                 <span className={t.heading}>Total</span>
                 <span className={t.summaryTotal}>${total.toLocaleString("es-AR")}</span>
               </div>
-            </div>
+            </section>
 
             <Button
               type="submit"
               className={`w-full h-12 rounded-2xl text-sm font-bold text-white shadow-lg group transition-all ${t.accentBg} ${t.accentBgHover}`}
-              disabled={isSubmitting}
+              disabled={isSubmitting || (config?.paymentCash === false && config?.paymentMp === false)}
             >
-              {isSubmitting ? "Enviando..." : "Confirmar Pedido"}
+              {isSubmitting ? "Procesando pedido..." : checkoutActionLabel(formData.paymentMethod, total)}
               {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
             </Button>
           </form>
         </div>
       </div>
 
-      {/* Confirmation Modal */}
-      <AnimatePresence>
-        {showConfirmModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className={`rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4 border ${t.modalBg}`}
-            >
-              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${theme === "URBAN_DARK" ? "bg-orange-500/15 text-orange-400" : "bg-orange-100 text-orange-500"}`}>
-                <MapPin className="w-7 h-7" />
-              </div>
-              <div className="text-center">
-                <h3 className={`text-lg font-black mb-1 ${t.modalText}`}>¿Sin Envío?</h3>
-                <p className={`text-xs leading-tight ${t.modalSub}`}>
-                  Indicaste que lo retirás por el local. ¿Es correcto?
-                </p>
-              </div>
-              <div className="space-y-1.5 pt-1">
-                <Button onClick={confirmNoDelivery} className={`w-full h-10 rounded-xl font-bold text-sm text-white ${t.accentBg}`}>
-                  Sí, retiro en local
-                </Button>
-                <Button onClick={cancelNoDelivery} variant="outline" className={`w-full h-10 rounded-xl font-bold text-sm border ${t.divider}`}>
-                  No, quiero envío
-                </Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </>
   );
 }
