@@ -258,6 +258,7 @@ export function RewardsClient({
       minSpent: 0,
       discountPercent: 0,
       pointsMultiplier: 1.0,
+      paymentMode: "BOTH" as "BOTH" | "CASH" | "MP",
       color: "#a855f7",
       bgGradient: "from-purple-600 to-pink-600",
       iconName: "Crown",

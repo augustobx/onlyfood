@@ -11,6 +11,7 @@ import { getLoggedClient, hashPassword } from "@/lib/auth";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { getPublicConfig } from "@/lib/public-config";
 import { requiresClientLogin } from "@/lib/checkout-auth-policy";
+import { allowsTierBenefit, calculateTierPaymentBenefits } from "@/lib/tier-payment-policy";
 import { consumeRateLimit, getRequestIp, getRequestOrigin } from "@/lib/request-security";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
 import { dispatchOrderPrint } from "@/lib/printnode";
@@ -520,6 +521,15 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           include: { reward: { include: { product: { include: { ingredients: { include: { ingredient: true } }, comboItemsConfig: { include: { product: { include: { ingredients: { include: { ingredient: true } } } } } } } } } } },
         });
         if (!redemption || (redemption.expiresAt && redemption.expiresAt <= new Date())) throw new Error("INVALID_PRIZE");
+        if (redemption.reward.minTierId) {
+          const exclusiveTier = await tx.customerTier.findFirst({
+            where: { id: redemption.reward.minTierId, isActive: true },
+            select: { paymentMode: true },
+          });
+          if (!exclusiveTier || !allowsTierBenefit(exclusiveTier.paymentMode, data.paymentMethod)) {
+            throw new Error("TIER_PAYMENT_RESTRICTED");
+          }
+        }
         const claimed = await tx.pointRedemption.updateMany({
           where: { id: redemption.id, status: "AVAILABLE" },
           data: { status: "USED", usedAt: new Date() },
@@ -717,8 +727,9 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         ]);
 
         if (dbClient?.customTier) {
-          tierMultiplier = dbClient.customTier.pointsMultiplier || 1.0;
-          tierDiscountPercent = dbClient.customTier.discountPercent || 0;
+          const benefits = calculateTierPaymentBenefits(dbClient.customTier, tiers, data.paymentMethod);
+          tierMultiplier = benefits.pointsMultiplier;
+          tierDiscountPercent = benefits.discountPercent;
         } else if (dbClient && tiers.length > 0) {
           const ordersCount = dbClient.orders.length;
           const totalSpent = dbClient.orders.reduce((sum, o) => sum + (o.total || 0), 0);
@@ -731,9 +742,9 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
 
           if (activeTier) {
             // Cumulatively inherit highest multiplier and discount from active & prior tiers
-            const unlockedTiers = tiers.filter((t) => t.sequence <= activeTier.sequence);
-            tierMultiplier = Math.max(activeTier.pointsMultiplier || 1.0, ...unlockedTiers.map((t) => t.pointsMultiplier || 1.0));
-            tierDiscountPercent = Math.max(activeTier.discountPercent || 0, ...unlockedTiers.map((t) => t.discountPercent || 0));
+            const benefits = calculateTierPaymentBenefits(activeTier, tiers, data.paymentMethod);
+            tierMultiplier = benefits.pointsMultiplier;
+            tierDiscountPercent = benefits.discountPercent;
           }
         }
       }
@@ -982,6 +993,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       SCHEDULED_TOMORROW_DISABLED: "Los pedidos programados para mañana no están habilitados actualmente.",
       ADVANCE_ORDERS_DISABLED: "Los pedidos por encargo no están habilitados actualmente.",
       PAYMENT_DISABLED: "Ese medio de pago no está disponible.",
+      TIER_PAYMENT_RESTRICTED: "Este premio es exclusivo para otro medio de pago. Cambiá a efectivo o Mercado Pago según las condiciones del nivel.",
       SLOT_UNAVAILABLE: "El horario seleccionado acaba de agotarse.",
       SLOT_REQUIRED: "Seleccioná uno de los horarios disponibles para hoy.",
       PRODUCT_UNAVAILABLE: "Uno de los productos ya no está disponible.",

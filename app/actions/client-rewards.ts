@@ -273,7 +273,7 @@ export async function fetchClientAvailableCoupons() {
     },
     include: {
       reward: {
-        include: { product: true },
+        include: { product: true, minTier: { select: { paymentMode: true, name: true } } },
       },
     },
     orderBy: { createdAt: "desc" },

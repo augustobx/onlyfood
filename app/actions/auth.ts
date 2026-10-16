@@ -11,6 +11,7 @@ import { cleanPhoneNumber } from "@/lib/phone";
 import { normalizeClientLoginIdentifier, isEmailLoginIdentifier } from "@/lib/client-login-identifier";
 import { sendEmailVerification } from "@/app/actions/client-security";
 import { temporaryPasswordState } from "@/lib/temporary-password-policy";
+import { calculateTierPaymentBenefits } from "@/lib/tier-payment-policy";
 
 
 const phoneSchema = z.string().trim().regex(/^\+?[0-9]{8,15}$/);
@@ -267,6 +268,11 @@ export async function fetchCurrentClient() {
       color: clientTier.color,
       discountPercent: tierDiscountPercent,
       pointsMultiplier: tierMultiplier,
+      paymentMode: clientTier.paymentMode || "BOTH",
+      paymentBenefits: {
+        CASH: calculateTierPaymentBenefits(clientTier, tiers, "CASH"),
+        MP: calculateTierPaymentBenefits(clientTier, tiers, "MP"),
+      },
     } : null,
     createdAt: client.createdAt,
     updatedAt: client.updatedAt,
