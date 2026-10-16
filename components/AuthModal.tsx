@@ -12,6 +12,7 @@ import { requestClientPasswordReset } from "@/app/actions/client-security";
 import { beginClientPasskeyAuthentication, finishClientPasskeyAuthentication } from "@/app/actions/client-passkeys";
 import { client as webauthnClient } from "@passwordless-id/webauthn";
 import { useRouter } from "next/navigation";
+import { AssistedRecoveryPanel } from "@/components/AssistedRecoveryPanel";
 
 export function AuthModal({
   isOpen,
@@ -28,6 +29,7 @@ export function AuthModal({
   const [isLoading, setIsLoading] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState("");
+  const [recoveryChannel, setRecoveryChannel] = useState<"EMAIL" | "ASSISTED">("EMAIL");
   useEffect(() => {
     setPasskeySupported(typeof window !== "undefined" && !!window.PublicKeyCredential && !!navigator.credentials);
   }, []);
@@ -336,17 +338,39 @@ export function AuthModal({
         {mode === "RECOVERY" && (
           <div className="relative z-10 space-y-4">
             <h3 className="text-xl font-black flex items-center gap-2"><KeyRound className="w-5 h-5" /> Recuperar contraseña</h3>
-            <p className="text-xs">Ingresá el correo verificado asociado a tu cuenta. Te enviaremos un enlace para crear una nueva clave.</p>
-            <form onSubmit={handleCheckRecovery} className="space-y-3">
-              <Label>Correo electrónico</Label>
-              <Input required type="email" autoComplete="email" value={formData.email}
-                onChange={e => setFormData({ ...formData, email: e.target.value })}
-                placeholder="tu@email.com" className="h-11 rounded-xl" />
-              <Button type="submit" disabled={isLoading} className="w-full bg-orange-500 text-white">
-                {isLoading ? "Enviando…" : "Enviar enlace de recuperación"}
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" size="sm" onClick={() => { setRecoveryChannel("EMAIL"); setRecoveryMessage(""); }}
+                variant={recoveryChannel === "EMAIL" ? "default" : "outline"}
+                className={recoveryChannel === "EMAIL" ? "bg-orange-600 text-white" : ""}>
+                Tengo correo
               </Button>
-            </form>
-            {recoveryMessage && <p role="status" className="text-sm font-semibold">{recoveryMessage}</p>}
+              <Button type="button" size="sm" onClick={() => { setRecoveryChannel("ASSISTED"); setRecoveryMessage(""); }}
+                variant={recoveryChannel === "ASSISTED" ? "default" : "outline"}
+                className={recoveryChannel === "ASSISTED" ? "bg-orange-600 text-white" : ""}>
+                No tengo correo
+              </Button>
+            </div>
+            {recoveryChannel === "EMAIL" ? (
+              <>
+                <p className="text-xs">Ingresá el correo verificado de tu cuenta para recibir un enlace seguro.</p>
+                <form onSubmit={handleCheckRecovery} className="space-y-3">
+                  <Label htmlFor="recovery-email">Correo electrónico</Label>
+                  <Input id="recovery-email" required type="email" autoComplete="email" value={formData.email}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="tu@email.com" className="h-11 rounded-xl" />
+                  <Button type="submit" disabled={isLoading} className="w-full bg-orange-500 text-white">
+                    {isLoading ? "Enviando…" : "Enviar enlace de recuperación"}
+                  </Button>
+                </form>
+                {recoveryMessage && <p role="status" className="text-sm font-semibold">{recoveryMessage}</p>}
+              </>
+            ) : (
+              <AssistedRecoveryPanel initialPhone={formData.identifier} onAuthenticated={() => {
+                onClose();
+                window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
+                router.refresh();
+              }} />
+            )}}
             <button type="button" onClick={() => { setMode("LOGIN"); setRecoveryMessage(""); }}
               className="w-full text-xs font-bold text-slate-500 hover:text-orange-500">← Volver al inicio de sesión</button>
           </div>
