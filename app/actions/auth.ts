@@ -288,6 +288,7 @@ export async function fetchCurrentClient() {
       paymentBenefits: {
         CASH: calculateTierPaymentBenefits(clientTier, tiers, "CASH"),
         MP: calculateTierPaymentBenefits(clientTier, tiers, "MP"),
+        TRANSFER: calculateTierPaymentBenefits(clientTier, tiers, "TRANSFER"),
       },
     } : null,
     createdAt: client.createdAt,

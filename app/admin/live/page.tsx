@@ -34,6 +34,7 @@ import {
   Flame,
   PackageCheck,
   Send,
+  Landmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { updateOrderStatus, assignMessenger, dispatchMessengerRoadmap, reconcilePendingMercadoPagoOrders } from "@/app/actions/admin-orders";
+import { updateOrderStatus, assignMessenger, dispatchMessengerRoadmap, reconcilePendingMercadoPagoOrders, approveTransferPayment } from "@/app/actions/admin-orders";
+import { isPendingTransfer } from "@/lib/transfer-payment";
 import { setStoreOpen, updateSlotAvailable, setModuleState } from "@/app/actions/admin-settings";
 import { printOrderNow } from "@/app/actions/admin-printing";
 import { AnimatePresence, motion } from "framer-motion";
@@ -100,6 +102,7 @@ export default function LiveDashboardPage() {
   const [isMonitoring, setIsMonitoring] = useState(true);
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<any | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [approvingTransferId, setApprovingTransferId] = useState<string | null>(null);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isOrderComposerOpen, setIsOrderComposerOpen] = useState(false);
@@ -183,7 +186,7 @@ export default function LiveDashboardPage() {
           const newOrders = await ordersRes.json();
           setOrders(newOrders);
 
-          const arrivingOrders = newOrders.filter((order: any) => order.status === "NEW" && !knownOrderIdsRef.current.has(order.id));
+          const arrivingOrders = newOrders.filter((order: any) => order.status === "NEW" && !isPendingTransfer(order) && !knownOrderIdsRef.current.has(order.id));
 
           if (hasLoadedOrdersRef.current && isMonitoring && arrivingOrders.length > 0) {
             playAlert();
@@ -195,7 +198,7 @@ export default function LiveDashboardPage() {
               });
             }
           }
-          knownOrderIdsRef.current = new Set(newOrders.map((order: any) => order.id));
+          knownOrderIdsRef.current = new Set(newOrders.filter((order: any) => !isPendingTransfer(order)).map((order: any) => order.id));
           hasLoadedOrdersRef.current = true;
         }
 
@@ -260,6 +263,25 @@ export default function LiveDashboardPage() {
       }
     } finally {
       setUpdatingOrderId(null);
+    }
+  };
+
+  const handleApproveTransfer = async (orderId: string) => {
+    if (!window.confirm("¿Verificaste en tu banco la acreditación, el importe y el destinatario? Un comprobante por WhatsApp no alcanza para confirmar el pago.")) return;
+    setApprovingTransferId(orderId);
+    try {
+      const result = await approveTransferPayment(orderId);
+      if (result.success) {
+        toast.success("Pago por transferencia aprobado. Pedido enviado al circuito normal.");
+        setRefreshKey(key => key + 1);
+      } else {
+        toast.error("No se pudo aprobar", { description: result.error });
+        setRefreshKey(key => key + 1);
+      }
+    } catch {
+      toast.error("Error al verificar el pago. Refrescá la bandeja.");
+    } finally {
+      setApprovingTransferId(null);
     }
   };
 
@@ -384,7 +406,22 @@ export default function LiveDashboardPage() {
   }, [todayOrders, searchQuery]);
 
   // Operational Stages Categorization (4 distinct streams)
-  const stageNew = filteredTodayOrders.filter((o: any) => o.status === "NEW");
+  // Los pedidos por transferencia permanecen en una bandeja de verificación, incluso si son programados.
+  // Un checkout multidía conserva el mismo token de tracking: aprobación grupal y un único importe.
+  const transferPendingBatches = useMemo(() => {
+    const batches = new Map<string, { order: any; count: number; total: number }>();
+    for (const order of orders.filter(isPendingTransfer)) {
+      const key = order.trackingTokenHash || order.id;
+      const existing = batches.get(key);
+      if (existing) {
+        existing.count += 1;
+        existing.total += order.total || 0;
+      } else batches.set(key, { order, count: 1, total: order.total || 0 });
+    }
+    return [...batches.values()].sort((a,b) => new Date(a.order.createdAt).getTime() - new Date(b.order.createdAt).getTime());
+  }, [orders]);
+
+  const stageNew = filteredTodayOrders.filter((o: any) => o.status === "NEW" && !isPendingTransfer(o));
   const stageInPrep = filteredTodayOrders.filter((o: any) => o.status === "IN_PROCESS");
   const stageReadyOrDelivery = filteredTodayOrders.filter((o: any) => o.status === "PENDING_DELIVERY" || o.status === "OUT_FOR_DELIVERY" || o.status === "FINISHED");
   const dispatchDeliveryCount = stageReadyOrDelivery.filter((o: any) => Boolean(o.needsDelivery)).length;
@@ -397,7 +434,7 @@ export default function LiveDashboardPage() {
 
   // Metrics summary
   const activeOrdersCount = stageNew.length + stageInPrep.length + stageReadyOrDelivery.length;
-  const nonCancelledToday = todayOrders.filter(o => o.status !== "CANCELLED");
+  const nonCancelledToday = todayOrders.filter(o => o.status !== "CANCELLED" && !isPendingTransfer(o));
   const totalRevenue = nonCancelledToday.reduce((sum, o) => sum + (o.total || 0), 0);
   const cashRevenue = nonCancelledToday.filter(o => o.paymentMethod === "CASH").reduce((s, o) => s + (o.total || 0), 0);
   const mpRevenue = nonCancelledToday.filter(o => o.paymentMethod === "MP" && o.paymentStatus === "PAID").reduce((s, o) => s + (o.total || 0), 0);
@@ -480,6 +517,10 @@ export default function LiveDashboardPage() {
                     MP: PENDIENTE
                   </span>
                 )
+              ) : order.paymentMethod === "TRANSFER" ? (
+                <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                  TRANSFERENCIA: APROBADA
+                </span>
               ) : order.paymentMethod === "ADMIN" ? (
                 <span className="text-[9px] font-black text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.2 rounded">
                   MANUAL
@@ -807,6 +848,51 @@ export default function LiveDashboardPage() {
           </Button>
         </div>
       </div>
+
+      {/* Bandeja de acreditación: aislada de las comandas de cocina. */}
+      <section aria-labelledby="transfer-approval-title" className="rounded-3xl border border-blue-200 bg-blue-50/60 p-4 sm:p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 id="transfer-approval-title" className="flex items-center gap-2 text-base font-black text-blue-950">
+              <Landmark className="h-5 w-5" aria-hidden="true"/> Transferencias por aprobar
+              <Badge className="bg-blue-700 text-white">{transferPendingBatches.length}</Badge>
+            </h2>
+            <p className="text-xs text-blue-900/80 mt-1">Verificá la acreditación en tu banco antes de aprobar. Los pedidos aún no entran a cocina.</p>
+          </div>
+        </div>
+        {transferPendingBatches.length === 0 ? (
+          <p className="rounded-xl border border-blue-100 bg-white p-4 text-sm text-slate-500">No hay transferencias pendientes.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {transferPendingBatches.map(({ order, count, total }) => (
+              <div key={order.id} className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div><span className="font-black text-slate-900">#{order.id.slice(-6).toUpperCase()}</span>
+                    <div className="text-sm font-semibold text-slate-700 break-words">{order.clientName}</div>
+                    <div className="text-xs text-slate-500">{order.clientPhone}</div>
+                  </div>
+                  <span className="rounded-lg bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-900">Pago pendiente</span>
+                </div>
+                <div className="text-sm font-black text-slate-900">
+                  ${total.toLocaleString("es-AR")} {count > 1 ? `· ${count} fechas` : ""}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" disabled={approvingTransferId !== null}
+                    onClick={() => void handleApproveTransfer(order.id)}
+                    className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700 font-black">
+                    {approvingTransferId === order.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <><CheckCircle className="mr-1.5 h-4 w-4"/> Aprobar pago</>}
+                  </Button>
+                  <a href={`https://wa.me/${String(order.clientPhone || "").replace(/\D/g, "")}`}
+                    target="_blank" rel="noopener noreferrer" aria-label="Consultar comprobante por WhatsApp"
+                    className="inline-flex items-center justify-center rounded-xl border border-emerald-200 px-3 text-emerald-700 hover:bg-emerald-50">
+                    <MessageCircle className="h-4 w-4"/>
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* ═══ 4 OPERATIONAL KANBAN STAGES ═══ */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">

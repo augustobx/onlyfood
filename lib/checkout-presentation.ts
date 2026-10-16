@@ -1,7 +1,7 @@
 /** Política de presentación del checkout. El servidor sigue siendo la autoridad. */
 export type FulfillmentChoice = "DELIVERY" | "PICKUP";
 export type DeliveryAddressParts = { street: string; unit: string; reference: string };
-export type CheckoutPayment = "CASH" | "MP";
+export type CheckoutPayment = "CASH" | "MP" | "TRANSFER";
 
 function normalize(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -29,11 +29,13 @@ export function isSlotSelectable(available: number): boolean {
 }
 
 export function checkoutPaymentLabel(payment: CheckoutPayment): string {
-  return payment === "MP" ? "Mercado Pago" : "Efectivo";
+  return payment === "MP" ? "Mercado Pago" : payment === "TRANSFER" ? "Transferencia bancaria" : "Efectivo";
 }
 
 export function checkoutActionLabel(payment: CheckoutPayment, total: number): string {
   return payment === "MP" && total > 0
     ? "Ir a pagar con Mercado Pago"
-    : "Confirmar pedido";
+    : payment === "TRANSFER" && total > 0
+      ? "Confirmar y ver cómo transferir"
+      : "Confirmar pedido";
 }

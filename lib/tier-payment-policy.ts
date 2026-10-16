@@ -1,5 +1,5 @@
 export type TierPaymentMode = "BOTH" | "CASH" | "MP";
-export type PaymentMethod = "CASH" | "MP" | "ADMIN";
+export type PaymentMethod = "CASH" | "MP" | "TRANSFER" | "ADMIN";
 export type TierBenefit = {
   sequence: number;
   discountPercent: number;
@@ -8,7 +8,7 @@ export type TierBenefit = {
 };
 
 export function allowsTierBenefit(mode: string | null | undefined, paymentMethod: PaymentMethod): boolean {
-  // Un pago ADMIN no implica cobro en efectivo ni Mercado Pago.
+  // Transferencia y ADMIN solo reciben beneficios habilitados para TODOS los medios.
   if (paymentMethod === "ADMIN") return false;
   return (mode || "BOTH") === "BOTH" || mode === paymentMethod;
 }

@@ -105,6 +105,11 @@ export function SettingsForm({
       noticeBoardDuration: Number(cfg.noticeBoardDuration) || 8,
       paymentCash: cfg.paymentCash,
       paymentMp: cfg.paymentMp,
+      paymentTransfer: Boolean(cfg.paymentTransfer),
+      transferAlias: cfg.transferAlias || "",
+      transferCbu: cfg.transferCbu || "",
+      transferHolder: cfg.transferHolder || "",
+      transferWhatsApp: cfg.transferWhatsApp || "",
       autoPrintTickets: Boolean(cfg.autoPrintTickets),
       kitchenPattyCountEnabled: Boolean(cfg.kitchenPattyCountEnabled),
       kitchenPattyKeywords: cfg.kitchenPattyKeywords || "medallón,medallon",
@@ -506,8 +511,23 @@ export function SettingsForm({
                 </div>
 
                 <div className="flex items-center justify-between border rounded-lg p-3">
-                  <Label>MercadoPago (Transferencia / Link)</Label>
+                  <Label>Mercado Pago (checkout online)</Label>
                   <Switch checked={cfg.paymentMp} onCheckedChange={v => updateField('paymentMp', v)} />
+                </div>
+                <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div><Label className="font-bold">Transferencia bancaria manual</Label>
+                      <p className="text-xs text-slate-600">El pago queda pendiente hasta que un administrador lo compruebe y apruebe. WhatsApp no acredita pagos automáticamente.</p>
+                    </div>
+                    <Switch checked={Boolean(cfg.paymentTransfer)} onCheckedChange={v => updateField("paymentTransfer", v)} aria-label="Habilitar transferencia manual"/>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1"><Label>Alias</Label><Input value={cfg.transferAlias || ""} onChange={e => updateField("transferAlias", e.target.value)} placeholder="MI.COMERCIO"/></div>
+                    <div className="space-y-1"><Label>CBU / CVU (opcional si hay alias)</Label><Input inputMode="numeric" maxLength={22} value={cfg.transferCbu || ""} onChange={e => updateField("transferCbu", e.target.value)} placeholder="22 dígitos"/></div>
+                    <div className="space-y-1"><Label>Titular de la cuenta</Label><Input value={cfg.transferHolder || ""} onChange={e => updateField("transferHolder", e.target.value)} placeholder="Nombre del titular"/></div>
+                    <div className="space-y-1"><Label>WhatsApp para comprobantes</Label><Input inputMode="tel" value={cfg.transferWhatsApp || ""} onChange={e => updateField("transferWhatsApp", e.target.value)} placeholder="54911XXXXXXXX"/></div>
+                  </div>
+                  <p className="text-xs text-slate-600">Al activar, los datos se muestran al cliente al confirmar su pedido. Configurá un número que reciba fotos o archivos por WhatsApp normal/Web.</p>
                 </div>
               </div>
             </CardContent>

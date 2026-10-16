@@ -24,6 +24,8 @@ import {
   Flame,
   CheckCircle,
   Zap,
+  Landmark,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,7 @@ import MPReturnHandler from "./MPReturnHandler";
 import { PushPrompt } from "./PushPrompt";
 import { orderHelpText } from "@/lib/order-status-guidance";
 import { realOrderEvents } from "@/lib/pwa-order-history";
+import { isPendingTransfer, transferReceiptUrl } from "@/lib/transfer-payment";
 
 interface TrackOrderClientProps {
   order: any;
@@ -322,6 +325,10 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
 
   const dateInfo = parseDeliveryDate(order);
   const isCancelled = order.status === "CANCELLED";
+  const pendingTransfer = isPendingTransfer(order);
+  const transfer = order.paymentMethod === "TRANSFER" && order.transferInstructions && typeof order.transferInstructions === "object" ? order.transferInstructions : null;
+  const transferAmount = typeof transfer?.total === "number" ? transfer.total : order.total;
+  const receiptLink = transfer ? transferReceiptUrl(transfer.whatsapp || "", order.id, transferAmount) : null;
 
   // Build appropriate stepper based on whether the order is for TODAY vs a FUTURE / SCHEDULED DATE
   const isImmediateFlow = dateInfo.isToday;
@@ -357,7 +364,7 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
 
   const currentIndex = statuses.findIndex((st) => st.id === order.status);
   const statusEvents = realOrderEvents(order.createdAt, order.history || [], order.needsDelivery);
-  const currentStatusLabel =
+  const currentStatusLabel = pendingTransfer ? "Pago pendiente de aprobación" :
     currentIndex >= 0
       ? statuses[currentIndex].label
       : isCancelled
@@ -457,6 +464,49 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
           MAIN TRACKING CONTENT
       ══════════════════════════════════════════════════════════ */}
       <main className="max-w-2xl mx-auto px-3.5 sm:px-6 pt-5 sm:pt-8 space-y-5 sm:space-y-6">
+        {order.paymentMethod === "TRANSFER" && !isCancelled && (
+          order.paymentStatus === "PAID" ? (
+            <section aria-label="Pago aprobado" role="status" className="rounded-3xl border border-emerald-300 bg-emerald-50 p-5 text-emerald-950 space-y-2">
+              <div className="flex items-center gap-2 font-black text-lg"><CheckCircle2 className="h-6 w-6" aria-hidden="true"/> Pago aprobado</div>
+              <p className="text-sm font-medium">Verificamos tu transferencia. ¡Tu pedido ya ingresó al circuito normal de preparación y entrega!</p>
+            </section>
+          ) : (
+            <section aria-labelledby="transfer-pending-title" className="rounded-3xl border border-blue-300 bg-blue-50 p-5 text-slate-900 space-y-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Landmark className="h-7 w-7 shrink-0 text-blue-700" aria-hidden="true"/>
+                <div>
+                  <h2 id="transfer-pending-title" className="text-lg font-black">¡Recibimos tu pedido!</h2>
+                  <p className="text-sm font-medium mt-1">Realizá la transferencia y compartinos el comprobante por WhatsApp. Tu pago está <strong>pendiente de aprobación</strong>; la cocina empezará cuando el comercio lo verifique.</p>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-blue-200 bg-white p-4 space-y-3">
+                <div className="text-xs font-black uppercase text-slate-500">Importe a transferir {transferAmount !== order.total ? "· pedido completo" : ""}</div>
+                <div className="text-2xl font-black text-blue-950">$ {Number(transferAmount).toLocaleString("es-AR")}</div>
+                {transfer && (
+                  <div className="space-y-2 text-sm">
+                    {transfer.holder && <div><span className="block text-xs font-semibold text-slate-500">Titular</span><strong className="break-all">{transfer.holder}</strong></div>}
+                    {transfer.alias && <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0"><span className="block text-xs font-semibold text-slate-500">Alias</span><strong className="break-all">{transfer.alias}</strong></div>
+                      <button type="button" onClick={() => { void navigator.clipboard.writeText(transfer.alias); toast.success("Alias copiado"); }} aria-label="Copiar alias" className="rounded-lg border border-blue-200 p-2 text-blue-700"><Copy className="h-4 w-4"/></button>
+                    </div>}
+                    {transfer.cbu && <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0"><span className="block text-xs font-semibold text-slate-500">CBU / CVU</span><strong className="break-all">{transfer.cbu}</strong></div>
+                      <button type="button" onClick={() => { void navigator.clipboard.writeText(transfer.cbu); toast.success("CBU/CVU copiado"); }} aria-label="Copiar CBU o CVU" className="rounded-lg border border-blue-200 p-2 text-blue-700"><Copy className="h-4 w-4"/></button>
+                    </div>}
+                  </div>
+                )}
+              </div>
+              {receiptLink ? (
+                <a href={receiptLink} target="_blank" rel="noopener noreferrer"
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-center text-sm font-black text-white hover:bg-emerald-700">
+                  <MessageCircle className="h-5 w-5"/> Compartir comprobante por WhatsApp
+                </a>
+              ) : <p className="text-sm text-blue-900">Solicitá al comercio el contacto para enviar el comprobante.</p>}
+              <p className="text-xs leading-relaxed text-slate-600">WhatsApp abre un mensaje listo. Adjuntá la imagen o PDF del comprobante y tocá Enviar. El pago no se verifica automáticamente. Esta pantalla se actualizará cuando el administrador lo apruebe.</p>
+            </section>
+          )
+        )}
+
 
         {/* ═══ MULTI-DAY PLAN SWITCHER (IF MORE THAN 1 ORDER) ═══ */}
         {allOrdersList.length > 1 && (
@@ -587,7 +637,7 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
               </p>
               <div role="status" className={`mx-auto mt-3 max-w-lg rounded-2xl border px-4 py-3 text-left text-xs leading-relaxed ${s.subtext}`}>
                 <strong className="mb-1 block font-black">¿Qué sigue?</strong>
-                {orderHelpText(order.status, order.needsDelivery)}
+                {pendingTransfer ? "Primero realizá la transferencia y enviá el comprobante. El comercio verificará el pago antes de preparar el pedido." : orderHelpText(order.status, order.needsDelivery)}
                 {order.scheduledTime && (
                   <p className="mt-2 font-semibold">
                     Horario elegido: {order.scheduledTime} hs. El comercio confirmará cualquier cambio.
@@ -719,7 +769,7 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
               </h3>
             </div>
             <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${order.paymentStatus === 'PAID' ? s.tagGreen : s.tagOrange}`}>
-              {order.paymentStatus === 'PAID' ? '✓ Pagado' : order.paymentMethod === 'CASH' ? '💵 Efectivo al recibir' : '⏳ Pendiente'}
+              {order.paymentStatus === 'PAID' ? (order.paymentMethod === 'TRANSFER' ? '✓ Transferencia aprobada' : '✓ Pagado') : order.paymentMethod === 'CASH' ? '💵 Efectivo al recibir' : order.paymentMethod === 'TRANSFER' ? '⏳ Transferencia pendiente' : '⏳ Pendiente'}
             </span>
           </div>
 
