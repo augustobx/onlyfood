@@ -6,6 +6,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
+import { countOrderBuns } from "@/lib/bun-count";
 
 export type PrintKind = "KITCHEN" | "COUNTER";
 
@@ -31,13 +32,13 @@ const GS = 0x1d;
 const orderInclude = {
   items: {
     include: {
-      product: { include: { ingredients: { include: { ingredient: true } } } },
-      secondHalfProduct: { include: { ingredients: { include: { ingredient: true } } } },
+      product: { include: { category: true, ingredients: { include: { ingredient: true } } } },
+      secondHalfProduct: { include: { category: true, ingredients: { include: { ingredient: true } } } },
       addedExtras: { include: { extra: true } },
       removedIngredients: { include: { ingredient: true } },
       comboItems: {
         include: {
-          product: { include: { ingredients: { include: { ingredient: true } } } },
+          product: { include: { category: true, ingredients: { include: { ingredient: true } } } },
           removedIngredients: { include: { ingredient: true } },
         },
       },
@@ -87,12 +88,16 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     }
     if (item.notes) blocks.push({ text: `NOTA: ${item.notes.toUpperCase()}`, size: 10, bold: true, before: 1, after: 1 });
   });
-  if (pattyOptions.enabled) {
-    const pattyCount = countOrderPatties(order.items, pattyOptions.keywords);
-    blocks.push(
-      { type: "separator", before: 1, after: 1 },
-      { text: `TOTAL MEDALLONES: ${formatPattyCount(pattyCount)}`, size: 14, bold: true, align: "center", after: 1 },
-    );
+  const buns = countOrderBuns(order.items, pattyOptions.keywords);
+  if (pattyOptions.enabled || buns > 0) {
+    blocks.push({ type: "separator", before: 1, after: 1 });
+    if (pattyOptions.enabled) {
+      const pattyCount = countOrderPatties(order.items, pattyOptions.keywords);
+      blocks.push({ text: `TOTAL MEDALLONES: ${formatPattyCount(pattyCount)}`, size: 14, bold: true, align: "center", after: 1 });
+    }
+    if (buns > 0) {
+      blocks.push({ text: `TOTAL PANES: ${buns}`, size: 14, bold: true, align: "center", after: 1 });
+    }
   }
   blocks.push({ type: "separator", before: 1 }, { text: `PEDIDO #${orderCode(order)}`, bold: true, align: "center" });
   return blocks;
