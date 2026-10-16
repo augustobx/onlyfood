@@ -601,6 +601,7 @@ model CustomerTier {
   minPoints        Int      @default(0) // Mínimo puntos
   minSpent         Float    @default(0) // Mínimo dinero total gastado
   discountPercent  Float    @default(0) // Descuento extra % automático
+  paymentMode      String   @default("BOTH") @db.VarChar(8) // BOTH, CASH, MP
   pointsMultiplier Float    @default(1.0) // Multiplicador de puntos al comprar
   color            String   @default("#f97316") // Hex color
   bgGradient       String   @default("from-amber-500 to-yellow-600")

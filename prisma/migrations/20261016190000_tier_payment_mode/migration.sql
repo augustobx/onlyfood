@@ -1,0 +1,1 @@
+ALTER TABLE `CustomerTier` ADD COLUMN `paymentMode` VARCHAR(8) NOT NULL DEFAULT 'BOTH';
