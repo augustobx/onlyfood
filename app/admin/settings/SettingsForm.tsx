@@ -66,6 +66,7 @@ export function SettingsForm({
     const dataToSave = {
       appName: cfg.appName,
       isStoreOpen: cfg.isStoreOpen,
+      requireLoginForCheckout: Boolean(cfg.requireLoginForCheckout),
       closedMessage: cfg.closedMessage,
       primaryColor: cfg.primaryColor,
       secondaryColor: cfg.secondaryColor,
@@ -247,6 +248,13 @@ export function SettingsForm({
                 </div>
               </div>
 
+              <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50">
+                <div className="space-y-1">
+                  <Label className="text-base text-slate-800 font-bold">Exigir cuenta para comprar</Label>
+                  <p className="text-sm text-muted-foreground">Cuando está activo, cada cliente deberá registrarse o iniciar sesión para confirmar pedidos. No afecta al panel administrativo.</p>
+                </div>
+                <Switch checked={Boolean(cfg.requireLoginForCheckout)} onCheckedChange={v => updateField('requireLoginForCheckout', v)} />
+              </div>
               <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50">
                 <div className="space-y-0.5">
                   <Label className="text-base text-slate-800 font-bold">Local Abierto (Aceptar Pedidos)</Label>

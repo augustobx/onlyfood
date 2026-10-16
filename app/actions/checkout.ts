@@ -209,6 +209,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         businessHours: null,
       };
       if (!config) throw new Error("STORE_UNAVAILABLE");
+      if (!adminDirectPaid && config.requireLoginForCheckout && !loggedClient) throw new Error("LOGIN_REQUIRED");
       const whatsappOptIn = tenant.features.has("whatsapp") && config.whatsappNotificationsEnabled && data.whatsappOptIn;
 
       if (!adminDirectPaid) {
@@ -973,6 +974,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       }
     }
     const messages: Record<string, string> = {
+      LOGIN_REQUIRED: "Para confirmar tu pedido, registrate o iniciá sesión.",
       STORE_CLOSED: "El local está cerrado en este momento para pedidos inmediatos.",
       IMMEDIATE_ORDERS_DISABLED: "Los pedidos para el momento están desactivados. Podés programar tu pedido para mañana o por encargo.",
       SCHEDULED_TOMORROW_DISABLED: "Los pedidos programados para mañana no están habilitados actualmente.",

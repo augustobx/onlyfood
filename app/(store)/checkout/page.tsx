@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { createOrder, fetchConfig } from "@/app/actions/checkout";
+import { fetchCurrentClient } from "@/app/actions/auth";
+import { AuthModal } from "@/components/AuthModal";
 import { fetchClientAvailableCoupons } from "@/app/actions/client-rewards";
 import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -374,10 +376,11 @@ export default function CheckoutPage() {
   }, [schedule.hasScheduledProducts, schedule.targetDateInfo]);
 
   const [loggedClient, setLoggedClient] = useState<any | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
-    import("@/app/actions/auth").then(({ fetchCurrentClient }) => {
-      fetchCurrentClient().then((client) => {
+    fetchCurrentClient().then((client) => {
         if (client) {
           setLoggedClient(client);
           setFormData((prev) => ({
@@ -386,8 +389,7 @@ export default function CheckoutPage() {
             clientPhone: client.phone || prev.clientPhone,
           }));
         }
-      });
-    });
+      }).finally(() => setAuthChecked(true));
 
     fetchClientAvailableCoupons().then((coupons) => {
       if (coupons && coupons.length > 0) {
@@ -479,6 +481,11 @@ export default function CheckoutPage() {
 
   const validateAndSubmit = async () => {
     if (items.length === 0) return;
+    if (config?.requireLoginForCheckout && !loggedClient) {
+      setShowAuthModal(true);
+      toast.error("Para comprar, primero iniciá sesión o registrate.");
+      return;
+    }
 
     if (!formData.clientName || !formData.clientPhone) {
       toast.error("Datos incompletos", { description: "Por favor, ingresá tu nombre y teléfono." });
@@ -569,6 +576,22 @@ export default function CheckoutPage() {
     config?.allowImmediateOrders !== false &&
     (!schedule.hasScheduledProducts || isScheduledForToday)
   );
+
+  if (config?.requireLoginForCheckout && authChecked && !loggedClient) {
+    return (
+      <div className="max-w-lg mx-auto p-6 text-center space-y-4">
+        <h1 className="text-2xl font-bold">Ingresá para finalizar tu pedido</h1>
+        <p>Tu carrito se mantiene guardado. Para comprar en este comercio necesitás una cuenta.</p>
+        <Button onClick={() => setShowAuthModal(true)}>Ingresar o crear cuenta</Button>
+        <AuthModal isOpen={showAuthModal} theme={theme} onClose={async () => {
+          setShowAuthModal(false);
+          const client = await fetchCurrentClient();
+          setLoggedClient(client);
+          if (client) setFormData(prev => ({ ...prev, clientName: client.name || prev.clientName, clientPhone: client.phone || prev.clientPhone }));
+        }} />
+      </div>
+    );
+  }
 
   return (
     <>
