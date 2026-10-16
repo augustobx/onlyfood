@@ -435,10 +435,12 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
   const [isPointsModalOpen, setIsPointsModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!loggedClient && !sessionStorage.getItem("nfood_auth_dismissed")) {
+    // Cuando la compra invitada está habilitada, no abrir login sin consentimiento.
+    if (!loggedClient && config?.requireLoginForCheckout === true &&
+        sessionStorage.getItem("onlyfood_auth_dismissed") !== "true") {
       setIsAuthModalOpen(true);
     }
-  }, [loggedClient]);
+  }, [loggedClient, config?.requireLoginForCheckout]);
 
   const [showSplash, setShowSplash] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -626,22 +628,29 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
                   </Button>
                 ) : (
                   <>
-                    <Button
-                      onClick={() => {
-                        handleAcceptWelcome();
-                        setIsAuthModalOpen(true);
-                      }}
-                      className="w-full h-12 rounded-2xl font-black text-sm bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 hover:brightness-110 text-white shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2"
-                    >
-                      👑 Ingresar con mi Teléfono
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={handleAcceptWelcome}
-                      className="text-xs text-slate-400 hover:text-white font-bold transition-colors py-1 block w-full"
-                    >
-                      Continuar como invitado
-                    </button>
+                    {config?.requireLoginForCheckout !== true ? (
+                      <>
+                        <Button onClick={handleAcceptWelcome}
+                          className="w-full h-12 rounded-2xl font-black text-sm bg-gradient-to-r from-orange-600 to-amber-600 text-white">
+                          Explorar menú sin cuenta
+                        </Button>
+                        <button type="button" onClick={() => { handleAcceptWelcome(); setIsAuthModalOpen(true); }}
+                          className="text-xs text-slate-300 hover:text-white font-bold transition-colors py-1 block w-full">
+                          Quiero iniciar sesión para sumar puntos
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <Button onClick={() => { handleAcceptWelcome(); setIsAuthModalOpen(true); }}
+                          className="w-full h-12 rounded-2xl font-black text-sm bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 text-white">
+                          👑 Ingresar con mi Teléfono
+                        </Button>
+                        <button type="button" onClick={handleAcceptWelcome}
+                          className="text-xs text-slate-300 hover:text-white font-bold transition-colors py-1 block w-full">
+                          Seguir explorando
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
               </div>
