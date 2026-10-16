@@ -251,7 +251,7 @@ export async function approveTransferPayment(orderId: string) {
           tenantId: tenant.id, paymentMethod: "TRANSFER", paymentStatus: "PENDING", status: "NEW",
           ...(selected.trackingTokenHash ? { trackingTokenHash: selected.trackingTokenHash } : { id: selected.id }),
         },
-        select: { id: true },
+        select: { id: true, total: true },
       });
       if (!pending.some(order => order.id === orderId)) throw new Error("NOT_PENDING");
       const ids = pending.map(order => order.id);
@@ -260,6 +260,17 @@ export async function approveTransferPayment(orderId: string) {
         data: { paymentStatus: "PAID", transferApprovedAt: new Date(), transferApprovedBy: user.id },
       });
       if (changed.count !== ids.length) throw new Error("CONCURRENT_APPROVAL");
+      // El registro contable interno no representa una API bancaria ni un pago automatizado.
+      await tx.paymentRecord.createMany({
+        data: pending.map(order => ({
+          tenantId: tenant.id,
+          orderId: order.id,
+          providerPaymentId: `MANUAL_TRANSFER:${order.id}`,
+          status: "PAID",
+          amount: order.total,
+          currency: "ARS",
+        })),
+      });
       return ids;
     });
     for (const id of approvedIds) revalidatePath(`/track/${id}`);
