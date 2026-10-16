@@ -26,6 +26,8 @@ export default async function TrackOrderPage(props: {
           },
         },
         messenger: true,
+        history: { orderBy: { createdAt: "asc" }, take: 80,
+          select: { id: true, status: true, createdAt: true } },
       },
     }),
     db.systemConfig.findFirst({ select: publicConfigSelect }),

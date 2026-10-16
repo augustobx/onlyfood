@@ -31,6 +31,7 @@ import AutoRefresh from "./AutoRefresh";
 import MPReturnHandler from "./MPReturnHandler";
 import { PushPrompt } from "./PushPrompt";
 import { orderHelpText } from "@/lib/order-status-guidance";
+import { realOrderEvents } from "@/lib/pwa-order-history";
 
 interface TrackOrderClientProps {
   order: any;
@@ -355,6 +356,7 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
         ];
 
   const currentIndex = statuses.findIndex((st) => st.id === order.status);
+  const statusEvents = realOrderEvents(order.createdAt, order.history || [], order.needsDelivery);
   const currentStatusLabel =
     currentIndex >= 0
       ? statuses[currentIndex].label
@@ -642,6 +644,30 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
                 })}
               </div>
             </div>
+            <details className={`mt-6 rounded-2xl border p-3 text-left ${s.cardInner}`}>
+              <summary className={`cursor-pointer text-sm font-black ${s.heading}`}>
+                Ver historial de actualizaciones ({statusEvents.length})
+              </summary>
+              <p className={`mt-2 text-xs ${s.subtext}`}>
+                Son las actualizaciones efectivamente registradas por el comercio, no horarios estimados de llegada.
+              </p>
+              <ol className="mt-4 space-y-3 border-l-2 border-orange-500/30 pl-3">
+                {statusEvents.map((event, index) => (
+                  <li key={`${event.status}:${event.createdAt}:${index}`}
+                    className="relative pl-2">
+                    <span aria-hidden="true" className="absolute -left-[19px] top-1 h-2.5 w-2.5 rounded-full bg-orange-500"/>
+                    <span className={`block text-xs font-bold ${s.heading}`}>{event.label}</span>
+                    <time className={`text-[11px] ${s.subtext}`}
+                      dateTime={event.createdAt}>
+                      {new Intl.DateTimeFormat("es-AR", {
+                        day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                        timeZone: "America/Argentina/Buenos_Aires",
+                      }).format(new Date(event.createdAt))}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            </details>
           </div>
         )}
 
