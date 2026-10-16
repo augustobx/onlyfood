@@ -4,7 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { encryptPayload, decryptPayload } from "@/lib/encryption";
 import crypto from "crypto";
 
-export type IntegrationType = "MERCADO_PAGO" | "WHATSAPP" | "PRINTNODE";
+export type IntegrationType = "MERCADO_PAGO" | "WHATSAPP" | "PRINTNODE" | "EMAIL";
+
+/** Credenciales almacenadas con AES-256-GCM por comercio, nunca en SystemConfig. */
+export interface EmailCredentials {
+  provider: "SMTP" | "RESEND" | "BREVO";
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPass?: string;
+  smtpFrom: string;
+  resendApiKey?: string;
+  brevoApiKey?: string;
+}
 
 export interface MercadoPagoCredentials {
   accessToken: string;
@@ -40,7 +52,7 @@ export interface PrintNodeCredentials {
 export async function saveTenantIntegration(
   tenantId: string,
   type: IntegrationType,
-  credentials: MercadoPagoCredentials | WhatsAppCredentials | PrintNodeCredentials
+  credentials: MercadoPagoCredentials | WhatsAppCredentials | PrintNodeCredentials | EmailCredentials
 ) {
   const encrypted = encryptPayload(credentials);
 
