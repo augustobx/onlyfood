@@ -177,4 +177,9 @@
 
 /* Una sola barra mobile: las anteriores de Urban Dark/Fast Neo se sustituyen por el navegador universal. */
 .store-shell .legacy-store-bottom-nav { display: none !important; }
+@media (max-width: 639px) {
+  .store-shell .store-cart-bar { display: none !important; }
+  .store-shell .nexo-mobile-dock { display: none !important; }
+}
+
 @media (max-width: 639px) { .store-shell .store-footer { padding-bottom: 5.5rem; } }
