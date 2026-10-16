@@ -1,7 +1,7 @@
 import { getTenantDb } from "@/lib/tenant-db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Star, Gift, Crown } from "lucide-react";
-import { UsersTableClient } from "./UsersTableClient";
+import { ClientAccountsTabs } from "@/components/admin/ClientAccountsTabs";
 import { requireAdmin } from "@/lib/admin-session";
 import { getTenantContext } from "@/lib/tenant-context";
 
@@ -13,7 +13,7 @@ export default async function AdminUsersPage() {
   const tenant = await getTenantContext();
   const loyaltyEnabled = tenant.features.has("loyalty");
   const db = await getTenantDb();
-  const [users, rewards, tiers] = await Promise.all([
+  const [users, rewards, tiers, resetRequests] = await Promise.all([
     db.client.findMany({
       include: {
         orders: {
@@ -35,6 +35,15 @@ export default async function AdminUsersPage() {
       where: { isActive: true },
       orderBy: [{ sequence: "asc" }, { minSpent: "asc" }],
     }) : [],
+    db.clientPasswordResetRequest.findMany({
+      where: { status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true, claimedName: true, createdAt: true,
+        client: { select: { id: true, name: true, phone: true, email: true } },
+      },
+    }),
   ]);
 
   const totalPointsGiven = users.reduce((acc, u) => acc + u.points, 0);
@@ -64,6 +73,7 @@ export default async function AdminUsersPage() {
       email: u.email,
       emailVerifiedAt: u.emailVerifiedAt,
       passwordSetupRequired: u.passwordSetupRequired,
+      forcePasswordChange: u.forcePasswordChange,
       points: u.points,
       createdAt: u.createdAt,
       ordersCount,
@@ -118,7 +128,8 @@ export default async function AdminUsersPage() {
         </Card>
       </div>
 
-      <UsersTableClient initialUsers={usersWithTiers} rewards={rewards} tiers={tiers} />
+      <ClientAccountsTabs initialUsers={usersWithTiers} rewards={rewards} tiers={tiers}
+        resetRequests={resetRequests.map(req => ({ ...req, createdAt: req.createdAt.toISOString() }))} />
     </div>
   );
 }

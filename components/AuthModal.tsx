@@ -13,6 +13,7 @@ import { beginClientPasskeyAuthentication, finishClientPasskeyAuthentication } f
 import { client as webauthnClient } from "@passwordless-id/webauthn";
 import { useRouter } from "next/navigation";
 import { AssistedRecoveryPanel } from "@/components/AssistedRecoveryPanel";
+import { TemporaryPasswordSetup } from "@/components/TemporaryPasswordSetup";
 
 export function AuthModal({
   isOpen,
@@ -23,7 +24,8 @@ export function AuthModal({
   onClose: () => void;
   theme?: string;
 }) {
-  const [mode, setMode] = useState<"LOGIN" | "REGISTER" | "RECOVERY">("LOGIN");
+  const [mode, setMode] = useState<"LOGIN" | "REGISTER" | "RECOVERY" | "SETUP">("LOGIN");
+  const [setupToken, setSetupToken] = useState("");
   const [formData, setFormData] = useState({ name: "", phone: "", identifier: "", email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,6 +74,12 @@ export function AuthModal({
       } else if (mode === "LOGIN") {
         const res = await loginClient(fd);
         if (res.success) {
+          if (res.requiresSetup && res.setupToken) {
+            setSetupToken(res.setupToken);
+            setMode("SETUP");
+            toast.info("Ingresaste con clave temporal: completá correo y contraseña nueva.");
+            return;
+          }
           toast.success("¡Hola de nuevo! Ya iniciaste sesión.");
           onClose();
           window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
@@ -128,12 +136,12 @@ export function AuthModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 bg-black/75 backdrop-blur-md">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden transition-all ${
+        className={`w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl relative transition-all ${
           isSushi
             ? "bg-[#121722] border border-amber-500/35 text-slate-100 shadow-black/80"
             : isDark
@@ -164,7 +172,7 @@ export function AuthModal({
         </button>
 
         {/* TOP TABS: LOGIN | REGISTER */}
-        <div className="flex rounded-2xl p-1 bg-slate-100 dark:bg-slate-800/80 mb-5 relative z-10 border border-slate-200/60 dark:border-white/10">
+        {mode !== "SETUP" && <div className="flex rounded-2xl p-1 bg-slate-100 dark:bg-slate-800/80 mb-5 relative z-10 border border-slate-200/60 dark:border-white/10">
           <button
             type="button"
             onClick={() => {
@@ -193,7 +201,17 @@ export function AuthModal({
           >
             Crear Cuenta
           </button>
-        </div>
+        </div>}
+
+        {mode === "SETUP" && setupToken && (
+          <TemporaryPasswordSetup setupToken={setupToken} onCompleted={() => {
+            setSetupToken("");
+            setMode("LOGIN");
+            onClose();
+            window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
+            router.refresh();
+          }} />
+        )}
 
         {/* ═══ LOGIN / REGISTER VIEW ═══ */}
         {(mode === "LOGIN" || mode === "REGISTER") && (
@@ -357,11 +375,7 @@ export function AuthModal({
                 {recoveryMessage && <p role="status" className="text-sm font-semibold">{recoveryMessage}</p>}
               </>
             ) : (
-              <AssistedRecoveryPanel initialPhone={formData.identifier} onAuthenticated={() => {
-                onClose();
-                window.dispatchEvent(new Event("onlyfood:client-auth-changed"));
-                router.refresh();
-              }} />
+              <AssistedRecoveryPanel initialPhone={formData.identifier} />
             )}
             <button type="button" onClick={() => { setMode("LOGIN"); setRecoveryMessage(""); }}
               className="w-full text-xs font-bold text-slate-500 hover:text-orange-500">← Volver al inicio de sesión</button>

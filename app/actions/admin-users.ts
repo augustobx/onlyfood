@@ -53,6 +53,9 @@ export async function updateClientContactDetails(input: unknown) {
     return { success: false as const, error: "Ese teléfono coincide con otra cuenta del comercio." };
   }
   const emailChanged = (current.email || null) !== email;
+  if (current.forcePasswordChange && emailChanged) {
+    return { success: false as const, error: "El cliente debe terminar su reseteo temporal antes de cambiar el correo desde administración." };
+  }
   const phoneChanged = current.phone !== phone;
 
   try {

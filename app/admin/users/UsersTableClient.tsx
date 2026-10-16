@@ -35,7 +35,7 @@ import { adminAssignRewardToClient, adminAdjustClientPoints } from "@/app/action
 import { resetUserPassword, detectDuplicateClients, mergeClients, type DuplicateClientGroup } from "@/app/actions/admin-users";
 import { sendAdminClientEmailVerification } from "@/app/actions/client-security";
 import { ClientAccountEditor } from "@/components/admin/ClientAccountEditor";
-import { LegacyRecoveryIssuer } from "@/components/admin/LegacyRecoveryIssuer";
+
 
 interface UsersTableClientProps {
   initialUsers: any[];
@@ -51,7 +51,7 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
   const [isAssigning, setIsAssigning] = useState(false);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [editClient, setEditClient] = useState<any | null>(null);
-  const [legacyRecoveryClient, setLegacyRecoveryClient] = useState<any | null>(null);
+
   const [verifyingClientId, setVerifyingClientId] = useState<string | null>(null);
 
   // Filtros y Buscador
@@ -107,8 +107,8 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
         if (pointsFilter === "ZERO_POINTS" && u.points > 0) return false;
 
         // Filtro por Estado de Clave
-        if (passwordFilter === "ACTIVE" && u.passwordSetupRequired) return false;
-        if (passwordFilter === "PENDING" && !u.passwordSetupRequired) return false;
+        if (passwordFilter === "ACTIVE" && (u.passwordSetupRequired || u.forcePasswordChange)) return false;
+        if (passwordFilter === "PENDING" && !u.passwordSetupRequired && !u.forcePasswordChange) return false;
 
         // Filtro por Compras
         const ordersCount = u.ordersCount ?? u._count?.orders ?? 0;
@@ -536,9 +536,9 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <div className="font-extrabold text-slate-900">{u.name || "Sin nombre"}</div>
-                    {u.passwordSetupRequired ? (
+                    {u.passwordSetupRequired || u.forcePasswordChange ? (
                       <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        Setup Pendiente
+                        {u.forcePasswordChange ? "Cambio de clave obligatorio" : "Setup Pendiente"}
                       </span>
                     ) : (
                       <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-0.5">
@@ -617,13 +617,6 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                       <Star className="w-3 h-3 mr-1 text-yellow-500" /> Puntos
                     </Button>
 
-                    {!u.email && (
-                      <Button size="sm" variant="outline" onClick={() => setLegacyRecoveryClient(u)}
-                        className="rounded-xl text-[11px] font-bold h-7 px-2 border-orange-300 text-orange-800"
-                        title="Generar código personal de recuperación tras verificar al cliente">
-                        <KeyRound className="mr-1 h-3 w-3" /> Código temporal
-                      </Button>
-                    )}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -666,7 +659,7 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
         </table>
       </div>
 
-      <LegacyRecoveryIssuer client={legacyRecoveryClient} onClose={() => setLegacyRecoveryClient(null)} />
+
       <ClientAccountEditor
         client={editClient}
         onClose={() => setEditClient(null)}
