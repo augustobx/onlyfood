@@ -1,33 +1,53 @@
-# Autenticación de clientes: passkeys, correo y checkout
+# OnlyFood — Correo de clientes (adaptado de OnlyPadel)
 
-Implementación por tenant. Rama: `feat/client-passkeys-email-recovery-checkout-auth`.
+El sistema utiliza los mismos transportes disponibles en OnlyPadel: **SMTP 465 SSL / 587 STARTTLS, Resend API y Brevo API**, con una pestaña administrativa para guardar y probar el envío. Su implementación en OnlyFood es **independiente por comercio** y aprovecha `TenantIntegration` con cifrado AES-256-GCM; los secretos no se guardan en texto plano ni aparecen en las respuestas del panel.
 
-## Funcionalidades
-- Registro de cliente con nombre, teléfono, **email** y contraseña (mínimo 8 caracteres).
-- Correo de verificación con token aleatorio, hash SHA-256 en base de datos y vencimiento de 60 minutos. Confirmación explícita en `/verify-email`.
-- Restablecimiento en `/reset-password` mediante correo **verificado**: token de un solo uso (30 minutos), rate limiting y revocación de sesiones de cliente después de cambiar la contraseña.
-- Passkeys WebAuthn similares a OnlyPadel: Face ID, Touch ID, Windows Hello y autenticadores compatibles. La clave privada y los datos biométricos permanecen en el dispositivo. Las credenciales pertenecen al tenant, al cliente y al dominio (RP ID).
-- Gestión de dispositivos y correo desde `/profile`. El login biométrico es una alternativa opcional a la clave.
-- En `/admin/settings` → Negocio, interruptor **Exigir cuenta para comprar**. Por defecto `false` (modo compatible con invitados). El servidor valida la política de tenant en la creación de pedidos; los pedidos administrativos no cambian.
+## Valores públicos tomados de los formularios de OnlyPadel
 
-## Configurar envíos
-Configurar **una** de:
-- `RESEND_API_KEY` y `EMAIL_FROM`, o
-- `BREVO_API_KEY` y `EMAIL_FROM`.
+Los siguientes valores eran **defaults en el código fuente**, no una lectura de las credenciales efectivas del servidor:
 
-Usar un remitente verificado real del dominio. Sin proveedor, no se simula la entrega: la interfaz informa que falta configurar el servicio. **No copiar claves de OnlyPadel ni subir credenciales al repositorio.**
+| Opción | Valor |
+|---|---|
+| Servidor SMTP | `c2801249.ferozo.com` |
+| Puerto | `465` |
+| Usuario SMTP | `psp@nanolabs.online` |
+| Remitente adaptado | `OnlyFood <psp@nanolabs.online>` |
 
-El envío se realiza por la API HTTPS de Resend o Brevo; no se habilitó SMTP heredado sin STARTTLS validado.
+El password SMTP de OnlyPadel **no se encuentra en GitHub** y no se ha copiado. Ingresar la contraseña real desde el panel OnlyFood → Admin → Configuración → **Correo**, si se autoriza usar esa misma casilla. Se guarda cifrada para el comercio; la entrada se vacía luego de guardar.
 
-## Clientes anteriores
-Los clientes existentes conservan su teléfono, clave y compras anteriores. No se les asigna un email ficticio. Necesitan iniciar sesión y verificar uno desde `/profile` antes de poder restablecer contraseñas por correo. Para quienes todavía no tienen acceso, el comercio debe gestionar una verificación de identidad y recuperación asistida.
+## Configuración desde el panel
 
-## Despliegue y validaciones previas
-1. Backup verificado de MariaDB. No probar migraciones sobre producción directamente.
-2. En ambiente staging: `npm ci`, `npx prisma validate`, `npx prisma migrate deploy`, `npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run build`.
-3. Probar registro, verificación y restablecimiento en 2 tenants diferentes; enlaces vencidos/reutilizados, cuenta sin correo y contraseña actual.
-4. Probar passkeys en HTTPS en Android/iOS/Windows, cambiar de dispositivo, remover credenciales y verificar separación por dominio y comercio.
-5. Probar checkout con interruptor apagado/encendido: invitado, cliente autenticado y pedidos directos del admin; asegurar que el carrito se mantiene.
-6. Configurar claves de correo en staging y producción **antes** de activar el checkout obligatorio. Activarlo comercio por comercio.
+1. Ingresar a **Admin → Configuración → Correo**.
+2. Elegir SMTP, Resend o Brevo y completar los datos.
+3. Presionar **Guardar correo**.
+4. Ingresar un destinatario y usar **Enviar prueba**; verificar la recepción real del mensaje.
+5. Recién entonces activar **Negocio → Exigir cuenta para comprar** si se desea.
 
-**Precaución:** No confundir passkeys de autenticación con acceso al sensor biométrico; el servidor no recibe huellas ni rostros. Ni la migración ni el despliegue se ejecutan por crear el PR.
+Si no hay credenciales o el servidor rechaza un email, el sistema **no simula un envío exitoso**. El cliente conserva opción de login por contraseña/biometría si aplica. Los enlaces de recuperación solo se entregan a correos ya verificados.
+
+SMTP exige certificado TLS válido: no se copia `rejectUnauthorized:false` ni se permiten credenciales en texto plano. Las respuestas de error evitan exponer contraseñas. Para Resend/Brevo, el remitente debe estar validado ante el proveedor.
+
+## Alternativa: variables de entorno globales
+Sin configuración de email guardada para un comercio, se pueden utilizar variables en el servidor:
+
+```dotenv
+EMAIL_PROVIDER=SMTP
+SMTP_HOST=c2801249.ferozo.com
+SMTP_PORT=465
+SMTP_USER=psp@nanolabs.online
+SMTP_PASS=
+SMTP_FROM="OnlyFood <psp@nanolabs.online>"
+# En lugar de SMTP también puede utilizarse EMAIL_PROVIDER=RESEND o BREVO:
+RESEND_API_KEY=
+BREVO_API_KEY=
+EMAIL_FROM=
+```
+
+No agregar claves reales al repositorio. Para las tiendas multitenant, usar el panel es preferible. La configuración por comercio reemplaza a los valores globales cuando existe.
+
+## Seguridad y despliegue
+
+- El código está en un PR **draft**: no se aplicaron migraciones ni cambios de producción.
+- Antes de fusionar: `npm ci`, `npx prisma validate`, `npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run build`, backup y verificación en staging.
+- Validar email en dos comercios, configuración independiente, errores SMTP, certificado, enlaces vencidos y credenciales ya guardadas.
+- No se migraron contraseñas ni configuraciones privadas de OnlyPadel.

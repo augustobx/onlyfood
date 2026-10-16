@@ -13,6 +13,7 @@ class SmtpReplyReader {
   private lines: string[] = [];
   private waiter: ((reply: Reply) => void) | undefined;
   private failed: ((error: Error) => void) | undefined;
+  private closedError: Error | null = null;
   private pendingLines: string[] = [];
   constructor(socket: Socket) {
     this.socket = socket;
@@ -21,6 +22,7 @@ class SmtpReplyReader {
     socket.on("close", this.onClose);
   }
   private onError = (error: Error) => {
+    this.closedError = error;
     this.failed?.(error);
     this.waiter = undefined;
     this.failed = undefined;
@@ -57,6 +59,7 @@ class SmtpReplyReader {
   read(): Promise<Reply> {
     const available = this.ready.shift();
     if (available) return Promise.resolve(available);
+    if (this.closedError) return Promise.reject(this.closedError);
     return new Promise((resolve, reject) => {
       this.waiter = resolve;
       this.failed = reject;
@@ -97,6 +100,7 @@ async function connect(options: SmtpOptions): Promise<{ socket: Socket; reader: 
       host: options.host, port: options.port, servername: options.host,
       rejectUnauthorized: true, minVersion: "TLSv1.2",
     });
+    socket.setTimeout(10_000, () => socket.destroy(new Error("SMTP_CONNECT_TIMEOUT")));
     await new Promise<void>((resolve, reject) => {
       socket.once("secureConnect", () => socket.authorized ? resolve() : reject(new Error("SMTP_INVALID_TLS_CERTIFICATE")));
       socket.once("error", reject);
@@ -104,6 +108,7 @@ async function connect(options: SmtpOptions): Promise<{ socket: Socket; reader: 
     return { socket, reader: new SmtpReplyReader(socket) };
   }
   const socket = net.connect({ host: options.host, port: options.port });
+  socket.setTimeout(10_000, () => socket.destroy(new Error("SMTP_CONNECT_TIMEOUT")));
   await new Promise<void>((resolve, reject) => {
     socket.once("connect", resolve);
     socket.once("error", reject);
@@ -121,10 +126,11 @@ export async function sendSmtpEmail(options: SmtpOptions): Promise<boolean> {
   if (/[\r\n]/.test(username) || !username || !options.password) throw new Error("SMTP_INVALID_CREDENTIALS");
 
   let socket: Socket | undefined;
-  const timer = setTimeout(() => socket?.destroy(new Error("SMTP_TIMEOUT")), 12_000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    let connection = await connect(options);
+    const connection = await connect(options);
     socket = connection.socket;
+    timer = setTimeout(() => socket?.destroy(new Error("SMTP_TIMEOUT")), 12_000);
     let reader = connection.reader;
     await expectCode(reader, 220);
 
@@ -141,6 +147,7 @@ export async function sendSmtpEmail(options: SmtpOptions): Promise<boolean> {
         socket: socket as net.Socket, servername: options.host,
         rejectUnauthorized: true, minVersion: "TLSv1.2",
       });
+      secured.setTimeout(10_000, () => secured.destroy(new Error("SMTP_TLS_UPGRADE_TIMEOUT")));
       await new Promise<void>((resolve, reject) => {
         secured.once("secureConnect", () => secured.authorized ? resolve() : reject(new Error("SMTP_INVALID_TLS_CERTIFICATE")));
         secured.once("error", reject);
@@ -168,7 +175,7 @@ export async function sendSmtpEmail(options: SmtpOptions): Promise<boolean> {
     await command("QUIT", 221);
     return true;
   } finally {
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
     socket?.destroy();
   }
 }
