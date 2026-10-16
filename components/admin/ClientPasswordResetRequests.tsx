@@ -44,6 +44,7 @@ export function ClientPasswordResetRequests({ initialRequests }: { initialReques
         if (whatsappUrl) {
           setLastWhatsappUrl(whatsappUrl);
           if (whatsappTab && !whatsappTab.closed) {
+            whatsappTab.opener = null;
             whatsappTab.location.replace(whatsappUrl);
           } else {
             toast.info("Abrí WhatsApp para avisar al cliente.", {

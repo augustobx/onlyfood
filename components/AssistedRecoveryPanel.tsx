@@ -32,6 +32,7 @@ export function AssistedRecoveryPanel({ initialPhone, onRequested }: {
       }
       if (result.whatsappUrl) {
         if (whatsappTab && !whatsappTab.closed) {
+          whatsappTab.opener = null;
           whatsappTab.location.replace(result.whatsappUrl);
         } else {
           toast.info("Abrí WhatsApp para avisar al comercio.", {
