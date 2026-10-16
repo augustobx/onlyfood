@@ -11,7 +11,7 @@ import { createOrder, fetchConfig } from "@/app/actions/checkout";
 import { fetchCurrentClient } from "@/app/actions/auth";
 import { AuthModal } from "@/components/AuthModal";
 import { fetchClientAvailableCoupons } from "@/app/actions/client-rewards";
-import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X, Bike, Store, Banknote, CreditCard, Info, BookmarkPlus, Home, Building2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X, Bike, Store, Banknote, CreditCard, Info, BookmarkPlus, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
