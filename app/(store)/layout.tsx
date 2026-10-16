@@ -182,6 +182,9 @@ export default async function StoreLayout({
         {children}
       </main>
       <MobilePwaNavigation dark={["URBAN_DARK","HALLOWEEN","SUSHI_ZEN","ARCADE_KITCHEN"].includes(theme)}
+        tenantId={tenant.id}
+        isAuthenticated={Boolean(account)}
+        allowGuestCheckout={!config?.requireLoginForCheckout}
         activeOrderId={recentOrder?.id}
         activeOrderStatus={recentOrder?.status}
         activeOrderNeedsDelivery={recentOrder?.needsDelivery}/>
