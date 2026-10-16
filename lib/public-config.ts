@@ -13,6 +13,7 @@ export const publicConfigSelect = {
   backgroundUrl: true,
   backgroundBlur: true,
   isStoreOpen: true,
+  requireLoginForCheckout: true,
   closedMessage: true,
   primaryColor: true,
   secondaryColor: true,

@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { getTenantDb } from "@/lib/tenant-db";
 import { getTenantContext } from "@/lib/tenant-context";
+import { isTenantEmailConfigured } from "@/lib/tenant-email";
 import { getTenantIntegration, saveTenantIntegration, setTenantIntegrationActive, type WhatsAppCredentials, type MercadoPagoCredentials } from "@/lib/tenant-integrations";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
@@ -14,7 +15,7 @@ const idSchema = z.string().min(1).max(100);
 const optionalAssetUrl = z.union([z.literal(""), z.string().url().max(2048), z.string().regex(/^\/(?!\/)[^\s]{1,2047}$/)]).nullable().optional();
 const configSchema = z.object({
   appName: z.string().trim().min(1).max(80),
-  isStoreOpen: z.boolean(), closedMessage: z.string().trim().min(1).max(500),
+  isStoreOpen: z.boolean(), requireLoginForCheckout: z.boolean().default(false), closedMessage: z.string().trim().min(1).max(500),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/), secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   storeTheme: z.enum(["ORIGINAL", "NEXO", "URBAN_DARK", "FAST_NEO", "CLEAN_BOUTIQUE", "FRESH_MARKET", "RETRO_DINER", "COMIC_FOOD_POP", "ARCADE_KITCHEN", "SUSHI_ZEN"]),
   splashEnabled: z.boolean(), splashDuration: z.number().int().min(0).max(30),
@@ -74,6 +75,9 @@ export async function updateConfig(id: string, data: unknown) {
   if (!parsedId.success || !parsed.success) return { success: false, error: parsed.error?.issues[0]?.message || "Configuracion invalida." };
   try {
     const tenant = await getTenantContext();
+    if (parsed.data.requireLoginForCheckout && !await isTenantEmailConfigured(tenant.id)) {
+      return { success: false, error: "Configurá primero el correo SMTP, Resend o Brevo en la pestaña Correo." };
+    }
     const [whatsappEnabled, printNodeEnabled] = await Promise.all([
       hasTenantFeature(tenant.id, "whatsapp"),
       hasTenantFeature(tenant.id, "printNode"),

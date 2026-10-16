@@ -73,6 +73,8 @@ Usá `.env.docker.example` como plantilla. En producción son obligatorios:
 
 La guía operativa completa está en [docs/deployment.md](./docs/deployment.md). La auditoría y el estado verificable están en [docs/production-readiness.md](./docs/production-readiness.md).
 
+La configuración de correo SMTP / Resend / Brevo, adaptación desde OnlyPadel y recuperación de cuentas está en [correo y seguridad de clientes](./docs/client-security.md).
+
 La instalación y operación del agente propio de impresión está documentada en [docs/nanolabs-print-agent.md](./docs/nanolabs-print-agent.md).
 
 ## Seguridad y multi-tenancy

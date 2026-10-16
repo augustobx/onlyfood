@@ -10,6 +10,7 @@ import { getTenantIntegration, type MercadoPagoCredentials } from "@/lib/tenant-
 import { getLoggedClient, hashPassword } from "@/lib/auth";
 import { cleanPhoneNumber } from "@/lib/phone";
 import { getPublicConfig } from "@/lib/public-config";
+import { requiresClientLogin } from "@/lib/checkout-auth-policy";
 import { consumeRateLimit, getRequestIp, getRequestOrigin } from "@/lib/request-security";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
 import { dispatchOrderPrint } from "@/lib/printnode";
@@ -196,6 +197,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       const config = (await tx.systemConfig.findFirst()) || {
         appName: tenant.name,
         isStoreOpen: true,
+        requireLoginForCheckout: false,
         allowImmediateOrders: true,
         allowScheduledTomorrow: true,
         allowAdvanceOrders: true,
@@ -209,6 +211,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
         businessHours: null,
       };
       if (!config) throw new Error("STORE_UNAVAILABLE");
+      if (requiresClientLogin(config.requireLoginForCheckout, Boolean(loggedClient), adminDirectPaid)) throw new Error("LOGIN_REQUIRED");
       const whatsappOptIn = tenant.features.has("whatsapp") && config.whatsappNotificationsEnabled && data.whatsappOptIn;
 
       if (!adminDirectPaid) {
@@ -973,6 +976,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       }
     }
     const messages: Record<string, string> = {
+      LOGIN_REQUIRED: "Para confirmar tu pedido, registrate o iniciá sesión.",
       STORE_CLOSED: "El local está cerrado en este momento para pedidos inmediatos.",
       IMMEDIATE_ORDERS_DISABLED: "Los pedidos para el momento están desactivados. Podés programar tu pedido para mañana o por encargo.",
       SCHEDULED_TOMORROW_DISABLED: "Los pedidos programados para mañana no están habilitados actualmente.",

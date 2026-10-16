@@ -62,13 +62,15 @@ describe("Weekly Menu Day Matching & Separation", () => {
 
     // Simulate now as Thursday
     const originalDate = global.Date;
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Test fixture patches the Date constructor deliberately.
     // @ts-ignore
     global.Date = class extends originalDate {
       constructor(...args: any[]) {
         if (args.length === 0) {
           super("2026-09-03T12:00:00.000Z");
         } else {
-          // @ts-ignore
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Test fixture patches the Date constructor deliberately.
+    // @ts-ignore
           super(...args);
         }
       }

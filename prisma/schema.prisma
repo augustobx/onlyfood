@@ -19,6 +19,7 @@ model SystemConfig {
   backgroundBlur  Boolean @default(false)
   whatsappMessage String  @default("Hola, tu pedido está en estado: {{estado}}. Gracias por elegirnos!")
   isStoreOpen     Boolean @default(true)
+  requireLoginForCheckout Boolean @default(false)
   closedMessage   String  @default("Lo sentimos, actualmente nuestro local se encuentra cerrado.")
 
   primaryColor   String @default("#f97316") // orange-500
@@ -623,6 +624,8 @@ model Client {
   phoneLoginKey         String?  @db.VarChar(6)
   password              String
   passwordSetupRequired Boolean  @default(false)
+  email                 String?  @db.VarChar(254)
+  emailVerifiedAt       DateTime?
   name                  String?
   points                Int      @default(0)
   customTierId          String?
@@ -635,8 +638,11 @@ model Client {
   sessions         Session[]
   rouletteWins     RouletteWin[]
   pointRedemptions PointRedemption[]
+  passkeys          ClientPasskey[]
+  securityTokens    ClientSecurityToken[]
 
   @@unique([tenantId, phone])
+  @@unique([tenantId, email])
   @@index([tenantId, phoneLoginKey])
   @@index([phoneLoginKey])
 }
@@ -690,6 +696,56 @@ model WhatsAppNotification {
   @@unique([orderId, event])
   @@index([tenantId, status, createdAt])
   @@index([tenantId, orderId])
+}
+
+model ClientPasskey {
+  id                String   @id @default(uuid())
+  tenantId          String
+  clientId          String
+  credentialId      String   @db.VarChar(512)
+  publicKey         String   @db.Text
+  algorithm         String   @db.VarChar(16)
+  transports        Json?
+  counter           BigInt   @default(0)
+  authenticatorName String?  @db.VarChar(120)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastUsedAt        DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  @@unique([tenantId, credentialId])
+  @@index([tenantId, clientId])
+}
+
+model ClientPasskeyChallenge {
+  id        String   @id @default(uuid())
+  tenantId  String
+  clientId  String?
+  kind      String   @db.VarChar(24)
+  challenge String   @db.VarChar(255)
+  origin    String   @db.VarChar(255)
+  rpId      String   @db.VarChar(255)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId, kind, expiresAt])
+}
+
+model ClientSecurityToken {
+  id        String   @id @default(uuid())
+  tenantId  String
+  clientId  String
+  purpose   String   @db.VarChar(24)
+  email     String   @db.VarChar(254)
+  tokenHash String   @unique @db.Char(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  @@index([tenantId, clientId, purpose])
+  @@index([expiresAt])
 }
 
 model Session {
@@ -790,6 +846,9 @@ model Tenant {
   cashMovements          CashMovement[]
   quantityDiscounts      QuantityDiscount[]
   saasPayments           SaaSPayment[]
+  clientPasskeys         ClientPasskey[]
+  clientPasskeyChallenges ClientPasskeyChallenge[]
+  clientSecurityTokens   ClientSecurityToken[]
 
   @@index([status])
 }
