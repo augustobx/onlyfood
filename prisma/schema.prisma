@@ -280,6 +280,7 @@ model Product {
   roulettePrizes        RoulettePrize[]
   pointRewards          PointReward[]
   quantityDiscounts     QuantityDiscountProduct[]
+  favoritedBy           ClientFavorite[]
 
   @@index([tenantId, categoryId, isActive])
   @@index([tenantId, sequence])
@@ -648,6 +649,7 @@ model Client {
   recoveryCodes      ClientRecoveryCode[]
   passwordResetRequests ClientPasswordResetRequest[]
   savedAddresses ClientSavedAddress[]
+  favorites ClientFavorite[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
@@ -741,6 +743,22 @@ model ClientPasskeyChallenge {
 }
 
 /** Direcciones elegidas voluntariamente por un cliente; siempre aisladas por comercio. */
+/** Favoritos separados por comercio; no expone historial de otros usuarios. */
+model ClientFavorite {
+  id String @id @default(uuid())
+  tenantId String
+  clientId String
+  productId String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, clientId, productId])
+  @@index([tenantId, clientId, createdAt])
+}
+
 model ClientSavedAddress {
   id          String    @id @default(uuid())
   tenantId    String
@@ -885,6 +903,7 @@ model Tenant {
   orders                 Order[]
   clients                Client[]
   clientSavedAddresses    ClientSavedAddress[]
+  clientFavorites ClientFavorite[]
   tiers                  CustomerTier[]
   rewards                PointReward[]
   redemptions            PointRedemption[]
