@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 import { allowsTierBenefit } from "@/lib/tier-payment-policy";
+import { saveGuestOrder } from "@/lib/guest-checkout";
 import {
   getClientSavedAddresses, upsertClientSavedAddress,
 } from "@/app/actions/client-addresses";
@@ -539,7 +540,7 @@ export default function CheckoutPage() {
   const total = discountedSubtotal + deliveryCost;
 
   const pointsMultiplier = selectedTierBenefits?.pointsMultiplier ?? loggedClient?.tier?.pointsMultiplier ?? 1.0;
-  const totalEarnedPoints = Math.round(items.reduce((sum, item) => sum + (item.product?.points || 0) * item.quantity, 0) * pointsMultiplier);
+  const totalEarnedPoints = loggedClient ? Math.round(items.reduce((sum, item) => sum + (item.product?.points || 0) * item.quantity, 0) * pointsMultiplier) : 0;
 
   const validateAndSubmit = async () => {
     if (items.length === 0) return;
@@ -594,6 +595,22 @@ export default function CheckoutPage() {
       });
 
       if (result.success) {
+        // Invitados: conservar únicamente ID y enlace privado de seguimiento en
+        // sessionStorage. No almacenar dirección, teléfono ni datos bancarios.
+        // Guardar ANTES de redirigir a Mercado Pago.
+        if (!loggedClient && !config?.requireLoginForCheckout && result.orderId && result.trackingToken && config?.tenantId) {
+          try {
+            saveGuestOrder(sessionStorage, config.tenantId, {
+              orderId: result.orderId,
+              token: result.trackingToken,
+              createdAt: Date.now(),
+              paymentMethod: formData.paymentMethod,
+            });
+            window.dispatchEvent(new Event("onlyfood:guest-order-changed"));
+          } catch {
+            // Seguir con el tracking aunque el navegador bloquee sessionStorage.
+          }
+        }
         if (formData.paymentMethod === "MP" && result.mpInitPoint) {
           toast.loading("Redirigiendo a Mercado Pago...", { duration: 3000 });
           checkoutCompletedRef.current = true;
@@ -732,6 +749,18 @@ export default function CheckoutPage() {
             <p className={`text-xs font-medium mt-0.5 ${t.subtext}`}>Completá la información para confirmar</p>
           </div>
         </div>
+
+        {authChecked && !loggedClient && config?.requireLoginForCheckout === false && (
+          <section aria-label="Comprar sin cuenta" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-emerald-950">
+            <div className="flex gap-2">
+              <Check className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true"/>
+              <div>
+                <p className="text-sm font-black">Compra rápida sin registrarte</p>
+                <p className="mt-1 text-xs leading-relaxed">Solo necesitamos tu nombre y teléfono para coordinar el pedido. No hace falta contraseña ni crear una cuenta. Al confirmar vas a recibir un enlace privado para seguirlo.</p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Weekly Menu Notice */}
         {schedule.hasScheduledProducts && schedule.targetDateInfo && (
@@ -903,6 +932,7 @@ export default function CheckoutPage() {
                 <Input
                   id="name"
                   required
+                  autoComplete="name"
                   autoFocus
                   className={`h-10 rounded-xl transition-colors text-sm ${t.inputBg}`}
                   placeholder="Ej. Juan Pérez"
@@ -915,6 +945,8 @@ export default function CheckoutPage() {
                 <Input
                   id="phone"
                   type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   required
                   className={`h-10 rounded-xl transition-colors text-sm ${t.inputBg}`}
                   placeholder="Ej. 1123456789"
@@ -1095,7 +1127,7 @@ export default function CheckoutPage() {
                       )}
                       {!loggedClient && (
                         <p className={`text-[11px] ${t.subtext}`}>
-                          Iniciá sesión para guardar direcciones y no tener que volver a escribirlas.
+                          Podés recibir el pedido acá sin registrarte. La dirección se usa únicamente para coordinar esta compra.
                         </p>
                       )}
                       <p className={`text-[11px] leading-relaxed ${t.subtext}`}>
