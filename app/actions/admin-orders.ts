@@ -12,6 +12,7 @@ import { dispatchOrderPrint } from "@/lib/printnode";
 import { startOfBusinessDayUtc } from "@/lib/time";
 import { dispatchWhatsAppNotification, queueRelatedOrderConfirmationNotifications, queueOrderWhatsAppNotification } from "@/lib/whatsapp-notifications";
 import { notificationEventForStatus } from "@/lib/whatsapp-message-utils";
+import { isPendingTransfer } from "@/lib/transfer-payment";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
 
@@ -232,6 +233,56 @@ async function releaseStock(tx: any, requirements: ReturnType<typeof calculateOr
   }
 }
 
+/** La acreditación se confirma contra el banco fuera de OnlyFood y se aprueba aquí manualmente. */
+export async function approveTransferPayment(orderId: string) {
+  const { user, tenant } = await requireAdmin(["OWNER", "MANAGER", "CASHIER"]);
+  await requireOrdersModule();
+  if (!z.string().uuid().safeParse(orderId).success) return { success: false, error: "Pedido inválido." };
+  const db = await getTenantDb();
+  try {
+    const approvedIds = await db.$transaction(async (tx) => {
+      const selected = await tx.order.findFirst({
+        where: { id: orderId, tenantId: tenant.id },
+        select: { id: true, trackingTokenHash: true, paymentMethod: true, paymentStatus: true, status: true },
+      });
+      if (!selected || !isPendingTransfer(selected) || selected.status !== "NEW") throw new Error("NOT_PENDING");
+      const pending = await tx.order.findMany({
+        where: {
+          tenantId: tenant.id, paymentMethod: "TRANSFER", paymentStatus: "PENDING", status: "NEW",
+          ...(selected.trackingTokenHash ? { trackingTokenHash: selected.trackingTokenHash } : { id: selected.id }),
+        },
+        select: { id: true },
+      });
+      if (!pending.some(order => order.id === orderId)) throw new Error("NOT_PENDING");
+      const ids = pending.map(order => order.id);
+      const changed = await tx.order.updateMany({
+        where: { id: { in: ids }, tenantId: tenant.id, paymentMethod: "TRANSFER", paymentStatus: "PENDING", status: "NEW" },
+        data: { paymentStatus: "PAID", transferApprovedAt: new Date(), transferApprovedBy: user.id },
+      });
+      if (changed.count !== ids.length) throw new Error("CONCURRENT_APPROVAL");
+      return ids;
+    });
+    for (const id of approvedIds) revalidatePath(`/track/${id}`);
+    revalidatePath("/admin/live");
+    revalidatePath("/admin/history");
+    revalidatePath("/admin/calendar");
+    after(async () => {
+      await Promise.allSettled(approvedIds.flatMap(id => [
+        sendOrderPush(id, "Pago aprobado", "✅ Verificamos tu transferencia. Tu pedido ya ingresó al circuito normal."),
+        dispatchOrderPrint(id, { tenantId: tenant.id }),
+        (async () => {
+          const notificationId = await queueOrderWhatsAppNotification(id, "ORDER_CONFIRMED", tenant.id);
+          if (notificationId) await dispatchWhatsAppNotification(notificationId, tenant.id);
+        })(),
+      ]));
+    });
+    return { success: true, approved: approvedIds.length };
+  } catch (error) {
+    console.error("Transfer manual approval failed:", error);
+    return { success: false, error: "El pedido ya no está pendiente o fue actualizado. Refrescá la bandeja." };
+  }
+}
+
 export async function updateOrderStatus(orderId: string, requestedStatus: string) {
   await requireAdmin(["OWNER", "MANAGER", "KITCHEN", "CASHIER", "DELIVERY", "STAFF"]);
   await requireOrdersModule();
@@ -257,6 +308,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         },
       });
       if (!current) throw new Error("ORDER_NOT_FOUND");
+      if (isPendingTransfer(current) && parsedStatus.data !== "CANCELLED") throw new Error("PAYMENT_PENDING_TRANSFER");
       if (parsedStatus.data === current.status) return current;
       if (!transitions[current.status]?.includes(parsedStatus.data)) throw new Error("INVALID_TRANSITION");
 
@@ -365,7 +417,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         return { success: false, error: "No alcanza el stock para preparar este pedido." };
       }
     }
-    return { success: false, error: code === "PAYMENT_PENDING" ? "El pago de Mercado Pago todavía no está acreditado" : code === "REFUND_REQUIRED" ? "Reembolsá primero el pago en Mercado Pago y esperá la confirmación" : "No se puede aplicar ese cambio de estado" };
+    return { success: false, error: code === "PAYMENT_PENDING_TRANSFER" ? "Aprobá primero la transferencia desde la bandeja de pagos pendientes." : code === "PAYMENT_PENDING" ? "El pago de Mercado Pago todavía no está acreditado" : code === "REFUND_REQUIRED" ? "Reembolsá primero el pago en Mercado Pago y esperá la confirmación" : "No se puede aplicar ese cambio de estado" };
   }
 }
 
@@ -405,7 +457,7 @@ export async function dispatchMessengerRoadmap(messengerId: string) {
     const db = await getTenantDb();
     const orders = await db.$transaction(async (tx) => {
       const pending = await tx.order.findMany({
-        where: { messengerId, status: "PENDING_DELIVERY" },
+        where: { messengerId, status: "PENDING_DELIVERY", NOT: { paymentMethod: "TRANSFER", paymentStatus: "PENDING" } },
         orderBy: { createdAt: "asc" },
       });
       if (!pending.length) return [];
@@ -422,7 +474,7 @@ export async function dispatchMessengerRoadmap(messengerId: string) {
         `> Pedido #${order.id.slice(-5).toUpperCase()}`,
         `  Direc: ${order.deliveryAddress || "Sin dirección"}`,
         `  Cliente: ${order.clientName} (${order.clientPhone})`,
-        `  === ${order.paymentMethod === "CASH" ? `A COBRAR: $${order.total.toLocaleString("es-AR")}` : order.paymentMethod === "ADMIN" ? "PAGADO EN MOSTRADOR" : order.paymentStatus === "PAID" ? "PAGADO (MP)" : "PAGO MP PENDIENTE"} ===`,
+        `  === ${order.paymentMethod === "CASH" ? `A COBRAR: ${order.total.toLocaleString("es-AR")}` : order.paymentMethod === "ADMIN" ? "PAGADO EN MOSTRADOR" : order.paymentMethod === "TRANSFER" ? (order.paymentStatus === "PAID" ? "TRANSFERENCIA APROBADA" : "TRANSFERENCIA PENDIENTE") : order.paymentStatus === "PAID" ? "PAGADO (MP)" : "PAGO MP PENDIENTE"} ===`,
         "----------------------",
       ]),
     ].join("\n");
