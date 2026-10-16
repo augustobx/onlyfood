@@ -647,6 +647,7 @@ model Client {
   securityTokens    ClientSecurityToken[]
   recoveryCodes      ClientRecoveryCode[]
   passwordResetRequests ClientPasswordResetRequest[]
+  savedAddresses ClientSavedAddress[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
@@ -737,6 +738,26 @@ model ClientPasskeyChallenge {
   createdAt DateTime @default(now())
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   @@index([tenantId, kind, expiresAt])
+}
+
+/** Direcciones elegidas voluntariamente por un cliente; siempre aisladas por comercio. */
+model ClientSavedAddress {
+  id          String    @id @default(uuid())
+  tenantId    String
+  clientId    String
+  label       String    @db.VarChar(40)
+  street      String    @db.VarChar(180)
+  unit        String    @default("") @db.VarChar(60)
+  reference   String    @default("") @db.VarChar(80)
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, clientId, isDefault])
+  @@index([tenantId, clientId, updatedAt])
 }
 
 model ClientPasswordResetRequest {
@@ -863,6 +884,7 @@ model Tenant {
   extras                 Extra[]
   orders                 Order[]
   clients                Client[]
+  clientSavedAddresses    ClientSavedAddress[]
   tiers                  CustomerTier[]
   rewards                PointReward[]
   redemptions            PointRedemption[]

@@ -11,12 +11,15 @@ import { createOrder, fetchConfig } from "@/app/actions/checkout";
 import { fetchCurrentClient } from "@/app/actions/auth";
 import { AuthModal } from "@/components/AuthModal";
 import { fetchClientAvailableCoupons } from "@/app/actions/client-rewards";
-import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X, Bike, Store, Banknote, CreditCard, Info } from "lucide-react";
+import { ArrowRight, ArrowLeft, MapPin, Zap, Calendar, Clock, Star, Ticket, Check, X, Bike, Store, Banknote, CreditCard, Info, BookmarkPlus, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 import { allowsTierBenefit } from "@/lib/tier-payment-policy";
+import {
+  getClientSavedAddresses, upsertClientSavedAddress,
+} from "@/app/actions/client-addresses";
 import {
   buildDeliveryAddress, isDeliveryAddressValid, isSlotSelectable,
   checkoutActionLabel, checkoutPaymentLabel,
@@ -282,6 +285,12 @@ export default function CheckoutPage() {
   const [addressParts, setAddressParts] = useState<DeliveryAddressParts>({
     street: "", unit: "", reference: "",
   });
+  const [savedAddresses, setSavedAddresses] = useState<Awaited<ReturnType<typeof getClientSavedAddresses>>>([]);
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string | null>(null);
+  const [addressTouched, setAddressTouched] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [newAddressLabel, setNewAddressLabel] = useState("Casa");
+  const [newAddressDefault, setNewAddressDefault] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
   const [selectedCoupon, setSelectedCoupon] = useState<any | null>(null);
   const [userOptedOutCoupon, setUserOptedOutCoupon] = useState(false);
@@ -398,6 +407,30 @@ export default function CheckoutPage() {
   const [loggedClient, setLoggedClient] = useState<any | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!loggedClient) {
+      setSavedAddresses([]);
+      setSelectedSavedAddressId(null);
+      return;
+    }
+    void getClientSavedAddresses().then(addresses => {
+      if (mounted) setSavedAddresses(addresses);
+    }).catch(() => { if (mounted) setSavedAddresses([]); });
+    return () => { mounted = false; };
+  }, [loggedClient?.id]);
+
+  // Si el usuario eligió delivery antes de terminar la consulta, usar igualmente
+  // su dirección predeterminada. Nunca pisar lo que escribió manualmente.
+  useEffect(() => {
+    if (fulfillmentChoice !== "DELIVERY" || addressTouched || addressParts.street || !savedAddresses.length) return;
+    const preferred = savedAddresses.find(a => a.isDefault) || savedAddresses[0];
+    const parts = { street: preferred.street, unit: preferred.unit, reference: preferred.reference };
+    setAddressParts(parts);
+    setSelectedSavedAddressId(preferred.id);
+    setFormData(prev => ({ ...prev, deliveryAddress: buildDeliveryAddress(parts) }));
+  }, [fulfillmentChoice, addressTouched, addressParts.street, savedAddresses]);
 
   useEffect(() => {
     fetchCurrentClient().then((client) => {
@@ -590,10 +623,18 @@ export default function CheckoutPage() {
     }
   };
 
+  const applySavedAddress = (item: (typeof savedAddresses)[number]) => {
+    const parts = { street: item.street, unit: item.unit, reference: item.reference };
+    setAddressParts(parts);
+    setSelectedSavedAddressId(item.id);
+    setAddressTouched(false);
+    setFormData(prev => ({ ...prev, deliveryAddress: buildDeliveryAddress(parts) }));
+  };
+
   const chooseFulfillment = (choice: FulfillmentChoice) => {
     setFulfillmentChoice(choice);
     setFormData(prev => ({ ...prev, needsDelivery: choice === "DELIVERY" }));
-    if (choice === "DELIVERY") {
+    if (choice === "DELIVERY" && !addressParts.street && !savedAddresses.length) {
       window.setTimeout(() => addressInputRef.current?.focus(), 150);
     }
   };
@@ -601,7 +642,34 @@ export default function CheckoutPage() {
   const changeAddressPart = (field: keyof DeliveryAddressParts, value: string) => {
     const next = { ...addressParts, [field]: value };
     setAddressParts(next);
+    setAddressTouched(true);
+    setSelectedSavedAddressId(null);
     setFormData(prev => ({ ...prev, deliveryAddress: buildDeliveryAddress(next) }));
+  };
+
+  const saveCheckoutAddress = async () => {
+    if (savingAddress || !loggedClient) return;
+    setSavingAddress(true);
+    try {
+      const result = await upsertClientSavedAddress({
+        label: newAddressLabel,
+        ...addressParts,
+        makeDefault: newAddressDefault,
+      });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      const updated = await getClientSavedAddresses();
+      setSavedAddresses(updated);
+      const selected = updated.find(a => a.id === result.id);
+      if (selected) applySavedAddress(selected);
+      toast.success("Dirección guardada. La próxima vez se completará automáticamente.");
+    } catch {
+      toast.error("No se pudo guardar la dirección. Probá nuevamente.");
+    } finally {
+      setSavingAddress(false);
+    }
   };
 
   const handlePreSubmit = (event: React.FormEvent) => {
@@ -919,6 +987,44 @@ export default function CheckoutPage() {
                         <MapPin className="h-4 w-4 shrink-0" aria-hidden="true"/>
                         <h3 className={`text-sm font-extrabold ${t.label}`}>¿A qué dirección lo llevamos?</h3>
                       </div>
+                      {loggedClient && savedAddresses.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className={`text-xs font-black ${t.label}`}>Tus direcciones guardadas</h4>
+                            <button type="button" onClick={() => {
+                              setAddressParts({ street: "", unit: "", reference: "" });
+                              setFormData(prev => ({ ...prev, deliveryAddress: "" }));
+                              setAddressTouched(true);
+                              setSelectedSavedAddressId(null);
+                              window.setTimeout(() => addressInputRef.current?.focus(), 100);
+                            }} className={`text-[11px] font-bold underline ${t.accent}`}>
+                              + Nueva dirección
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {savedAddresses.map(item => (
+                              <button key={item.id} type="button"
+                                aria-pressed={selectedSavedAddressId === item.id}
+                                onClick={() => applySavedAddress(item)}
+                                className={`flex min-w-0 items-start gap-2 rounded-xl border-2 p-3 text-left transition-colors ${
+                                  selectedSavedAddressId === item.id ? t.pillActive : t.pillInactive
+                                }`}>
+                                {item.label.toLowerCase() === "casa" ? <Home className="h-4 w-4 shrink-0" aria-hidden="true"/> :
+                                  <MapPin className="h-4 w-4 shrink-0" aria-hidden="true"/>}
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-xs font-black">
+                                    {item.label} {item.isDefault ? "· Principal" : ""}
+                                  </span>
+                                  <span className="block break-words text-[11px] opacity-80">
+                                    {item.street}
+                                  </span>
+                                </span>
+                                {selectedSavedAddressId === item.id && <Check className="h-4 w-4 shrink-0" aria-hidden="true"/>}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label htmlFor="delivery-street" className={`text-xs font-semibold ${t.label}`}>
                           Calle y número *
@@ -950,6 +1056,44 @@ export default function CheckoutPage() {
                           onChange={e => changeAddressPart("reference", e.target.value)}
                           placeholder="Ej.: Portón negro, timbre rojo"/>
                       </div>
+                      {loggedClient && !selectedSavedAddressId && (
+                        <div className={`space-y-2 rounded-xl border p-3 ${t.switchBg}`}>
+                          <div className="flex items-center gap-2">
+                            <BookmarkPlus className="h-4 w-4 shrink-0" aria-hidden="true"/>
+                            <span className={`text-xs font-black ${t.label}`}>¿Querés guardar esta dirección?</span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <label className={`space-y-1 text-[11px] font-bold ${t.label}`}>
+                              Nombre
+                              <select aria-label="Nombre de la dirección"
+                                value={newAddressLabel}
+                                onChange={e => setNewAddressLabel(e.target.value)}
+                                className={`h-10 w-full rounded-xl border px-3 text-xs ${t.selectBg}`}>
+                                <option value="Casa">Casa</option>
+                                <option value="Trabajo">Trabajo</option>
+                                <option value="Otra">Otra</option>
+                              </select>
+                            </label>
+                            <label className={`flex items-center gap-2 text-xs ${t.label}`}>
+                              <input type="checkbox" checked={newAddressDefault}
+                                onChange={e => setNewAddressDefault(e.target.checked)}
+                                className="h-4 w-4 accent-orange-500"/>
+                              Usar siempre por defecto
+                            </label>
+                          </div>
+                          <Button type="button" variant="outline" disabled={savingAddress || !isDeliveryAddressValid(formData.deliveryAddress)}
+                            onClick={() => void saveCheckoutAddress()}
+                            className="h-10 w-full rounded-xl border-orange-500/50 text-xs font-bold">
+                            <BookmarkPlus className="mr-2 h-4 w-4"/>
+                            {savingAddress ? "Guardando…" : "Guardar para próximos pedidos"}
+                          </Button>
+                        </div>
+                      )}
+                      {!loggedClient && (
+                        <p className={`text-[11px] ${t.subtext}`}>
+                          Iniciá sesión para guardar direcciones y no tener que volver a escribirlas.
+                        </p>
+                      )}
                       <p className={`text-[11px] leading-relaxed ${t.subtext}`}>
                         Comprobá la dirección antes de confirmar. El comercio la recibirá junto con tu pedido.
                       </p>
