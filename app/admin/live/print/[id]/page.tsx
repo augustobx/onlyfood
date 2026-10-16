@@ -4,6 +4,7 @@ import { PrintTicketClient } from "./PrintTicketClient";
 import { requireAdmin } from "@/lib/admin-session";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
+import { canDispatchPaidOrder } from "@/lib/order-integrity-policy";
 
 /**
  * En las versiones más recientes de Next.js, 'params' es una Promise.
@@ -43,7 +44,7 @@ export default async function PrintTicketPage({
 
   const config = await db.systemConfig.findFirst();
 
-  if (!order || (order.paymentMethod === "TRANSFER" && order.paymentStatus !== "PAID")) return notFound();
+  if (!order || !canDispatchPaidOrder(order)) return notFound();
 
   return <PrintTicketClient order={order} config={config} />;
 }
