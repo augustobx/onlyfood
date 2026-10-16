@@ -29,6 +29,7 @@ interface UrbanDarkStorefrontProps {
   onOpenAuth: () => void;
   onOpenPointsModal: () => void;
   loyaltyEnabled: boolean;
+  seasonalTheme?: "HALLOWEEN";
 }
 
 export function UrbanDarkStorefront({
@@ -40,7 +41,9 @@ export function UrbanDarkStorefront({
   onOpenAuth,
   onOpenPointsModal,
   loyaltyEnabled,
+  seasonalTheme,
 }: UrbanDarkStorefrontProps) {
+  const halloween = seasonalTheme === "HALLOWEEN";
   const { items, getTotal } = useCartStore();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -65,7 +68,9 @@ export function UrbanDarkStorefront({
   const appName = config?.appName || "BeatsBurgers";
 
   return (
-    <div className="min-h-[100dvh] bg-[#080a0f] text-slate-100 font-sans pb-28 selection:bg-orange-500 selection:text-white">
+    <div className={`min-h-[100dvh] font-sans pb-28 selection:bg-orange-500 selection:text-white ${
+      halloween ? "halloween-storefront bg-[#110b17] text-[#fff0dd]" : "bg-[#080a0f] text-slate-100"
+    }`}>
 
       {/* ═══ INTEGRATED NAVBAR ═══ */}
       <nav className="sticky top-0 z-50 w-full bg-[#080a0f]/90 backdrop-blur-xl border-b border-white/[0.06]">
@@ -146,6 +151,13 @@ export function UrbanDarkStorefront({
         </div>
       </nav>
 
+      {halloween && (
+        <div className="halloween-ribbon relative z-10 border-b border-orange-500/25 px-3 py-2 text-center text-xs font-extrabold tracking-wide text-orange-100 sm:text-sm">
+          <span aria-hidden="true">🎃</span> Halloween Night · Encontrá tus favoritos esta noche
+          <span aria-hidden="true"> 🦇</span>
+        </div>
+      )}
+
       {/* ═══ HERO ═══ */}
       <section className="relative pt-5 sm:pt-8 pb-4 sm:pb-6 px-3.5 sm:px-6 max-w-7xl mx-auto">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-72 h-72 bg-orange-500/10 rounded-full blur-[100px] pointer-events-none" />
@@ -158,7 +170,9 @@ export function UrbanDarkStorefront({
                 <span className="text-orange-500">.</span>
               </h1>
               <p className="text-slate-500 text-xs sm:text-sm font-medium max-w-md">
-                Hamburguesas smash artesanales, bowls premium y combos cargados de sabor.
+                {halloween
+                  ? "Sabores de miedo, premios terroríficamente buenos y tus favoritos de siempre."
+                  : "Hamburguesas smash artesanales, bowls premium y combos cargados de sabor."}
               </p>
             </div>
 

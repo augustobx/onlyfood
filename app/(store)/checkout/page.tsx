@@ -123,6 +123,7 @@ function getThemeClasses(theme: string) {
         modalText: "text-white",
         modalSub: "text-violet-200/65",
       };
+    case "HALLOWEEN":
     case "URBAN_DARK":
       return {
         page: "bg-[#080a0f] text-slate-100",

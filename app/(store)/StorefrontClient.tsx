@@ -689,10 +689,11 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
   );
 
   // TEMA 1: URBAN DARK STREET SMASH
-  if (config?.storeTheme === "URBAN_DARK") {
+  if (config?.storeTheme === "URBAN_DARK" || config?.storeTheme === "HALLOWEEN") {
     return (
       <>
         <UrbanDarkStorefront
+          seasonalTheme={config?.storeTheme === "HALLOWEEN" ? "HALLOWEEN" : undefined}
           categories={categories}
           combos={combos}
           config={config}

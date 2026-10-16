@@ -75,8 +75,11 @@ export default async function StoreLayout({
   const isComicFood = theme === "COMIC_FOOD_POP";
   const isArcadeKitchen = theme === "ARCADE_KITCHEN";
   const isSushiZen = theme === "SUSHI_ZEN";
+  const isHalloween = theme === "HALLOWEEN";
 
-  const themeBgClass = isSushiZen
+  const themeBgClass = isHalloween
+    ? "bg-[#100b14] text-[#fff2e5]"
+    : isSushiZen
     ? "bg-[#0b0e14] text-slate-100"
     : isComicFood
     ? "bg-[#fff7db] text-[#17121f]"
