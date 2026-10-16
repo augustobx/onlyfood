@@ -65,7 +65,7 @@ export function Navbar({ config }: { config?: any }) {
           </div>
         </nav>
 
-        <nav className="nexo-mobile-dock fixed bottom-3 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-[1.4rem] border border-white/50 bg-slate-950/95 p-1.5 text-white shadow-2xl backdrop-blur-xl md:hidden">
+        <nav className="legacy-store-bottom-nav nexo-mobile-dock fixed bottom-3 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-[1.4rem] border border-white/50 bg-slate-950/95 p-1.5 text-white shadow-2xl backdrop-blur-xl md:hidden">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className={`flex min-w-[76px] flex-col items-center gap-0.5 rounded-2xl px-3 py-2 text-[10px] font-bold ${pathname === item.href ? "bg-white text-slate-950" : "text-slate-300"}`}>
               <item.icon className="h-4 w-4" /> {item.label}

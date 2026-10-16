@@ -175,6 +175,13 @@
   .roulette-spin-button::after { animation: none; }
 }
 
-/* Una sola barra mobile: las anteriores de Urban Dark/Fast Neo se sustituyen por el navegador universal. */
-.store-shell .legacy-store-bottom-nav { display: none !important; }
-@media (max-width: 639px) { .store-shell .store-footer { padding-bottom: 5.5rem; } }
+/* Una sola barra de navegación en celulares.
+ * Conserva la navegación propia de cada tema en pantallas >= 640px,
+ * mientras la universal solo aparece por debajo de ese ancho.
+ */
+@media (max-width: 639px) {
+  .store-shell .legacy-store-bottom-nav,
+  .store-shell .nexo-mobile-dock,
+  .store-shell .store-cart-bar { display: none !important; }
+  .store-shell .store-footer { padding-bottom: 5.5rem; }
+}
