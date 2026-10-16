@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import AutoRefresh from "./AutoRefresh";
 import MPReturnHandler from "./MPReturnHandler";
 import { PushPrompt } from "./PushPrompt";
+import { orderHelpText } from "@/lib/pwa-order-helpers";
 
 interface TrackOrderClientProps {
   order: any;
@@ -579,9 +580,21 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
               </div>
               <p className={`text-xs ${s.mutedText}`}>
                 {dateInfo.isToday
-                  ? "Esta pantalla se actualiza en tiempo real automáticamente."
+                  ? "Esta pantalla se actualiza automáticamente cuando el comercio cambia el estado."
                   : `El día ${dateInfo.formattedDate} verás aquí el avance en cocina y reparto.`}
               </p>
+              <div role="status" className={`mx-auto mt-3 max-w-lg rounded-2xl border px-4 py-3 text-left text-xs leading-relaxed ${s.subtext}`}>
+                <strong className="mb-1 block font-black">¿Qué sigue?</strong>
+                {orderHelpText(order.status, order.needsDelivery)}
+                {order.scheduledTime && (
+                  <p className="mt-2 font-semibold">
+                    Horario elegido: {order.scheduledTime} hs. El comercio confirmará cualquier cambio.
+                  </p>
+                )}
+                {!order.scheduledTime && (
+                  <p className="mt-2 opacity-80">La tienda todavía no confirmó una hora estimada.</p>
+                )}
+              </div>
             </div>
 
             {/* Stepper progress line */}

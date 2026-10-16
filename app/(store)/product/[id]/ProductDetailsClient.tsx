@@ -111,6 +111,14 @@ export function ProductDetailsClient({ product, halfSiblings = [] }: { product: 
             {product.allowHalf && secondHalf ? `Mitad ${product.name} / Mitad ${secondHalf.name}` : product.name}
           </h1>
           <p className="text-muted-foreground text-lg">{product.description}</p>
+          {product.allergenInfo && (
+            <aside aria-label="Información sobre alérgenos"
+              className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+              <strong className="block font-black">Alérgenos informados por el comercio</strong>
+              <p className="mt-1 whitespace-pre-wrap">{product.allergenInfo}</p>
+              <p className="mt-2 opacity-80">Ante una alergia, consultá al comercio antes de pedir.</p>
+            </aside>
+          )}
         </div>
 
         <div className="flex items-center justify-between border-y py-6">
