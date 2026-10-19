@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Star, MessageSquareHeart } from "lucide-react";
 import { findPendingOrderReview, submitOrderReview } from "@/app/actions/order-reviews";
-import { decodeGuestReviewReceipts, guestReviewKey, type GuestReviewReceipt } from "@/lib/order-review-policy";
+import { decodeGuestReviewReceipts, guestReviewKey } from "@/lib/order-review-policy";
 
 type PendingReview={orderId:string;code:string;token:string|null};
 
@@ -15,23 +15,31 @@ export function OrderReviewPrompt({tenantId}:{tenantId:string}){
  const [error,setError]=useState("");
  useEffect(()=>{
    let mounted=true;
+   let lastCheck=0;
    const check=async()=>{
+    if(document.visibilityState==="hidden" || Date.now()-lastCheck<30000)return;
+    lastCheck=Date.now();
     try{
       const guests=decodeGuestReviewReceipts(localStorage.getItem(guestReviewKey(tenantId)))
         .map(x=>({id:x.id,token:x.token}));
       const result=await findPendingOrderReview(guests);
-      if(mounted&&result&&!sessionStorage.getItem("onlyfood:review-dismissed:"+result.orderId))
-        setPending(result);
+      if(!mounted || !result)return;
+      // Al posponer, volver a ofrecerla luego, sin molestar en cada navegación.
+      const skipUntil=Number(sessionStorage.getItem("onlyfood:review-dismissed:"+result.orderId)||0);
+      if(skipUntil<Date.now())setPending(result);
     }catch{/* El local puede seguir operando si se bloquea el almacenamiento. */}
    };
    void check();
-   const onAuth=()=>void check();
+   const onVisible=()=>{if(document.visibilityState==="visible")void check()};
+   const onAuth=()=>{lastCheck=0;void check()};
    window.addEventListener("onlyfood:client-auth-changed",onAuth);
-   return ()=>{mounted=false;window.removeEventListener("onlyfood:client-auth-changed",onAuth)};
+   document.addEventListener("visibilitychange",onVisible);
+   return ()=>{mounted=false;window.removeEventListener("onlyfood:client-auth-changed",onAuth);
+     document.removeEventListener("visibilitychange",onVisible)};
  },[tenantId]);
 
  const dismiss=()=>{
-  if(pending){try{sessionStorage.setItem("onlyfood:review-dismissed:"+pending.orderId,"yes")}catch{}}
+  if(pending){try{sessionStorage.setItem("onlyfood:review-dismissed:"+pending.orderId,String(Date.now()+6*3600000))}catch{}}
   setPending(null);
  };
  const send=async()=>{
