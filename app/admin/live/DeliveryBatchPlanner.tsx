@@ -80,7 +80,7 @@ export function DeliveryBatchPlanner({orders,messengers}:{orders:PlannerOrder[],
         {busy?"Preparando…":"Preparar mensaje de WhatsApp"}
       </button>
       {prepared && (
-        <a href={\`https://wa.me/\${prepared.phone}?text=\${encodeURIComponent(prepared.message)}\`}
+        <a href={`https://wa.me/${prepared.phone}?text=${encodeURIComponent(prepared.message)}`}
           target="_blank" rel="noopener noreferrer"
           className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white">
           <MessageCircle className="size-4"/> Abrir WhatsApp ({prepared.count})
