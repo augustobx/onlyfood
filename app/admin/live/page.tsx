@@ -56,6 +56,7 @@ import { setStoreOpen, updateSlotAvailable, setModuleState } from "@/app/actions
 import { printOrderNow } from "@/app/actions/admin-printing";
 import { AnimatePresence, motion } from "framer-motion";
 import { AdminOrderComposer } from "./AdminOrderComposer";
+import { DeliveryBatchPlanner } from "./DeliveryBatchPlanner";
 import { OrderDetailModal } from "@/components/admin/OrderDetailModal";
 
 function getTimeElapsed(createdAt: string | Date): { text: string; isUrgent: boolean; isWarning: boolean } {
@@ -894,6 +895,8 @@ export default function LiveDashboardPage() {
           </div>
         )}
       </section>
+
+      <DeliveryBatchPlanner orders={orders} messengers={messengers} />
 
       {/* ═══ 4 OPERATIONAL KANBAN STAGES ═══ */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">

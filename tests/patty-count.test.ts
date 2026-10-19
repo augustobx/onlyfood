@@ -48,4 +48,19 @@ describe("countOrderPatties", () => {
     expect(total).toBe(3);
     expect(formatPattyCount(2.5)).toBe("2,5");
   });
+  it("cuenta agregados de 1 y 2 hamburguesas como 1 y 2 medallones, no como una opción", () => {
+    const one = { quantity: 1, product: { ingredients: [{ ingredient: { name: "Medallón" }, quantity: 1 }] },
+      addedExtras: [{ extra: { name: "Agregar 2 hamburguesas" } }] };
+    expect(countOrderPatties([one])).toBe(3);
+    expect(countOrderPatties([{ ...one, addedExtras: [{ extra: { name: "Agregar 1 hamburguesa" } }] }])).toBe(2);
+    expect(countOrderPatties([{ ...one, addedExtras: [{ extra: { name: "2 medallones" } }] }], "medallón")).toBe(3);
+    expect(countOrderPatties([{ ...one, addedExtras: [{ extra: { name: "Medallón x2" } }] }])).toBe(3);
+  });
+
+  it("no toma el gramaje como una cantidad y respeta número de productos", () => {
+    const order = [{ quantity: 2, product: { ingredients: [{ ingredient: { name: "Medallón 180g" }, quantity: 1 }] },
+      addedExtras: [{ extra: { name: "Medallón 180g" } }] }];
+    expect(countOrderPatties(order)).toBe(4);
+  });
+
 });
