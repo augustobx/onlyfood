@@ -1256,33 +1256,33 @@ export default function CheckoutPage() {
                   <Ticket className="w-3.5 h-3.5" /> ¿Aplicar un cupón de puntos?
                 </Label>
                 <div className="space-y-1.5">
-                  <div
+                  <button type="button" data-checkout-choice aria-pressed={selectedCoupon === null}
                     onClick={() => {
                       setSelectedCoupon(null);
                       setUserOptedOutCoupon(true);
                       dismissCoupon();
                     }}
-                    className={`p-2.5 rounded-xl border text-[11px] font-bold cursor-pointer transition-all flex items-center justify-between ${
+                    className={`w-full p-2.5 rounded-xl border text-[11px] text-left font-bold cursor-pointer transition-all flex items-center justify-between ${
                       selectedCoupon === null ? t.couponNone : t.couponInactive
                     }`}
                   >
                     <span>No aplicar cupón</span>
                     {selectedCoupon === null && <Check className="w-3.5 h-3.5" />}
-                  </div>
+                  </button>
 
                   {availableCoupons.map((coupon) => {
                     const isSelected = selectedCoupon?.id === coupon.id;
                     const compatible = !coupon.reward?.minTier ||
                       allowsTierBenefit(coupon.reward.minTier.paymentMode, formData.paymentMethod);
                     return (
-                      <div
-                        key={coupon.id}
+                      <button type="button" data-checkout-choice aria-pressed={isSelected}
+                        key={coupon.id} disabled={!compatible}
                         onClick={() => {
                           if (!compatible) return;
                           setSelectedCoupon(coupon);
                           setUserOptedOutCoupon(false);
                         }}
-                        className={`p-2.5 rounded-xl border text-[11px] transition-all flex items-center justify-between ${compatible ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
+                        className={`w-full p-2.5 rounded-xl border text-[11px] text-left transition-all flex items-center justify-between ${compatible ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
                           isSelected ? t.couponActive : t.couponInactive
                         }`}
                       >
@@ -1300,7 +1300,7 @@ export default function CheckoutPage() {
                           </span>}
                         </div>
                         {isSelected && <Check className="w-4 h-4 shrink-0" />}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
