@@ -71,10 +71,20 @@ export function countOrderPatties(items: PattyOrderItem[] | null | undefined, ke
       itemTotal += productPattyCount(comboItem.product, removedIds(comboItem.removedIngredients), comboMultiplier, keywords);
     }
 
-    const pattyExtras = (item.addedExtras || []).filter((entry) => {
-      const extraName = normalize(entry.extra?.name || "");
-      return keywords.some((keyword) => extraName.includes(keyword));
-    }).length;
+    const pattyExtras = (item.addedExtras || []).reduce((count, entry) => {
+      const name = normalize(entry.extra?.name || "");
+      // Algunos comercios llaman al extra "Agregar 2 hamburguesas", otros
+      // "2 medallones" o "Medallón x2". No confundir "180 g" con cantidad.
+      const isPattyExtra = keywords.some((keyword) => name.includes(keyword))
+        || /\b(?:hamburgues\w*|burger\w*)\b/.test(name);
+      if (!isPattyExtra) return count;
+      const match = name.match(/\b(?:x\s*(\d+)|(\d+)\s*x\b|(\d+)\s*(?:medallones?|hamburguesas?|burgers?)\b|(?:medallones?|hamburguesas?|burgers?)\s*x?\s*(\d+)\b)/)
+        || name.match(/\b(doble|triple)\s+(?:medallon|hamburguesa|burger)\b/);
+      const units = match ? (match[5] === "doble" ? 2 : match[5] === "triple" ? 3
+        : Number(match[1] || match[2] || match[3] || match[4])) : 1;
+      // No aceptar cifras arbitrarias (pesos o gramos), ni cantidades absurdas.
+      return count + (Number.isInteger(units) && units >= 1 && units <= 20 ? units : 1);
+    }, 0);
 
     return orderTotal + itemTotal + pattyExtras * itemQuantity;
   }, 0);
