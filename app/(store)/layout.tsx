@@ -2,6 +2,7 @@ import { Navbar } from "@/components/Navbar";
 import { MobilePwaNavigation } from "@/components/pwa/MobilePwaNavigation";
 import { getLoggedClient } from "@/lib/auth";
 import { ClientAccountOnboarding } from "@/components/ClientAccountOnboarding";
+import { OrderReviewPrompt } from "@/components/OrderReviewPrompt";
 import { getTenantContext, normalizeHostname } from "@/lib/tenant-context";
 import { createTenantDb } from "@/lib/tenant-db";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
@@ -178,6 +179,7 @@ export default async function StoreLayout({
       
       <Navbar config={config} />
       <ClientAccountOnboarding />
+      <OrderReviewPrompt tenantId={tenant.id} />
       <main className="store-main flex-1 w-full pb-20 sm:pb-0">
         {children}
       </main>
