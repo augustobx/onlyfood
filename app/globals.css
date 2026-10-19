@@ -185,3 +185,52 @@
   .store-shell .store-cart-bar { display: none !important; }
   .store-shell .store-footer { padding-bottom: 5.5rem; }
 }
+
+/* Checkout choice controls must preserve each theme's visible selected state.
+   High specificity beats global brand utility overrides (incl. NEXO). */
+[data-store-theme] .checkout-page [data-checkout-choice][aria-pressed="true"] {
+  background-color: var(--checkout-selected-bg, color-mix(in srgb, var(--brand-primary) 15%, white)) !important;
+  border-color: var(--checkout-selected-border, var(--brand-primary)) !important;
+  color: var(--checkout-selected-text, #172033) !important;
+  box-shadow: inset 0 0 0 1px var(--checkout-selected-border, var(--brand-primary)),
+    0 0 0 2px color-mix(in srgb, var(--checkout-selected-border, var(--brand-primary)) 22%, transparent) !important;
+}
+[data-store-theme] .checkout-page [data-checkout-choice][aria-pressed="true"]:disabled {
+  box-shadow: none !important;
+  opacity: .5;
+}
+[data-store-theme] .checkout-page [data-checkout-choice]:focus-visible {
+  outline: 2px solid var(--checkout-selected-border, var(--brand-primary)) !important;
+  outline-offset: 2px;
+}
+[data-store-theme="urban_dark"] .checkout-page,
+[data-store-theme="halloween"] .checkout-page {
+  --checkout-selected-bg: #372013;
+  --checkout-selected-border: #fb923c;
+  --checkout-selected-text: #fff1dc;
+}
+[data-store-theme="sushi_zen"] .checkout-page {
+  --checkout-selected-bg: #3f2930;
+  --checkout-selected-border: #fbbf24;
+  --checkout-selected-text: #fff7db;
+}
+[data-store-theme="arcade_kitchen"] .checkout-page {
+  --checkout-selected-bg: #fef08a;
+  --checkout-selected-border: #22d3ee;
+  --checkout-selected-text: #090625;
+}
+[data-store-theme="comic_food_pop"] .checkout-page {
+  --checkout-selected-bg: #ffe45e;
+  --checkout-selected-border: #17121f;
+  --checkout-selected-text: #17121f;
+}
+[data-store-theme="clean_boutique"] .checkout-page {
+  --checkout-selected-bg: #1c1917;
+  --checkout-selected-border: #1c1917;
+  --checkout-selected-text: #fafaf9;
+}
+[data-store-theme="nexo"] .checkout-page {
+  --checkout-selected-bg: color-mix(in srgb, var(--brand-primary) 16%, white);
+  --checkout-selected-border: var(--brand-primary);
+  --checkout-selected-text: #0f172a;
+}
