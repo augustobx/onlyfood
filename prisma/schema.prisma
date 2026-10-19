@@ -420,6 +420,7 @@ model Order {
   payments              PaymentRecord[]
   printDispatches       PrintDispatch[]
   whatsappNotifications WhatsAppNotification[]
+  review                 OrderReview?
 
   @@index([tenantId, createdAt])
   @@index([tenantId, trackingTokenHash])
@@ -431,6 +432,22 @@ model Order {
   @@index([status, createdAt])
   @@index([clientId])
   @@index([orderType, scheduledDate])
+}
+
+/** Una reseña por pedido, disponible únicamente luego de entregado. */
+model OrderReview {
+  id        String   @id @default(uuid())
+  tenantId  String
+  orderId   String   @unique
+  rating    Int
+  comment   String?  @db.VarChar(600)
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, rating])
 }
 
 model PrintDispatch {
@@ -911,6 +928,7 @@ model Tenant {
   ingredients            Ingredient[]
   extras                 Extra[]
   orders                 Order[]
+  orderReviews           OrderReview[]
   clients                Client[]
   clientSavedAddresses    ClientSavedAddress[]
   clientFavorites ClientFavorite[]
