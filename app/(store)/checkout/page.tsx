@@ -818,6 +818,7 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     disabled={!isImmediateAllowed}
+                    data-checkout-choice aria-pressed={formData.orderType === "IMMEDIATE"}
                     onClick={() => setFormData({ ...formData, orderType: "IMMEDIATE" })}
                     className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${
                       !isImmediateAllowed ? t.pillDisabled : formData.orderType === "IMMEDIATE" ? t.pillActive : t.pillInactive
@@ -835,6 +836,7 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     disabled={config?.allowScheduledTomorrow === false || (schedule.hasScheduledProducts && schedule.targetDateInfo?.dayOffset !== 1)}
+                    data-checkout-choice aria-pressed={formData.orderType === "SCHEDULED_TOMORROW"}
                     onClick={() => setFormData({ ...formData, orderType: "SCHEDULED_TOMORROW" })}
                     className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${
                       config?.allowScheduledTomorrow === false || (schedule.hasScheduledProducts && schedule.targetDateInfo?.dayOffset !== 1) ? t.pillDisabled : formData.orderType === "SCHEDULED_TOMORROW" ? t.pillActive : t.pillInactive
@@ -847,6 +849,7 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     disabled={config?.allowAdvanceOrders === false && !schedule.hasScheduledProducts}
+                    data-checkout-choice aria-pressed={formData.orderType === "CUSTOM_DATE"}
                     onClick={() => {
                       const minDays = config?.advanceOrderMinDays !== undefined && config?.advanceOrderMinDays !== null ? config.advanceOrderMinDays : 1;
                       setFormData({
