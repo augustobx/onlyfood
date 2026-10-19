@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 import { allowsTierBenefit } from "@/lib/tier-payment-policy";
+import { decodeGuestReviewReceipts, guestReviewKey } from "@/lib/order-review-policy";
 import {
   getClientSavedAddresses, upsertClientSavedAddress,
 } from "@/app/actions/client-addresses";
@@ -594,6 +595,20 @@ export default function CheckoutPage() {
       });
 
       if (result.success) {
+        // Para compradores sin cuenta conservamos SOLO los enlaces privados de
+        // pedidos para ofrecer la valoración al volver a abrir la PWA.
+        if (!loggedClient && config?.tenantId && result.trackingToken && result.orderId) {
+          try {
+            const key = guestReviewKey(config.tenantId);
+            const existing = decodeGuestReviewReceipts(localStorage.getItem(key));
+            const now = Date.now();
+            const ids = result.allOrderIds?.length ? result.allOrderIds : [result.orderId];
+            const receipts = ids.map(id => ({id, token:result.trackingToken!, createdAt:now}));
+            localStorage.setItem(key, JSON.stringify(
+              decodeGuestReviewReceipts(JSON.stringify([...receipts,...existing]),now)
+            ));
+          } catch { /* Navegadores sin almacenamiento siguen comprando normalmente. */ }
+        }
         if (formData.paymentMethod === "MP" && result.mpInitPoint) {
           toast.loading("Redirigiendo a Mercado Pago...", { duration: 3000 });
           checkoutCompletedRef.current = true;
