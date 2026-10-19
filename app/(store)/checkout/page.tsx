@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { analyzeCartSchedule, WEEK_DAYS } from "@/lib/weekly-menu";
 import { useQuantityDiscountPreview } from "@/lib/use-quantity-discount";
 import { allowsTierBenefit } from "@/lib/tier-payment-policy";
+import { decodeGuestReviewReceipts, guestReviewKey } from "@/lib/order-review-policy";
 import {
   getClientSavedAddresses, upsertClientSavedAddress,
 } from "@/app/actions/client-addresses";
@@ -594,6 +595,20 @@ export default function CheckoutPage() {
       });
 
       if (result.success) {
+        // Para compradores sin cuenta conservamos SOLO los enlaces privados de
+        // pedidos para ofrecer la valoración al volver a abrir la PWA.
+        if (!loggedClient && config?.tenantId && result.trackingToken && result.orderId) {
+          try {
+            const key = guestReviewKey(config.tenantId);
+            const existing = decodeGuestReviewReceipts(localStorage.getItem(key));
+            const now = Date.now();
+            const ids = result.allOrderIds?.length ? result.allOrderIds : [result.orderId];
+            const receipts = ids.map(id => ({id, token:result.trackingToken!, createdAt:now}));
+            localStorage.setItem(key, JSON.stringify(
+              decodeGuestReviewReceipts(JSON.stringify([...receipts,...existing]),now)
+            ));
+          } catch { /* Navegadores sin almacenamiento siguen comprando normalmente. */ }
+        }
         if (formData.paymentMethod === "MP" && result.mpInitPoint) {
           toast.loading("Redirigiendo a Mercado Pago...", { duration: 3000 });
           checkoutCompletedRef.current = true;
@@ -717,7 +732,8 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <div className={`checkout-page max-w-xl mx-auto px-3.5 sm:px-6 pb-10 pt-4 sm:pt-6 ${t.page}`}>
+      <div className={`checkout-page max-w-xl mx-auto px-3.5 sm:px-6 pb-10 pt-4 sm:pt-6 ${t.page}`}
+        data-checkout-theme={theme.toLowerCase()}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
           <button
@@ -817,6 +833,7 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     disabled={!isImmediateAllowed}
+                    data-checkout-choice aria-pressed={formData.orderType === "IMMEDIATE"}
                     onClick={() => setFormData({ ...formData, orderType: "IMMEDIATE" })}
                     className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${
                       !isImmediateAllowed ? t.pillDisabled : formData.orderType === "IMMEDIATE" ? t.pillActive : t.pillInactive
@@ -834,6 +851,7 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     disabled={config?.allowScheduledTomorrow === false || (schedule.hasScheduledProducts && schedule.targetDateInfo?.dayOffset !== 1)}
+                    data-checkout-choice aria-pressed={formData.orderType === "SCHEDULED_TOMORROW"}
                     onClick={() => setFormData({ ...formData, orderType: "SCHEDULED_TOMORROW" })}
                     className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${
                       config?.allowScheduledTomorrow === false || (schedule.hasScheduledProducts && schedule.targetDateInfo?.dayOffset !== 1) ? t.pillDisabled : formData.orderType === "SCHEDULED_TOMORROW" ? t.pillActive : t.pillInactive
@@ -846,6 +864,7 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     disabled={config?.allowAdvanceOrders === false && !schedule.hasScheduledProducts}
+                    data-checkout-choice aria-pressed={formData.orderType === "CUSTOM_DATE"}
                     onClick={() => {
                       const minDays = config?.advanceOrderMinDays !== undefined && config?.advanceOrderMinDays !== null ? config.advanceOrderMinDays : 1;
                       setFormData({
@@ -944,7 +963,7 @@ export default function CheckoutPage() {
 
               <div className="grid grid-cols-2 gap-2.5">
                 <button type="button"
-                  aria-pressed={fulfillmentChoice === "DELIVERY"}
+                  data-checkout-choice aria-pressed={fulfillmentChoice === "DELIVERY"}
                   onClick={() => chooseFulfillment("DELIVERY")}
                   className={`relative flex min-h-[132px] flex-col items-start gap-1.5 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 sm:p-4 ${
                     fulfillmentChoice === "DELIVERY" ? t.pillActive : t.pillInactive
@@ -962,7 +981,7 @@ export default function CheckoutPage() {
                   </span>
                 </button>
                 <button type="button"
-                  aria-pressed={fulfillmentChoice === "PICKUP"}
+                  data-checkout-choice aria-pressed={fulfillmentChoice === "PICKUP"}
                   onClick={() => chooseFulfillment("PICKUP")}
                   className={`relative flex min-h-[132px] flex-col items-start gap-1.5 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 sm:p-4 ${
                     fulfillmentChoice === "PICKUP" ? t.pillActive : t.pillInactive
@@ -1008,7 +1027,7 @@ export default function CheckoutPage() {
                           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {savedAddresses.map(item => (
                               <button key={item.id} type="button"
-                                aria-pressed={selectedSavedAddressId === item.id}
+                                data-checkout-choice aria-pressed={selectedSavedAddressId === item.id}
                                 onClick={() => applySavedAddress(item)}
                                 className={`flex min-w-0 items-start gap-2 rounded-xl border-2 p-3 text-left transition-colors ${
                                   selectedSavedAddressId === item.id ? t.pillActive : t.pillInactive
@@ -1138,7 +1157,7 @@ export default function CheckoutPage() {
                     const selected = formData.deliverySlotId === slot.id;
                     return (
                       <button type="button" key={slot.id} disabled={!available}
-                        aria-pressed={selected}
+                        data-checkout-choice aria-pressed={selected}
                         onClick={() => setFormData(prev => ({
                           ...prev, deliverySlotId: slot.id, scheduledTime: slot.time,
                         }))}
@@ -1183,7 +1202,7 @@ export default function CheckoutPage() {
               ) : (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {config?.paymentCash !== false && (
-                    <button type="button" aria-pressed={formData.paymentMethod === "CASH"}
+                    <button type="button" data-checkout-choice aria-pressed={formData.paymentMethod === "CASH"}
                       onClick={() => setFormData(prev => ({ ...prev, paymentMethod: "CASH" }))}
                       className={`flex min-h-[76px] items-center gap-2 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${
                         formData.paymentMethod === "CASH" ? t.pillActive : t.pillInactive
@@ -1197,7 +1216,7 @@ export default function CheckoutPage() {
                     </button>
                   )}
                   {config?.paymentMp !== false && (
-                    <button type="button" aria-pressed={formData.paymentMethod === "MP"}
+                    <button type="button" data-checkout-choice aria-pressed={formData.paymentMethod === "MP"}
                       onClick={() => setFormData(prev => ({ ...prev, paymentMethod: "MP" }))}
                       className={`flex min-h-[76px] items-center gap-2 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${
                         formData.paymentMethod === "MP" ? t.pillActive : t.pillInactive
@@ -1211,7 +1230,7 @@ export default function CheckoutPage() {
                     </button>
                   )}
                   {config?.paymentTransfer === true && (
-                    <button type="button" aria-pressed={formData.paymentMethod === "TRANSFER"}
+                    <button type="button" data-checkout-choice aria-pressed={formData.paymentMethod === "TRANSFER"}
                       onClick={() => setFormData(prev => ({ ...prev, paymentMethod: "TRANSFER" }))}
                       className={`flex min-h-[76px] items-center gap-2 rounded-2xl border-2 p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${formData.paymentMethod === "TRANSFER" ? t.pillActive : t.pillInactive}`}>
                       <Banknote className="h-6 w-6 shrink-0" aria-hidden="true"/>
