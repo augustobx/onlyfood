@@ -12,6 +12,7 @@ type PlannerMessenger = { id: string; name: string; isActive: boolean };
 
 export function DeliveryBatchPlanner({orders,messengers}:{orders:PlannerOrder[],messengers:PlannerMessenger[]}) {
  const eligible=useMemo(()=>orders.filter(canPlanDelivery),[orders]);
+ const eligibleSignature=eligible.map(o=>[o.id,o.status,o.paymentStatus,o.deliveryAddress,o.deliveryTime].join(":")).join("|");
  const [selected,setSelected]=useState<string[]>([]);
  const [messengerId,setMessengerId]=useState("");
  const [busy,setBusy]=useState(false);
@@ -20,7 +21,9 @@ export function DeliveryBatchPlanner({orders,messengers}:{orders:PlannerOrder[],
    const ids=new Set(eligible.map(o=>o.id));
    setSelected(prev=>prev.filter(id=>ids.has(id)));
    setPrepared(null);
- },[eligible]);
+ // Evita borrar un mensaje preparado cada vez que el tablero se refresca
+ // si los pedidos siguen teniendo los mismos datos.
+ },[eligibleSignature]);
  const toggle=(id:string)=>{setSelected(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id].slice(0,15));setPrepared(null)};
  const prepare=async()=>{
    if(!messengerId || !selected.length){toast.error("Elegí un cadete y al menos un pedido.");return;}
