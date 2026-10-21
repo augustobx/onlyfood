@@ -136,6 +136,7 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
 
           <div className="mb-5 space-y-1 text-sm leading-snug">
             <p><strong>Orden:</strong> #{order.id.slice(-5).toUpperCase()}</p>
+            <p className="text-base font-black uppercase">CLIENTE: {order.clientName}</p>
             <p><strong>Fecha:</strong> {new Date(order.createdAt).toLocaleString("es-AR")}</p>
             <p><strong>TIPO:</strong> {order.needsDelivery ? "ENVÍO" : "RETIRO AL MOSTRADOR"}</p>
             <p><strong>Hora Est.:</strong> {order.deliveryTime}</p>

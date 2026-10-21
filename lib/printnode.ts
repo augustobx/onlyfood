@@ -71,6 +71,7 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
   const blocks: TextBlock[] = [
     { text: "COCINA", size: 14, bold: true, align: "center" },
     { text: `#${orderCode(order)}`, size: 14, bold: true, align: "center" },
+    { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 12, bold: true, align: "center", after: 1 },
     { text: order.deliveryTime || "HORARIO NO INFORMADO", size: 14, bold: true, align: "center", after: 1 },
     { text: order.needsDelivery ? "ENVIO" : "RETIRO", size: 10, bold: true, align: "center", after: 1 },
     { type: "separator", after: 1 },
