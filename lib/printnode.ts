@@ -71,7 +71,6 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     { text: "COCINA", size: 14, bold: true, align: "center" },
     { text: `#${orderCode(order)}`, size: 14, bold: true, align: "center" },
     { text: order.deliveryTime || "HORARIO NO INFORMADO", size: 14, bold: true, align: "center", after: 1 },
-    { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 10, bold: true, align: "center", after: 1 },
     { text: order.needsDelivery ? "ENVIO" : "RETIRO", size: 10, bold: true, align: "center", after: 1 },
     { type: "separator", after: 1 },
   ];
@@ -83,7 +82,7 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     if (item.addedExtras.length) blocks.push({ text: `+ EXTRA: ${item.addedExtras.map((extra) => extra.extra.name).join(", ")}`, bold: true, after: 1 });
     if (item.removedIngredients.length) blocks.push({ text: `- SIN: ${item.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, size: 10, bold: true, after: 1 });
     for (const comboItem of item.comboItems) {
-      const qtyOrPieces = (comboItem as any).pieces && (comboItem as any).pieces > 0 ? `${(comboItem as any).pieces} PIEZAS` : `${comboItem.quantity}x`;
+      const qtyOrPieces = (comboItem as any).pieces && (comboItem as any).pieces > 0 ? `${(comboItem as any).pieces} PIEZAS` : `${comboItem.quantity * item.quantity}x`;
       const burger = burgers.find((line) => line.source === item.product.name && line.name === comboItem.product.name);
       blocks.push({ text: `${qtyOrPieces} ${comboItem.product.name.toUpperCase()}${burger ? ` — ${burger.size}` : ""}`, bold: true, before: 1, after: 1 });
       if (comboItem.removedIngredients.length) {
