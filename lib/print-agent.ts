@@ -66,7 +66,7 @@ export async function leaseNextPrintAgentJob(device: { id: string; tenantId: str
   return prisma.$transaction(async (tx) => {
     const exhausted = await tx.printAgentJob.findMany({
       where: { tenantId: device.tenantId, status: "LEASED", leaseUntil: { lte: now }, attempts: { gte: 3 } },
-      select: { id: true, orderId: true, destination: true },
+      select: { id: true, orderId: true, destination: true, idempotencyKey: true },
     });
     if (exhausted.length) {
       await tx.printAgentJob.updateMany({
@@ -76,7 +76,7 @@ export async function leaseNextPrintAgentJob(device: { id: string; tenantId: str
       for (const job of exhausted) {
         if (job.orderId && ["KITCHEN", "COUNTER"].includes(job.destination)) {
           await tx.printDispatch.updateMany({
-            where: { tenantId: device.tenantId, orderId: job.orderId, kind: job.destination },
+            where: { tenantId: device.tenantId, orderId: job.orderId, kind: job.idempotencyKey.includes("-ASSEMBLY-") ? "ASSEMBLY" : job.destination },
             data: { status: "FAILED", error: "El agente perdió la conexión durante tres intentos." },
           });
         }
@@ -112,7 +112,7 @@ export async function acknowledgePrintAgentJob(device: { id: string; tenantId: s
     });
     if (job.orderId && ["KITCHEN", "COUNTER"].includes(job.destination)) {
       await tx.printDispatch.updateMany({
-        where: { tenantId: device.tenantId, orderId: job.orderId, kind: job.destination },
+        where: { tenantId: device.tenantId, orderId: job.orderId, kind: job.idempotencyKey.includes("-ASSEMBLY-") ? "ASSEMBLY" : job.destination },
         data: { status: success ? "SENT" : retry ? "PENDING" : "FAILED", error: success ? null : (error || "Error del agente.").slice(0, 2000) },
       });
     }
