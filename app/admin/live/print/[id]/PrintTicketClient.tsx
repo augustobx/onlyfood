@@ -136,7 +136,6 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
           <div className="mb-5 space-y-1 text-sm leading-snug">
             <p><strong>Orden:</strong> #{order.id.slice(-5).toUpperCase()}</p>
             <p><strong>Fecha:</strong> {new Date(order.createdAt).toLocaleString("es-AR")}</p>
-            <p><strong>Cliente:</strong> {order.clientName}</p>
             <p><strong>TIPO:</strong> {order.needsDelivery ? "ENVÍO" : "RETIRO AL MOSTRADOR"}</p>
             <p><strong>Hora Est.:</strong> {order.deliveryTime}</p>
           </div>
@@ -151,7 +150,7 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
                   <div className="pl-2 my-1 space-y-0.5 text-xs">
                     {item.comboItems.map((ci: any, cidx: number) => (
                       <div key={cidx} className="font-bold">
-                        <span>• {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity}x`} {ci.product.name} {burgerAssemblyLines([{ quantity: item.quantity, product: item.product, comboItems: [ci] }], config?.kitchenPattyKeywords)[0]?.size || ""}</span>
+                        <span>• {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity * item.quantity}x`} {ci.product.name} {burgerAssemblyLines([{ quantity: item.quantity, product: item.product, comboItems: [ci] }], config?.kitchenPattyKeywords)[0]?.size || ""}</span>
                         {ci.removedIngredients?.length > 0 && (
                           <span className="block pl-2 text-[11px] font-black uppercase text-red-700">- SIN: {ci.removedIngredients.map((ri: any) => ri.ingredient.name).join(", ")}</span>
                         )}
