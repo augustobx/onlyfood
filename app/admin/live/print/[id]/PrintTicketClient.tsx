@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
 import { countOrderBuns } from "@/lib/bun-count";
 import { burgerAssemblyLines } from "@/lib/burger-ticket";
+import { assemblyWarnings, burgerPrintName } from "@/lib/thermal-ticket-format";
 
 function TicketLogo({ src, appName }: { src: string; appName: string }) {
   return (
@@ -144,13 +145,13 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
             {order.items.map((item: any, index: number) => (
               <div key={index} className="space-y-1 py-3">
                 <div className="flex justify-between text-base font-black leading-snug">
-                  <span>{item.quantity}x {item.product.name} {burgerAssemblyLines([{ ...item, comboItems: [] }], config?.kitchenPattyKeywords)[0]?.size || ""}</span>
+                  <span>{item.quantity}x {burgerPrintName(item.product.name, burgerAssemblyLines([{ ...item, comboItems: [] }], config?.kitchenPattyKeywords)[0]?.size || "")}</span>
                 </div>
                 {item.comboItems?.length > 0 && (
                   <div className="pl-2 my-1 space-y-0.5 text-xs">
                     {item.comboItems.map((ci: any, cidx: number) => (
                       <div key={cidx} className="font-bold">
-                        <span>• {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity * item.quantity}x`} {ci.product.name} {burgerAssemblyLines([{ quantity: item.quantity, product: item.product, comboItems: [ci] }], config?.kitchenPattyKeywords)[0]?.size || ""}</span>
+                        <span>• {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity * item.quantity}x`} {burgerPrintName(ci.product.name, burgerAssemblyLines([{ quantity: item.quantity, product: item.product, comboItems: [ci] }], config?.kitchenPattyKeywords)[0]?.size || "")}</span>
                         {ci.removedIngredients?.length > 0 && (
                           <span className="block pl-2 text-[11px] font-black uppercase text-red-700">- SIN: {ci.removedIngredients.map((ri: any) => ri.ingredient.name).join(", ")}</span>
                         )}
@@ -255,10 +256,11 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
               <div className="divide-y divide-dashed divide-black">
                 {burgers.map((burger, idx) => (
                   <div key={idx} className="space-y-1 py-3 text-sm">
-                    <p className="font-black text-base">{burger.quantity}x {burger.name.toUpperCase()} — {burger.size}</p>
+                    <p className="font-black text-base">{burger.quantity}x {burgerPrintName(burger.name.toUpperCase(), burger.size)}</p>
                     {burger.source && <p className="text-xs">COMBO: {burger.source}</p>}
-                    {burger.removed.length > 0 && <p className="border-2 border-black p-1 font-black uppercase">!!! SIN: {burger.removed.join(", ")} !!!</p>}
-                    {!burger.hasBun && <p className="font-black">!!! SIN PAN !!!</p>}
+                    {assemblyWarnings(burger).map((warning, warningIndex) => (
+                      <p key={warningIndex} className="border-l-4 border-black pl-2 font-black uppercase">{warning}</p>
+                    ))}
                     {burger.extras.length > 0 && <p className="font-bold">+ AGREGADOS: {burger.extras.join(", ")}</p>}
                     {burger.notes && <p className="font-bold uppercase">NOTA: {burger.notes}</p>}
                   </div>

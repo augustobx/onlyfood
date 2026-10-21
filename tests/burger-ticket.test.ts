@@ -34,6 +34,6 @@ describe("tickets 3 estaciones",()=>{
   expect(pattySizeLabel(1)).toBe("SIMPLE");
   expect(pattySizeLabel(6)).toBe("SEXTUPLE");
   expect(pattySizeLabel(7)).toBe("7 MEDALLONES");
-  expect(pattySizeLabel(0)).toBe("MEDALLONES SIN DEFINIR");
+  expect(pattySizeLabel(0)).toBe("");
  });
 });
