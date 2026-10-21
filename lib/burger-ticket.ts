@@ -34,7 +34,7 @@ function burgerProduct(product: Product, keywords?: string | null) {
 export function pattySizeLabel(patties: number): string {
   const rounded = Math.round(patties * 100)/100;
   const names: Record<number,string> = {1:"SIMPLE",2:"DOBLE",3:"TRIPLE",4:"CUADRUPLE",5:"QUINTUPLE",6:"SEXTUPLE"};
-  if (!Number.isFinite(rounded) || rounded<=0) return "MEDALLONES SIN DEFINIR";
+  if (!Number.isFinite(rounded) || rounded <= 0) return ""; // No inventar un tamaño cuando se quitaron todos los medallones o falta receta.
   return names[rounded] || `${rounded.toLocaleString("es-AR")} MEDALLONES`;
 }
 function line(product: Product, qty: number, removed?: Removed[] | null, addedExtras?: Extra[] | null,
