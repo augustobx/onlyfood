@@ -7,8 +7,9 @@ import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
 import { countOrderBuns } from "@/lib/bun-count";
+import { burgerAssemblyLines } from "@/lib/burger-ticket";
 
-export type PrintKind = "KITCHEN" | "COUNTER";
+export type PrintKind = "KITCHEN" | "COUNTER" | "ASSEMBLY";
 
 type TextBlock = {
   type?: "text";
@@ -76,12 +77,15 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
   ];
   order.items.forEach((item, itemIndex) => {
     if (itemIndex > 0) blocks.push({ type: "separator", before: 1, after: 1 });
-    blocks.push({ text: `${item.quantity}x ${item.product.name.toUpperCase()}`, size: 10, bold: true, after: 1 });
+    const burgers = burgerAssemblyLines([item], pattyOptions.keywords);
+    const ownBurger = burgers.find((line) => !line.source);
+    blocks.push({ text: `${item.quantity}x ${item.product.name.toUpperCase()}${ownBurger ? ` — ${ownBurger.size}` : ""}`, size: 10, bold: true, after: 1 });
     if (item.addedExtras.length) blocks.push({ text: `+ EXTRA: ${item.addedExtras.map((extra) => extra.extra.name).join(", ")}`, bold: true, after: 1 });
     if (item.removedIngredients.length) blocks.push({ text: `- SIN: ${item.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, size: 10, bold: true, after: 1 });
     for (const comboItem of item.comboItems) {
       const qtyOrPieces = (comboItem as any).pieces && (comboItem as any).pieces > 0 ? `${(comboItem as any).pieces} PIEZAS` : `${comboItem.quantity}x`;
-      blocks.push({ text: `${qtyOrPieces} ${comboItem.product.name.toUpperCase()}`, bold: true, before: 1, after: 1 });
+      const burger = burgers.find((line) => line.source === item.product.name && line.name === comboItem.product.name);
+      blocks.push({ text: `${qtyOrPieces} ${comboItem.product.name.toUpperCase()}${burger ? ` — ${burger.size}` : ""}`, bold: true, before: 1, after: 1 });
       if (comboItem.removedIngredients.length) {
         blocks.push({ text: `- SIN: ${comboItem.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, bold: true, after: 1 });
       }
@@ -100,6 +104,28 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     }
   }
   blocks.push({ type: "separator", before: 1 }, { text: `PEDIDO #${orderCode(order)}`, bold: true, align: "center" });
+  return blocks;
+}
+
+function assemblyBlocks(order: PrintableOrder, options: KitchenPattyOptions = {}): TextBlock[] {
+  const burgers = burgerAssemblyLines(order.items, options.keywords);
+  if (!burgers.length) return [];
+  const blocks: TextBlock[] = [
+    { text: "ARMADO DE HAMBURGUESAS", size: 14, bold: true, align: "center" },
+    { text: `PEDIDO #${orderCode(order)}`, size: 14, bold: true, align: "center", after: 1 },
+    { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 14, bold: true, align: "center", after: 1 },
+    { type: "separator", before: 1, after: 1 },
+  ];
+  for (const burger of burgers) {
+    blocks.push({ text: `${burger.quantity}x ${burger.name.toUpperCase()} — ${burger.size}`, size: 10, bold: true, before: 1 });
+    if (burger.source) blocks.push({ text: `DEL COMBO: ${burger.source}` });
+    if (burger.removed.length) blocks.push({ text: `!!! SIN: ${burger.removed.join(", ").toUpperCase()} !!!`, size: 10, bold: true });
+    if (!burger.hasBun) blocks.push({ text: "!!! SIN PAN !!!", size: 10, bold: true });
+    if (burger.extras.length) blocks.push({ text: `+ AGREGADOS: ${burger.extras.join(", ")}`, bold: true });
+    if (burger.notes) blocks.push({ text: `NOTA: ${burger.notes.toUpperCase()}`, bold: true });
+    blocks.push({ type: "separator", after: 1 });
+  }
+  blocks.push({ text: `TOTAL PANES: ${countOrderBuns(order.items, options.keywords)}`, size: 14, bold: true, align: "center", before: 1 });
   return blocks;
 }
 
@@ -214,7 +240,7 @@ async function rasterLogo(logoUrl: string | null, rollSize: string | null) {
 
 async function createTicketRaw(order: PrintableOrder, kind: PrintKind, rollSize: string | null, logoUrl: string | null, pattyOptions: KitchenPattyOptions = {}) {
   const normalColumns = rollSize === "58mm" ? 32 : 42;
-  const blocks = kind === "KITCHEN" ? kitchenBlocks(order, pattyOptions) : counterBlocks(order, normalColumns);
+  const blocks = kind === "KITCHEN" ? kitchenBlocks(order, pattyOptions) : kind === "ASSEMBLY" ? assemblyBlocks(order, pattyOptions) : counterBlocks(order, normalColumns);
   const chunks: Buffer[] = [
     Buffer.from([ESC, 0x40]), // Inicializar impresora.
     Buffer.from([ESC, 0x32]), // Interlineado normal.
