@@ -370,10 +370,13 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
 
   if (config.printingMode === "NANOLABS_AGENT") {
     const { enqueuePrintAgentJob } = await import("@/lib/print-agent");
-    const targets = [
-      { kind: "KITCHEN" as const, rollSize: config.printerKitchenSize },
-      { kind: "COUNTER" as const, rollSize: config.printerCounterSize },
+    const targets: Array<{kind: PrintKind; rollSize: string | null}> = [
+      { kind: "KITCHEN", rollSize: config.printerKitchenSize },
+      { kind: "COUNTER", rollSize: config.printerCounterSize },
     ];
+    if (config.assemblyPrintEnabled && burgerAssemblyLines(order.items, config.kitchenPattyKeywords).length) {
+      targets.push({kind: "ASSEMBLY", rollSize: config.printerKitchenSize});
+    }
     const jobs: Array<{ kind: PrintKind; success: boolean; jobId?: string; error?: string }> = [];
     for (const target of targets) {
       const existing = await prisma.printDispatch.findUnique({ where: { orderId_kind: { orderId, kind: target.kind } } });
@@ -389,11 +392,11 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
       });
       try {
         const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl, {
-          enabled: config.kitchenPattyCountEnabled,
+          enabled: config.kitchenPattyCountEnabled || config.assemblyPrintEnabled,
           keywords: config.kitchenPattyKeywords,
         });
         const idempotencyKey = options.force ? `onlyfood-agent-${orderId}-${target.kind}-manual-${attempt}` : `onlyfood-agent-${orderId}-${target.kind}-auto`;
-        const queued = await enqueuePrintAgentJob({ tenantId, orderId, destination: target.kind, title: `${config.appName} #${orderCode(order)} ${target.kind}`, payload: rawTicket, widthMm: target.rollSize === "58mm" ? 58 : 80, idempotencyKey });
+        const queued = await enqueuePrintAgentJob({ tenantId, orderId, destination: target.kind === "ASSEMBLY" ? "KITCHEN" : target.kind, title: `${config.appName} #${orderCode(order)} ${target.kind}`, payload: rawTicket, widthMm: target.rollSize === "58mm" ? 58 : 80, idempotencyKey });
         jobs.push({ kind: target.kind, success: true, jobId: queued.id });
       } catch (error) {
         const message = error instanceof Error ? error.message : "No se pudo encolar la impresión.";
@@ -420,10 +423,14 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
     return { success: true, skipped: true, jobs: [] as Array<{ kind: PrintKind; success: boolean; error?: string }> };
   }
 
-  const targets = [
-    { kind: "KITCHEN" as const, printerId: config.printNodeKitchenPrinterId, rollSize: config.printerKitchenSize },
-    { kind: "COUNTER" as const, printerId: config.printNodeCounterPrinterId, rollSize: config.printerCounterSize },
+  const targets: Array<{kind: PrintKind; printerId: number | null; rollSize: string | null}> = [
+    { kind: "KITCHEN", printerId: config.printNodeKitchenPrinterId, rollSize: config.printerKitchenSize },
+    { kind: "COUNTER", printerId: config.printNodeCounterPrinterId, rollSize: config.printerCounterSize },
   ];
+  if (config.assemblyPrintEnabled && burgerAssemblyLines(order.items, config.kitchenPattyKeywords).length) {
+    targets.push({kind:"ASSEMBLY", printerId: config.printNodeAssemblyPrinterId || config.printNodeKitchenPrinterId,
+      rollSize: config.printerKitchenSize});
+  }
   const jobs: Array<{ kind: PrintKind; success: boolean; jobId?: number | null; error?: string }> = [];
 
   for (const target of targets) {
@@ -444,7 +451,7 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
     });
     try {
       const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl, {
-        enabled: config.kitchenPattyCountEnabled,
+        enabled: config.kitchenPattyCountEnabled || config.assemblyPrintEnabled,
         keywords: config.kitchenPattyKeywords,
       });
       const key = options.force ? `onlyfood-raw-${orderId}-${target.kind}-manual-${attempt}` : `onlyfood-raw-${orderId}-${target.kind}-auto`;
