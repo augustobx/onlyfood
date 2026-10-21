@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
 import { countOrderBuns } from "@/lib/bun-count";
+import { burgerAssemblyLines } from "@/lib/burger-ticket";
 
 function TicketLogo({ src, appName }: { src: string; appName: string }) {
   return (
@@ -18,11 +19,13 @@ function TicketLogo({ src, appName }: { src: string; appName: string }) {
   );
 }
 
-export function PrintTicketClient({ order, config }: { order: any; config: any }) {
-  const paperWidth = config?.printerCounterSize === "58mm" ? "58mm" : "80mm";
+export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order: any; config: any; ticketKind?: "ALL" | "KITCHEN" | "COUNTER" | "ASSEMBLY" }) {
+  const burgers = burgerAssemblyLines(order.items, config?.kitchenPattyKeywords);
+  const printAssembly = Boolean(config?.assemblyPrintEnabled && burgers.length);
+  const paperWidth = (ticketKind === "COUNTER" || ticketKind === "ALL" ? config?.printerCounterSize : config?.printerKitchenSize) === "58mm" ? "58mm" : "80mm";
   const paperWidthMm = paperWidth === "58mm" ? 58 : 80;
   const logoUrl = config?.logoUrl || null;
-  const pattyCount = config?.kitchenPattyCountEnabled
+  const pattyCount = config?.kitchenPattyCountEnabled || config?.assemblyPrintEnabled
     ? countOrderPatties(order.items, config.kitchenPattyKeywords)
     : null;
   const bunCount = countOrderBuns(order.items, config?.kitchenPattyKeywords);
@@ -109,12 +112,21 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
         }
       ` }} />
 
+      <nav className="print:hidden mx-auto my-2 flex max-w-xl flex-wrap items-center justify-center gap-2 rounded-xl bg-slate-100 p-2 text-sm text-black" aria-label="Reimprimir tickets">
+        {(["ALL","COUNTER","KITCHEN",...(printAssembly?["ASSEMBLY"]:[])] as string[]).map((kind) => (
+          <a key={kind} href={`/admin/live/print/${order.id}${kind === "ALL" ? "" : "?kind="+kind}`}
+            className={`rounded-lg border px-3 py-2 font-bold ${kind === ticketKind ? "border-orange-500 bg-orange-100" : "border-slate-300 bg-white"}`}>
+            {kind==="ALL"?"Todos":kind==="COUNTER"?"Cliente":kind==="KITCHEN"?"Cocina":"Armado"}
+          </a>
+        ))}
+      </nav>
+
       <div
         data-print-ticket
         className="mx-auto bg-white font-mono text-xs leading-tight text-black"
         style={{ width: paperWidth, maxWidth: paperWidth }}
       >
-        <section className="ticket-section p-3">
+        {(ticketKind === "ALL" || ticketKind === "KITCHEN") && <section className="ticket-section p-3">
           <div className="mb-4 text-center">
             {logoUrl && <TicketLogo src={logoUrl} appName={config?.appName || "Comercio"} />}
             <h1 className="text-xl font-black">{config?.appName || "NFOOD"}</h1>
@@ -124,7 +136,6 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
           <div className="mb-5 space-y-1 text-sm leading-snug">
             <p><strong>Orden:</strong> #{order.id.slice(-5).toUpperCase()}</p>
             <p><strong>Fecha:</strong> {new Date(order.createdAt).toLocaleString("es-AR")}</p>
-            <p><strong>Cliente:</strong> {order.clientName}</p>
             <p><strong>TIPO:</strong> {order.needsDelivery ? "ENVÍO" : "RETIRO AL MOSTRADOR"}</p>
             <p><strong>Hora Est.:</strong> {order.deliveryTime}</p>
           </div>
@@ -133,13 +144,13 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
             {order.items.map((item: any, index: number) => (
               <div key={index} className="space-y-1 py-3">
                 <div className="flex justify-between text-base font-black leading-snug">
-                  <span>{item.quantity}x {item.product.name}</span>
+                  <span>{item.quantity}x {item.product.name} {burgerAssemblyLines([{ ...item, comboItems: [] }], config?.kitchenPattyKeywords)[0]?.size || ""}</span>
                 </div>
                 {item.comboItems?.length > 0 && (
                   <div className="pl-2 my-1 space-y-0.5 text-xs">
                     {item.comboItems.map((ci: any, cidx: number) => (
                       <div key={cidx} className="font-bold">
-                        <span>• {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity}x`} {ci.product.name}</span>
+                        <span>• {ci.pieces && ci.pieces > 0 ? `${ci.pieces} piezas` : `${ci.quantity * item.quantity}x`} {ci.product.name} {burgerAssemblyLines([{ quantity: item.quantity, product: item.product, comboItems: [ci] }], config?.kitchenPattyKeywords)[0]?.size || ""}</span>
                         {ci.removedIngredients?.length > 0 && (
                           <span className="block pl-2 text-[11px] font-black uppercase text-red-700">- SIN: {ci.removedIngredients.map((ri: any) => ri.ingredient.name).join(", ")}</span>
                         )}
@@ -164,11 +175,11 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
               {bunCount > 0 && <p>TOTAL PANES: {bunCount}</p>}
             </div>
           )}
-        </section>
+        </section>}
 
-        <div className="mx-3 border-t-2 border-dashed border-black py-2 text-center text-[9px] font-bold">CORTE AQUÍ</div>
+        {ticketKind === "ALL" && <div className="mx-3 border-t-2 border-dashed border-black py-2 text-center text-[9px] font-bold">CORTE AQUÍ</div>}
 
-        <section className="ticket-section p-3">
+        {(ticketKind === "ALL" || ticketKind === "COUNTER") && <section className="ticket-section p-3">
           <div className="mb-4 text-center">
             {logoUrl && <TicketLogo src={logoUrl} appName={config?.appName || "Comercio"} />}
             <h1 className="text-xl font-black">{config?.appName || "NFOOD"}</h1>
@@ -230,7 +241,33 @@ export function PrintTicketClient({ order, config }: { order: any; config: any }
             <p>¡Muchas gracias por su compra!</p>
             <p>---------------</p>
           </div>
-        </section>
+        </section>}
+
+        {printAssembly && (ticketKind === "ALL" || ticketKind === "ASSEMBLY") && (
+          <>
+            {ticketKind === "ALL" && <div className="mx-3 border-t-2 border-dashed border-black py-2 text-center text-[9px] font-bold">CORTE AQUÍ</div>}
+            <section className="ticket-section p-3">
+              <div className="mb-4 border-b border-dashed border-black pb-2 text-center">
+                <h2 className="text-lg font-black">ARMADO DE HAMBURGUESAS</h2>
+                <p className="text-base font-black">PEDIDO #{order.id.slice(-5).toUpperCase()}</p>
+                <p className="text-base font-black">CLIENTE: {order.clientName}</p>
+              </div>
+              <div className="divide-y divide-dashed divide-black">
+                {burgers.map((burger, idx) => (
+                  <div key={idx} className="space-y-1 py-3 text-sm">
+                    <p className="font-black text-base">{burger.quantity}x {burger.name.toUpperCase()} — {burger.size}</p>
+                    {burger.source && <p className="text-xs">COMBO: {burger.source}</p>}
+                    {burger.removed.length > 0 && <p className="border-2 border-black p-1 font-black uppercase">!!! SIN: {burger.removed.join(", ")} !!!</p>}
+                    {!burger.hasBun && <p className="font-black">!!! SIN PAN !!!</p>}
+                    {burger.extras.length > 0 && <p className="font-bold">+ AGREGADOS: {burger.extras.join(", ")}</p>}
+                    {burger.notes && <p className="font-bold uppercase">NOTA: {burger.notes}</p>}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 border-y-2 border-black py-3 text-center text-xl font-black">TOTAL PANES: {bunCount}</p>
+            </section>
+          </>
+        )}
       </div>
     </>
   );

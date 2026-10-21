@@ -53,6 +53,8 @@ model SystemConfig {
   autoPrintTickets          Boolean @default(true)
   kitchenPattyCountEnabled  Boolean @default(false)
   kitchenPattyKeywords      String  @default("medallón,medallon")
+  assemblyPrintEnabled     Boolean @default(false)
+  printNodeAssemblyPrinterId Int?
   printingMode              String  @default("BROWSER") // BROWSER, PRINTNODE, NANOLABS_AGENT
   printNodeCounterPrinterId Int?
   printNodeKitchenPrinterId Int?
@@ -1196,6 +1198,8 @@ model TenantSettings {
   autoPrintTickets          Boolean @default(true)
   kitchenPattyCountEnabled  Boolean @default(false)
   kitchenPattyKeywords      String  @default("medallón,medallon")
+  assemblyPrintEnabled     Boolean @default(false)
+  printNodeAssemblyPrinterId Int?
   printingMode              String  @default("BROWSER") // BROWSER, PRINTNODE, NANOLABS_AGENT
   printNodeCounterPrinterId Int?
   printNodeKitchenPrinterId Int?

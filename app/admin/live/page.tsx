@@ -287,10 +287,10 @@ export default function LiveDashboardPage() {
     }
   };
 
-  const handlePrintOrder = async (orderId: string) => {
+  const handlePrintOrder = async (orderId: string, kind?: "KITCHEN" | "COUNTER" | "ASSEMBLY") => {
     setPrintingOrderId(orderId);
     try {
-      const result = await printOrderNow(orderId);
+      const result = await printOrderNow(orderId, kind);
       if (!result.success) {
         toast.error("No se pudo imprimir", { description: result.error });
         return;
@@ -713,10 +713,23 @@ export default function LiveDashboardPage() {
                   disabled={printingOrderId === order.id}
                   onClick={() => handlePrintOrder(order.id)}
                   className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-                  title="Imprimir comanda"
+                  title="Imprimir tickets del pedido"
                 >
                   {printingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
                 </button>
+                <select aria-label="Reimprimir un solo ticket" title="Reimprimir un solo ticket"
+                  defaultValue="" disabled={printingOrderId === order.id}
+                  className="h-7 max-w-24 rounded-lg border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
+                  onChange={e=>{
+                    const kind=e.target.value as "KITCHEN"|"COUNTER"|"ASSEMBLY";
+                    if (kind) void handlePrintOrder(order.id, kind);
+                    e.target.value="";
+                  }}>
+                  <option value="">Reimprimir</option>
+                  <option value="KITCHEN">Cocina</option>
+                  <option value="COUNTER">Cliente</option>
+                  <option value="ASSEMBLY">Armado</option>
+                </select>
                 <Button
                   size="sm"
                   variant="ghost"

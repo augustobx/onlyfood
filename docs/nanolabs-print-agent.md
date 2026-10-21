@@ -35,3 +35,14 @@ Los tickets de OnlyFood se envían como ESC/POS RAW, incluyendo ancho de 58/80 m
 ## Compatibilidad
 
 La primera distribución está orientada a Windows x64. Linux y macOS utilizan el comando estándar `lp` y requieren una instalación específica para esas plataformas.
+
+
+## Tres tickets para hamburgueserías (octubre de 2026)
+
+En **Configuración > Impresoras** se puede activar **Tercer ticket: armado de hamburguesas** (desactivado por defecto). Se mantienen el ticket de **Cliente/Mostrador** (precios, pagos y datos) y el de **Cocina** (hamburguesas con composición final SIMPLE/DOBLE/TRIPLE/CUÁDRUPLE y totales de medallones/panes). El nuevo ticket **Armado** incluye el nombre del cliente, solamente hamburguesas —también las de combos—, instrucciones **SIN**, agregados, notas y **TOTAL PANES**, sin precios ni acompañamientos. Una doble + dos medallones figura como cuádruple, pero cuenta un pan.
+
+- **Navegador:** tres sectores en la misma vista y marcas **CORTE AQUÍ**, o reimpresión individual desde Cocina y Despacho o en la vista de impresión.
+- **PrintNode:** tercera impresión ESC/POS con corte propio; por defecto usa la impresora de cocina, o el ID opcional de la estación de armado.
+- **NanoLabs Print Agent:** tercer trabajo ESC/POS independiente dirigido a la impresora ya asignada a `KITCHEN`; no requiere actualizar el instalador del agente. La contabilidad de trabajos mantiene `ASSEMBLY` separado de `KITCHEN`.
+
+No se imprime armado en pedidos sin hamburguesas. El cambio es aditivo y requiere desplegar la migración `20261021160000_three_station_tickets` antes de habilitarlo. Los totales dependen de que cada receta tenga sus ingredientes/medallones configurados, o nombres/categorías reconocibles; probar con los productos reales antes de activarlo en producción.

@@ -37,6 +37,8 @@ const configSchema = z.object({
   autoPrintTickets: z.boolean(),
   kitchenPattyCountEnabled: z.boolean(),
   kitchenPattyKeywords: z.string().trim().min(1).max(250),
+  assemblyPrintEnabled: z.boolean().default(false),
+  printNodeAssemblyPrinterId: z.number().int().positive().nullable().default(null),
   printingMode: z.enum(["BROWSER", "PRINTNODE", "NANOLABS_AGENT"]),
   printNodeCounterPrinterId: z.number().int().positive().nullable(),
   printNodeKitchenPrinterId: z.number().int().positive().nullable(),

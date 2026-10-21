@@ -7,8 +7,9 @@ import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
 import { countOrderBuns } from "@/lib/bun-count";
+import { burgerAssemblyLines } from "@/lib/burger-ticket";
 
-export type PrintKind = "KITCHEN" | "COUNTER";
+export type PrintKind = "KITCHEN" | "COUNTER" | "ASSEMBLY";
 
 type TextBlock = {
   type?: "text";
@@ -70,18 +71,20 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     { text: "COCINA", size: 14, bold: true, align: "center" },
     { text: `#${orderCode(order)}`, size: 14, bold: true, align: "center" },
     { text: order.deliveryTime || "HORARIO NO INFORMADO", size: 14, bold: true, align: "center", after: 1 },
-    { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 10, bold: true, align: "center", after: 1 },
     { text: order.needsDelivery ? "ENVIO" : "RETIRO", size: 10, bold: true, align: "center", after: 1 },
     { type: "separator", after: 1 },
   ];
   order.items.forEach((item, itemIndex) => {
     if (itemIndex > 0) blocks.push({ type: "separator", before: 1, after: 1 });
-    blocks.push({ text: `${item.quantity}x ${item.product.name.toUpperCase()}`, size: 10, bold: true, after: 1 });
+    const burgers = burgerAssemblyLines([item], pattyOptions.keywords);
+    const ownBurger = burgers.find((line) => !line.source);
+    blocks.push({ text: `${item.quantity}x ${item.product.name.toUpperCase()}${ownBurger ? ` — ${ownBurger.size}` : ""}`, size: 10, bold: true, after: 1 });
     if (item.addedExtras.length) blocks.push({ text: `+ EXTRA: ${item.addedExtras.map((extra) => extra.extra.name).join(", ")}`, bold: true, after: 1 });
     if (item.removedIngredients.length) blocks.push({ text: `- SIN: ${item.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, size: 10, bold: true, after: 1 });
     for (const comboItem of item.comboItems) {
-      const qtyOrPieces = (comboItem as any).pieces && (comboItem as any).pieces > 0 ? `${(comboItem as any).pieces} PIEZAS` : `${comboItem.quantity}x`;
-      blocks.push({ text: `${qtyOrPieces} ${comboItem.product.name.toUpperCase()}`, bold: true, before: 1, after: 1 });
+      const qtyOrPieces = (comboItem as any).pieces && (comboItem as any).pieces > 0 ? `${(comboItem as any).pieces} PIEZAS` : `${comboItem.quantity * item.quantity}x`;
+      const burger = burgers.find((line) => line.source === item.product.name && line.name === comboItem.product.name);
+      blocks.push({ text: `${qtyOrPieces} ${comboItem.product.name.toUpperCase()}${burger ? ` — ${burger.size}` : ""}`, bold: true, before: 1, after: 1 });
       if (comboItem.removedIngredients.length) {
         blocks.push({ text: `- SIN: ${comboItem.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, bold: true, after: 1 });
       }
@@ -100,6 +103,28 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     }
   }
   blocks.push({ type: "separator", before: 1 }, { text: `PEDIDO #${orderCode(order)}`, bold: true, align: "center" });
+  return blocks;
+}
+
+function assemblyBlocks(order: PrintableOrder, options: KitchenPattyOptions = {}): TextBlock[] {
+  const burgers = burgerAssemblyLines(order.items, options.keywords);
+  if (!burgers.length) return [];
+  const blocks: TextBlock[] = [
+    { text: "ARMADO DE HAMBURGUESAS", size: 14, bold: true, align: "center" },
+    { text: `PEDIDO #${orderCode(order)}`, size: 14, bold: true, align: "center", after: 1 },
+    { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 14, bold: true, align: "center", after: 1 },
+    { type: "separator", before: 1, after: 1 },
+  ];
+  for (const burger of burgers) {
+    blocks.push({ text: `${burger.quantity}x ${burger.name.toUpperCase()} — ${burger.size}`, size: 10, bold: true, before: 1 });
+    if (burger.source) blocks.push({ text: `DEL COMBO: ${burger.source}` });
+    if (burger.removed.length) blocks.push({ text: `!!! SIN: ${burger.removed.join(", ").toUpperCase()} !!!`, size: 10, bold: true });
+    if (!burger.hasBun) blocks.push({ text: "!!! SIN PAN !!!", size: 10, bold: true });
+    if (burger.extras.length) blocks.push({ text: `+ AGREGADOS: ${burger.extras.join(", ")}`, bold: true });
+    if (burger.notes) blocks.push({ text: `NOTA: ${burger.notes.toUpperCase()}`, bold: true });
+    blocks.push({ type: "separator", after: 1 });
+  }
+  blocks.push({ text: `TOTAL PANES: ${countOrderBuns(order.items, options.keywords)}`, size: 14, bold: true, align: "center", before: 1 });
   return blocks;
 }
 
@@ -214,7 +239,7 @@ async function rasterLogo(logoUrl: string | null, rollSize: string | null) {
 
 async function createTicketRaw(order: PrintableOrder, kind: PrintKind, rollSize: string | null, logoUrl: string | null, pattyOptions: KitchenPattyOptions = {}) {
   const normalColumns = rollSize === "58mm" ? 32 : 42;
-  const blocks = kind === "KITCHEN" ? kitchenBlocks(order, pattyOptions) : counterBlocks(order, normalColumns);
+  const blocks = kind === "KITCHEN" ? kitchenBlocks(order, pattyOptions) : kind === "ASSEMBLY" ? assemblyBlocks(order, pattyOptions) : counterBlocks(order, normalColumns);
   const chunks: Buffer[] = [
     Buffer.from([ESC, 0x40]), // Inicializar impresora.
     Buffer.from([ESC, 0x32]), // Interlineado normal.
@@ -326,7 +351,7 @@ async function submitPrintNodeJob(printerId: number, title: string, rawTicket: B
   return jobId;
 }
 
-export async function dispatchOrderPrint(orderId: string, options: { force?: boolean; tenantId?: string } = {}) {
+export async function dispatchOrderPrint(orderId: string, options: { force?: boolean; tenantId?: string; kind?: PrintKind } = {}) {
   const order = await loadPrintableOrder(orderId);
   if (!order || order.status === "CANCELLED") return { success: false, skipped: true, jobs: [], error: "Pedido no disponible." };
   if (!canDispatchPaidOrder(order)) return { success: false, skipped: true, jobs: [], error: "Pago electrónico pendiente de confirmación." };
@@ -341,15 +366,22 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
   if (!config || config.printingMode === "BROWSER" || (!config.autoPrintTickets && !options.force)) {
     return { success: true, skipped: true, jobs: [] as Array<{ kind: PrintKind; success: boolean; error?: string }> };
   }
+  if (options.kind === "ASSEMBLY" &&
+    (!config.assemblyPrintEnabled || burgerAssemblyLines(order.items, config.kitchenPattyKeywords).length === 0)) {
+    return { success: false, skipped: true, jobs: [], error: "El ticket de armado no está habilitado o no contiene hamburguesas." };
+  }
 
   if (config.printingMode === "NANOLABS_AGENT") {
     const { enqueuePrintAgentJob } = await import("@/lib/print-agent");
-    const targets = [
-      { kind: "KITCHEN" as const, rollSize: config.printerKitchenSize },
-      { kind: "COUNTER" as const, rollSize: config.printerCounterSize },
+    const targets: Array<{kind: PrintKind; rollSize: string | null}> = [
+      { kind: "KITCHEN", rollSize: config.printerKitchenSize },
+      { kind: "COUNTER", rollSize: config.printerCounterSize },
     ];
+    if (config.assemblyPrintEnabled && burgerAssemblyLines(order.items, config.kitchenPattyKeywords).length) {
+      targets.push({kind: "ASSEMBLY", rollSize: config.printerKitchenSize});
+    }
     const jobs: Array<{ kind: PrintKind; success: boolean; jobId?: string; error?: string }> = [];
-    for (const target of targets) {
+    for (const target of targets.filter(t => !options.kind || t.kind === options.kind)) {
       const existing = await prisma.printDispatch.findUnique({ where: { orderId_kind: { orderId, kind: target.kind } } });
       if (existing?.status === "SENT" && !options.force) {
         jobs.push({ kind: target.kind, success: true });
@@ -363,11 +395,11 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
       });
       try {
         const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl, {
-          enabled: config.kitchenPattyCountEnabled,
+          enabled: config.kitchenPattyCountEnabled || config.assemblyPrintEnabled,
           keywords: config.kitchenPattyKeywords,
         });
         const idempotencyKey = options.force ? `onlyfood-agent-${orderId}-${target.kind}-manual-${attempt}` : `onlyfood-agent-${orderId}-${target.kind}-auto`;
-        const queued = await enqueuePrintAgentJob({ tenantId, orderId, destination: target.kind, title: `${config.appName} #${orderCode(order)} ${target.kind}`, payload: rawTicket, widthMm: target.rollSize === "58mm" ? 58 : 80, idempotencyKey });
+        const queued = await enqueuePrintAgentJob({ tenantId, orderId, destination: target.kind === "ASSEMBLY" ? "KITCHEN" : target.kind, title: `${config.appName} #${orderCode(order)} ${target.kind}`, payload: rawTicket, widthMm: target.rollSize === "58mm" ? 58 : 80, idempotencyKey });
         jobs.push({ kind: target.kind, success: true, jobId: queued.id });
       } catch (error) {
         const message = error instanceof Error ? error.message : "No se pudo encolar la impresión.";
@@ -394,13 +426,17 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
     return { success: true, skipped: true, jobs: [] as Array<{ kind: PrintKind; success: boolean; error?: string }> };
   }
 
-  const targets = [
-    { kind: "KITCHEN" as const, printerId: config.printNodeKitchenPrinterId, rollSize: config.printerKitchenSize },
-    { kind: "COUNTER" as const, printerId: config.printNodeCounterPrinterId, rollSize: config.printerCounterSize },
+  const targets: Array<{kind: PrintKind; printerId: number | null; rollSize: string | null}> = [
+    { kind: "KITCHEN", printerId: config.printNodeKitchenPrinterId, rollSize: config.printerKitchenSize },
+    { kind: "COUNTER", printerId: config.printNodeCounterPrinterId, rollSize: config.printerCounterSize },
   ];
+  if (config.assemblyPrintEnabled && burgerAssemblyLines(order.items, config.kitchenPattyKeywords).length) {
+    targets.push({kind:"ASSEMBLY", printerId: config.printNodeAssemblyPrinterId || config.printNodeKitchenPrinterId,
+      rollSize: config.printerKitchenSize});
+  }
   const jobs: Array<{ kind: PrintKind; success: boolean; jobId?: number | null; error?: string }> = [];
 
-  for (const target of targets) {
+  for (const target of targets.filter(t => !options.kind || t.kind === options.kind)) {
     if (!target.printerId) {
       jobs.push({ kind: target.kind, success: false, error: `Falta el ID de impresora de ${target.kind === "KITCHEN" ? "cocina" : "mostrador"}.` });
       continue;
@@ -418,7 +454,7 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
     });
     try {
       const rawTicket = await createTicketRaw(order, target.kind, target.rollSize, config.logoUrl, {
-        enabled: config.kitchenPattyCountEnabled,
+        enabled: config.kitchenPattyCountEnabled || config.assemblyPrintEnabled,
         keywords: config.kitchenPattyKeywords,
       });
       const key = options.force ? `onlyfood-raw-${orderId}-${target.kind}-manual-${attempt}` : `onlyfood-raw-${orderId}-${target.kind}-auto`;

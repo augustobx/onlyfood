@@ -113,6 +113,8 @@ export function SettingsForm({
       autoPrintTickets: Boolean(cfg.autoPrintTickets),
       kitchenPattyCountEnabled: Boolean(cfg.kitchenPattyCountEnabled),
       kitchenPattyKeywords: cfg.kitchenPattyKeywords || "medallón,medallon",
+      assemblyPrintEnabled: Boolean(cfg.assemblyPrintEnabled),
+      printNodeAssemblyPrinterId: cfg.printNodeAssemblyPrinterId ? Number(cfg.printNodeAssemblyPrinterId) : null,
       printingMode: cfg.printingMode === "PRINTNODE" && !printNodeEnabled ? "BROWSER" : (cfg.printingMode || "BROWSER"),
       printNodeCounterPrinterId: cfg.printNodeCounterPrinterId ? Number(cfg.printNodeCounterPrinterId) : null,
       printNodeKitchenPrinterId: cfg.printNodeKitchenPrinterId ? Number(cfg.printNodeKitchenPrinterId) : null,
@@ -1099,6 +1101,34 @@ export function SettingsForm({
                       className="bg-white"
                     />
                     <p className="text-xs text-muted-foreground">Separalas con comas. Se comparan con los nombres de ingredientes y extras; la cantidad definida en la receta se respeta.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 rounded-xl border-2 border-orange-200 bg-orange-50 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-base font-bold text-slate-800">Tercer ticket: armado de hamburguesas</Label>
+                    <p className="text-sm text-slate-600">Genera una comanda independiente con nombre del cliente, hamburguesas y tamaños reales, ingredientes quitados, extras y total de panes. Solo se imprime cuando el pedido contiene hamburguesas.</p>
+                  </div>
+                  <Switch checked={Boolean(cfg.assemblyPrintEnabled)} onCheckedChange={v=>updateField("assemblyPrintEnabled",v)} />
+                </div>
+                {cfg.assemblyPrintEnabled && (
+                  <div className="space-y-2 rounded-xl border border-orange-200 bg-white p-3">
+                    {cfg.printingMode === "PRINTNODE" ? (
+                      <>
+                        <Label>ID PrintNode para armado (opcional)</Label>
+                        <Input type="number" min={1} placeholder="Vacío = misma impresora de cocina"
+                          value={cfg.printNodeAssemblyPrinterId || ""}
+                          onChange={e=>updateField("printNodeAssemblyPrinterId",e.target.value)} />
+                        <p className="text-xs text-slate-600">En blanco se imprime como tercer ticket en la impresora de cocina. Con ID propio se dirige a otra ticketera.</p>
+                      </>
+                    ) : cfg.printingMode === "NANOLABS_AGENT" ? (
+                      <p className="text-xs text-slate-600">El NanoLabs Print Agent imprime el tercer ticket como un trabajo independiente en la impresora asociada a COCINA. No requiere actualizar ni reconfigurar el agente.</p>
+                    ) : (
+                      <p className="text-xs text-slate-600">En navegador se agrega una tercera sección, separada para cortar. Podés reimprimir solo armado usando el enlace del ticket.</p>
+                    )}
+                    <p className="text-xs font-bold text-amber-900">Activar solo después de probar la impresión del comercio.</p>
                   </div>
                 )}
               </div>
