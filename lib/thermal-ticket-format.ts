@@ -6,7 +6,7 @@ import type { BurgerTicketLine } from "@/lib/burger-ticket";
  */
 export function thermalPrinterText(value: string): string {
   return value
-    .replace(/[—–−‐‑‒―]/g, " - ")
+    .replace(/[ \t]*[—–−‐‑‒―][ \t]*/g, " - ")
     .replace(/[‘’‚]/g, "'")
     .replace(/[“”«»]/g, '"')
     .replace(/[•●▪·]/g, "-")
