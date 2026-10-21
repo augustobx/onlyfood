@@ -112,6 +112,15 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
         }
       ` }} />
 
+      <nav className="print:hidden mx-auto my-2 flex max-w-xl flex-wrap items-center justify-center gap-2 rounded-xl bg-slate-100 p-2 text-sm text-black" aria-label="Reimprimir tickets">
+        {(["ALL","COUNTER","KITCHEN",...(printAssembly?["ASSEMBLY"]:[])] as string[]).map((kind) => (
+          <a key={kind} href={`/admin/live/print/${order.id}${kind === "ALL" ? "" : "?kind="+kind}`}
+            className={`rounded-lg border px-3 py-2 font-bold ${kind === ticketKind ? "border-orange-500 bg-orange-100" : "border-slate-300 bg-white"}`}>
+            {kind==="ALL"?"Todos":kind==="COUNTER"?"Cliente":kind==="KITCHEN"?"Cocina":"Armado"}
+          </a>
+        ))}
+      </nav>
+
       <div
         data-print-ticket
         className="mx-auto bg-white font-mono text-xs leading-tight text-black"
