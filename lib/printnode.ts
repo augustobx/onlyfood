@@ -352,7 +352,7 @@ async function submitPrintNodeJob(printerId: number, title: string, rawTicket: B
   return jobId;
 }
 
-export async function dispatchOrderPrint(orderId: string, options: { force?: boolean; tenantId?: string } = {}) {
+export async function dispatchOrderPrint(orderId: string, options: { force?: boolean; tenantId?: string; kind?: PrintKind } = {}) {
   const order = await loadPrintableOrder(orderId);
   if (!order || order.status === "CANCELLED") return { success: false, skipped: true, jobs: [], error: "Pedido no disponible." };
   if (!canDispatchPaidOrder(order)) return { success: false, skipped: true, jobs: [], error: "Pago electrónico pendiente de confirmación." };
@@ -367,6 +367,10 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
   if (!config || config.printingMode === "BROWSER" || (!config.autoPrintTickets && !options.force)) {
     return { success: true, skipped: true, jobs: [] as Array<{ kind: PrintKind; success: boolean; error?: string }> };
   }
+  if (options.kind === "ASSEMBLY" &&
+    (!config.assemblyPrintEnabled || burgerAssemblyLines(order.items, config.kitchenPattyKeywords).length === 0)) {
+    return { success: false, skipped: true, jobs: [], error: "El ticket de armado no está habilitado o no contiene hamburguesas." };
+  }
 
   if (config.printingMode === "NANOLABS_AGENT") {
     const { enqueuePrintAgentJob } = await import("@/lib/print-agent");
@@ -378,7 +382,7 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
       targets.push({kind: "ASSEMBLY", rollSize: config.printerKitchenSize});
     }
     const jobs: Array<{ kind: PrintKind; success: boolean; jobId?: string; error?: string }> = [];
-    for (const target of targets) {
+    for (const target of targets.filter(t => !options.kind || t.kind === options.kind)) {
       const existing = await prisma.printDispatch.findUnique({ where: { orderId_kind: { orderId, kind: target.kind } } });
       if (existing?.status === "SENT" && !options.force) {
         jobs.push({ kind: target.kind, success: true });
@@ -433,7 +437,7 @@ export async function dispatchOrderPrint(orderId: string, options: { force?: boo
   }
   const jobs: Array<{ kind: PrintKind; success: boolean; jobId?: number | null; error?: string }> = [];
 
-  for (const target of targets) {
+  for (const target of targets.filter(t => !options.kind || t.kind === options.kind)) {
     if (!target.printerId) {
       jobs.push({ kind: target.kind, success: false, error: `Falta el ID de impresora de ${target.kind === "KITCHEN" ? "cocina" : "mostrador"}.` });
       continue;
