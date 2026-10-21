@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { countOrderPatties, formatPattyCount } from "@/lib/patty-count";
 import { countOrderBuns } from "@/lib/bun-count";
 import { burgerAssemblyLines } from "@/lib/burger-ticket";
+import { assemblyWarnings, burgerPrintName, thermalPrinterText } from "@/lib/thermal-ticket-format";
 
 export type PrintKind = "KITCHEN" | "COUNTER" | "ASSEMBLY";
 
@@ -78,13 +79,13 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     if (itemIndex > 0) blocks.push({ type: "separator", before: 1, after: 1 });
     const burgers = burgerAssemblyLines([item], pattyOptions.keywords);
     const ownBurger = burgers.find((line) => !line.source);
-    blocks.push({ text: `${item.quantity}x ${item.product.name.toUpperCase()}${ownBurger ? ` — ${ownBurger.size}` : ""}`, size: 10, bold: true, after: 1 });
+    blocks.push({ text: `${item.quantity}x ${burgerPrintName(item.product.name.toUpperCase(), ownBurger?.size || "")}`, size: 10, bold: true, after: 1 });
     if (item.addedExtras.length) blocks.push({ text: `+ EXTRA: ${item.addedExtras.map((extra) => extra.extra.name).join(", ")}`, bold: true, after: 1 });
     if (item.removedIngredients.length) blocks.push({ text: `- SIN: ${item.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, size: 10, bold: true, after: 1 });
     for (const comboItem of item.comboItems) {
       const qtyOrPieces = (comboItem as any).pieces && (comboItem as any).pieces > 0 ? `${(comboItem as any).pieces} PIEZAS` : `${comboItem.quantity * item.quantity}x`;
       const burger = burgers.find((line) => line.source === item.product.name && line.name === comboItem.product.name);
-      blocks.push({ text: `${qtyOrPieces} ${comboItem.product.name.toUpperCase()}${burger ? ` — ${burger.size}` : ""}`, bold: true, before: 1, after: 1 });
+      blocks.push({ text: `${qtyOrPieces} ${burgerPrintName(comboItem.product.name.toUpperCase(), burger?.size || "")}`, bold: true, before: 1, after: 1 });
       if (comboItem.removedIngredients.length) {
         blocks.push({ text: `- SIN: ${comboItem.removedIngredients.map((entry) => entry.ingredient.name).join(", ")}`, bold: true, after: 1 });
       }
@@ -116,10 +117,11 @@ function assemblyBlocks(order: PrintableOrder, options: KitchenPattyOptions = {}
     { type: "separator", before: 1, after: 1 },
   ];
   for (const burger of burgers) {
-    blocks.push({ text: `${burger.quantity}x ${burger.name.toUpperCase()} — ${burger.size}`, size: 10, bold: true, before: 1 });
+    blocks.push({ text: `${burger.quantity}x ${burgerPrintName(burger.name.toUpperCase(), burger.size)}`, size: 10, bold: true, before: 1 });
     if (burger.source) blocks.push({ text: `DEL COMBO: ${burger.source}` });
-    if (burger.removed.length) blocks.push({ text: `!!! SIN: ${burger.removed.join(", ").toUpperCase()} !!!`, size: 10, bold: true });
-    if (!burger.hasBun) blocks.push({ text: "!!! SIN PAN !!!", size: 10, bold: true });
+    for (const warning of assemblyWarnings(burger)) {
+      blocks.push({ text: warning, size: 10, bold: true });
+    }
     if (burger.extras.length) blocks.push({ text: `+ AGREGADOS: ${burger.extras.join(", ")}`, bold: true });
     if (burger.notes) blocks.push({ text: `NOTA: ${burger.notes.toUpperCase()}`, bold: true });
     blocks.push({ type: "separator", after: 1 });
@@ -181,11 +183,7 @@ async function localLogoBuffer(logoUrl: string | null) {
 }
 
 function ascii(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[¿¡]/g, "")
-    .replace(/[^\x20-\x7E\n]/g, "?");
+  return thermalPrinterText(value);
 }
 
 function wrapText(value: string, width: number) {
