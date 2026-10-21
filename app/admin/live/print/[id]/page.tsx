@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/admin-session";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
 import { canDispatchPaidOrder } from "@/lib/order-integrity-policy";
+import { burgerAssemblyLines } from "@/lib/burger-ticket";
 
 /**
  * En las versiones más recientes de Next.js, 'params' es una Promise.
@@ -47,7 +48,7 @@ export default async function PrintTicketPage({
 
   const config = await db.systemConfig.findFirst();
 
-  if (!order || !canDispatchPaidOrder(order) || (ticketKind==="ASSEMBLY" && !config?.assemblyPrintEnabled)) return notFound();
+  if (!order || !canDispatchPaidOrder(order) || (ticketKind==="ASSEMBLY" && (!config?.assemblyPrintEnabled || !burgerAssemblyLines(order.items, config.kitchenPattyKeywords).length))) return notFound();
 
   return <PrintTicketClient order={order} config={config} ticketKind={ticketKind} />;
 }
