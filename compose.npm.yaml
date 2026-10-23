@@ -47,12 +47,13 @@ services:
     build:
       context: .
       target: runner
-      args:
-        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
     restart: unless-stopped
     environment:
       DATABASE_URL: mysql://${DB_USER:-onlyfood}:${DB_PASSWORD}@db:3306/${DB_NAME:-onlyfood}
       AUTH_SALT: ${AUTH_SALT:-}
+      HUB_INTEGRATION_TOKEN: ${HUB_INTEGRATION_TOKEN:-}
+      HUB_MANAGEMENT_ENABLED: ${HUB_MANAGEMENT_ENABLED:-false}
+      HUB_MANAGEMENT_TOKEN: ${HUB_MANAGEMENT_TOKEN:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-${ENCRYPTION_MASTER_KEY:-}}
       NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
       BASE_DOMAIN: ${BASE_DOMAIN:-localhost}

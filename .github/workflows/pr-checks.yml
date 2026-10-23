@@ -70,3 +70,10 @@ jobs:
         run: npx prisma migrate deploy
       - name: Verify migration status
         run: npx prisma migrate status
+      - name: Native and Hub control plane on disposable MariaDB
+        env:
+          RUN_DB_TESTS: "true"
+          TEST_DATABASE_URL: mysql://build:build@onlyfood-test-db:3306/onlyfood_ci_test
+        run: |
+          echo "127.0.0.1 onlyfood-test-db" | sudo tee -a /etc/hosts
+          npx vitest run tests/superadmin-control.test.ts tests/tenant-suspension.test.ts tests/billing-lifecycle.test.ts tests/hub-control-integration.test.ts

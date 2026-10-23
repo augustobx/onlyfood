@@ -1,6 +1,7 @@
 "use server";
 
 import { getTenantDb } from "@/lib/tenant-db";
+import { withProductCapacity } from "@/lib/tenant-capacity";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-session";
 import { z } from "zod";
@@ -164,7 +165,7 @@ export async function upsertProduct(data: {
       ]);
     } else {
       // Create logic
-      await db.product.create({
+      await withProductCapacity(tenant.id, tx => tx.product.create({
         data: {
           ...payload,
           tenantId: tenant.id,
@@ -175,7 +176,7 @@ export async function upsertProduct(data: {
           extras: { create: cleanData.extraIds.map(id => ({ extraId: id })) },
           comboItemsConfig: cleanData.isCombo ? { create: cleanData.comboItemsData.map(item => ({ productId: item.id, quantity: Number(item.quantity) || 1, pieces: item.pieces ? Number(item.pieces) : null })) } : undefined
         }
-      });
+      }));
     }
 
     revalidatePath("/admin/catalog"); revalidatePath("/");
