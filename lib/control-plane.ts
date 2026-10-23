@@ -13,6 +13,7 @@ async function audit(tx: Prisma.TransactionClient, tenantId: string, action: str
 }
 export async function changeSubscription(tx: Prisma.TransactionClient, input: UpdateSubscriptionInput) {
   await lockTenant(tx, input.tenantId);
+  await tx.$queryRaw`SELECT id FROM Plan WHERE id = ${input.planId} LOCK IN SHARE MODE`;
   const tenant = await tx.tenant.findUnique({ where: { id: input.tenantId } });
   const plan = await tx.plan.findUnique({ where: { id: input.planId } });
   if (!tenant) throw Error("TENANT_NOT_FOUND");

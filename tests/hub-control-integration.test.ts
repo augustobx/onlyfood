@@ -27,6 +27,12 @@ describe("Hub control plane on isolated MariaDB",()=>{
   await expect(prisma.$transaction(async tx=>{await changeFeature(tx,tenantId,"roulette","ENABLED");throw Error("forced rollback");})).rejects.toThrow("forced rollback");
   expect(await prisma.tenantFeature.findUnique({where:{tenantId_featureKey:{tenantId,featureKey:"roulette"}}})).toBeNull();expect(await prisma.platformAuditLog.count({where:{tenantId}})).toBe(count);
  });
+ it("detects a plan edit made after the Hub loaded a tenant",async()=>{
+  const url=new URL("https://fixture.invalid?resource=tenant&tenantId="+tenantId);
+  const before=await onlyfoodManagement.read("tenant",url) as {version:string};
+  await prisma.plan.update({where:{id:planId},data:{name:"Native plan edit"}});
+  await expect(onlyfoodManagement.execute({requestId:randomUUID(),actor:"isolated-qa",operation:"tenant.update",input:{tenantId,version:before.version,name:"Stale edit",slug:"hub-isolated-control"}},"fixture-plan-fingerprint")).rejects.toMatchObject({status:409});
+ });
  it("preserves explicit native overrides when changing a plan",async()=>{
   await setTenantPlan(tenantId,"HUB_CONTROL_ISOLATED");
   expect((await prisma.tenantFeature.findUniqueOrThrow({where:{tenantId_featureKey:{tenantId,featureKey:"loyalty"}}})).isEnabled).toBe(true);

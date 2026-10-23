@@ -75,7 +75,11 @@ async function execute(command: ManagementCommand, fingerprint: string) {
       // before any mutation, and completed in the same MariaDB transaction.
       await tx.platformAuditLog.create({ data: { id: command.requestId, action: "hub.management", resource: command.operation, details: { fingerprint, actor: command.actor } } });
       let tenantId = "tenantId" in command.input ? command.input.tenantId : null;
-      if (tenantId) await lockTenant(tx, tenantId);
+      if (tenantId) {
+        await lockTenant(tx, tenantId);
+        const subscription = await tx.subscription.findUnique({ where: { tenantId }, select: { planId: true } });
+        if (subscription) await tx.$queryRaw`SELECT id FROM Plan WHERE id = ${subscription.planId} LOCK IN SHARE MODE`;
+      }
       const before = tenantId ? await detail(tx, tenantId) : null;
       if (before && "version" in command.input) current(before.version, command.input.version);
       let entityId: string | null = tenantId;
