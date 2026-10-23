@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { getTenantFeatures } from "@/lib/features";
+import { lockTenant } from "./control-plane";
 
 export interface CreateLocationInput {
   name: string;
@@ -25,17 +25,24 @@ export async function getTenantLocations(tenantId: string) {
  * Crea una nueva sucursal validando el límite máximo permitido por el plan de suscripción.
  */
 export async function createTenantLocation(tenantId: string, input: CreateLocationInput) {
-  const { features } = await getTenantFeatures(tenantId);
-  const tenant = await prisma.tenant.findUniqueOrThrow({
+  return prisma.$transaction(async tx => {
+  await lockTenant(tx, tenantId);
+  const tenant = await tx.tenant.findUniqueOrThrow({
     where: { id: tenantId },
     include: {
       subscription: { include: { plan: true } },
       locations: true,
+      features: true,
     },
   });
 
   const maxAllowed = tenant.subscription?.plan?.maxLocations || 1;
-  if (tenant.locations.length > 0 && !features.has("multipleLocations")) {
+  const override = tenant.features.find(f => f.featureKey === "multipleLocations");
+  const inherited = Array.isArray(tenant.subscription?.plan.features) && tenant.subscription.plan.features.includes("multipleLocations");
+  if (tenant.locations.length >= maxAllowed) {
+    throw new Error(`PLAN_LIMIT_REACHED: Tu plan actual permite un máximo de ${maxAllowed} sucursal(es).`);
+  }
+  if (tenant.locations.length > 0 && !(override ? override.isEnabled : inherited)) {
     throw new Error("FEATURE_DISABLED: El módulo de múltiples sucursales no está habilitado.");
   }
   if (tenant.locations.length >= maxAllowed) {
@@ -44,13 +51,13 @@ export async function createTenantLocation(tenantId: string, input: CreateLocati
 
   // Si se marca como principal, desmarcar las anteriores
   if (input.isMain) {
-    await prisma.location.updateMany({
+    await tx.location.updateMany({
       where: { tenantId, isMain: true },
       data: { isMain: false },
     });
   }
 
-  return prisma.location.create({
+  return tx.location.create({
     data: {
       tenantId,
       name: input.name,
@@ -60,5 +67,6 @@ export async function createTenantLocation(tenantId: string, input: CreateLocati
       isMain: input.isMain ?? (tenant.locations.length === 0),
       isActive: true,
     },
+  });
   });
 }

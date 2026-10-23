@@ -14,10 +14,8 @@ COPY prisma ./prisma
 RUN npm ci
 
 FROM base AS builder
-ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 ENV NODE_ENV=production \
-    DATABASE_URL=mysql://build:build@127.0.0.1:3306/build \
-    NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+    DATABASE_URL=mysql://build:build@127.0.0.1:3306/build
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN ./node_modules/.bin/prisma generate \
@@ -38,6 +36,8 @@ COPY scripts ./scripts
 CMD ["sh", "-c", "./node_modules/.bin/prisma generate && ./node_modules/.bin/prisma migrate deploy && node scripts/seed-saas.mjs"]
 
 FROM base AS runner
+ARG BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision="$BUILD_REVISION"
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 
 import { platformDb } from "@/lib/platform-db";
+import { changeSubscription, changeFeature, changeUserAccess, recordPayment, changePaymentStatus } from "./control-plane";
 import { recordAuditLog } from "@/lib/audit";
 import { FEATURE_KEYS, type FeatureKey } from "@/lib/features";
 import { consumeRateLimit, getRequestIp } from "@/lib/request-security";
@@ -234,101 +235,11 @@ export interface UpdateSubscriptionInput {
 }
 
 export async function updateTenantSubscription(input: UpdateSubscriptionInput) {
-  const [tenant, plan] = await Promise.all([
-    platformDb.tenant.findUnique({ where: { id: input.tenantId }, select: { id: true } }),
-    platformDb.plan.findUnique({ where: { id: input.planId }, select: { id: true, code: true } }),
-  ]);
-  if (!tenant) throw new Error("TENANT_NOT_FOUND");
-  if (!plan) throw new Error("PLAN_NOT_FOUND");
-  if (input.currentPeriodEnd <= input.currentPeriodStart) throw new Error("INVALID_PERIOD");
-  if (input.status === "TRIAL" && !input.trialEndsAt) {
-    throw new Error("INVALID_TRIAL_END");
-  }
-
-  await platformDb.$transaction(async (tx) => {
-    await tx.subscription.upsert({
-      where: { tenantId: input.tenantId },
-      update: {
-        planId: input.planId,
-        status: input.status,
-        trialEndsAt: input.status === "TRIAL" ? input.trialEndsAt : null,
-        currentPeriodStart: input.currentPeriodStart,
-        currentPeriodEnd: input.currentPeriodEnd,
-      },
-      create: {
-        tenantId: input.tenantId,
-        planId: input.planId,
-        status: input.status,
-        trialEndsAt: input.status === "TRIAL" ? input.trialEndsAt : null,
-        currentPeriodStart: input.currentPeriodStart,
-        currentPeriodEnd: input.currentPeriodEnd,
-      },
-    });
-    await tx.tenant.update({ where: { id: input.tenantId }, data: { status: input.status } });
-    await tx.platformAuditLog.create({
-      data: {
-        tenantId: input.tenantId,
-        action: "SUBSCRIPTION_MANUALLY_UPDATED",
-        resource: "Subscription",
-        details: {
-          planCode: plan.code,
-          status: input.status,
-          trialEndsAt: input.trialEndsAt?.toISOString() || null,
-          currentPeriodStart: input.currentPeriodStart.toISOString(),
-          currentPeriodEnd: input.currentPeriodEnd.toISOString(),
-        },
-      },
-    });
-  });
-  return true;
+  return platformDb.$transaction(tx => changeSubscription(tx, input));
 }
 
-export async function setTenantFeatureOverride(
-  tenantId: string,
-  featureKey: FeatureKey,
-  state: "INHERIT" | "ENABLED" | "DISABLED",
-) {
-  const [tenant, featureValid] = await Promise.all([
-    platformDb.tenant.findUnique({ where: { id: tenantId }, select: { id: true } }),
-    Promise.resolve(FEATURE_KEYS.includes(featureKey)),
-  ]);
-  if (!tenant) throw new Error("TENANT_NOT_FOUND");
-  if (!featureValid) throw new Error("INVALID_FEATURE");
-
-  await platformDb.$transaction(async (tx) => {
-    if (state === "INHERIT") {
-      await tx.tenantFeature.deleteMany({ where: { tenantId, featureKey } });
-    } else {
-      await tx.tenantFeature.upsert({
-        where: { tenantId_featureKey: { tenantId, featureKey } },
-        update: { isEnabled: state === "ENABLED" },
-        create: { tenantId, featureKey, isEnabled: state === "ENABLED" },
-      });
-    }
-    if (state === "DISABLED") {
-      const configData = featureKey === "whatsapp"
-        ? { whatsappNotificationsEnabled: false }
-        : featureKey === "roulette"
-          ? { isRouletteActive: false }
-          : featureKey === "loyalty"
-            ? { isPointsCatalogActive: false }
-            : featureKey === "printNode"
-              ? { autoPrintTickets: false, printingMode: "BROWSER" }
-              : null;
-      if (configData) {
-        await tx.systemConfig.updateMany({ where: { tenantId }, data: configData });
-      }
-    }
-    await tx.platformAuditLog.create({
-      data: {
-        tenantId,
-        action: "TENANT_FEATURE_OVERRIDE_UPDATED",
-        resource: "TenantFeature",
-        details: { featureKey, state },
-      },
-    });
-  });
-  return true;
+export async function setTenantFeatureOverride(tenantId: string, featureKey: FeatureKey, state: "INHERIT" | "ENABLED" | "DISABLED") {
+  return platformDb.$transaction(tx => changeFeature(tx, tenantId, featureKey, state));
 }
 
 export interface UpdateTenantUserAccessInput {
@@ -340,46 +251,7 @@ export interface UpdateTenantUserAccessInput {
 }
 
 export async function updateTenantUserAccess(input: UpdateTenantUserAccessInput) {
-  const membership = await platformDb.tenantMembership.findUnique({
-    where: { tenantId_userId: { tenantId: input.tenantId, userId: input.userId } },
-    include: { user: true },
-  });
-  if (!membership) throw new Error("MEMBERSHIP_NOT_FOUND");
-  if (membership.user.isSuperAdmin) throw new Error("SUPERADMIN_PROTECTED");
-
-  const normalizedEmail = input.email.trim().toLowerCase();
-  const emailOwner = await platformDb.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
-  if (emailOwner && emailOwner.id !== input.userId) throw new Error("EMAIL_ALREADY_EXISTS");
-  if (input.password && input.password.length < 12) throw new Error("PASSWORD_WEAK");
-  const passwordHash = input.password ? await hashUserPassword(input.password) : undefined;
-
-  await platformDb.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: input.userId },
-      data: {
-        email: normalizedEmail,
-        name: input.name?.trim() || null,
-        ...(passwordHash ? { passwordHash } : {}),
-      },
-    });
-    await tx.userSession.deleteMany({ where: { userId: input.userId } });
-    await tx.platformAuditLog.create({
-      data: {
-        tenantId: input.tenantId,
-        userId: input.userId,
-        action: passwordHash ? "TENANT_USER_CREDENTIALS_RESET" : "TENANT_USER_IDENTITY_UPDATED",
-        resource: "User",
-        details: {
-          previousEmail: membership.user.email,
-          newEmail: normalizedEmail,
-          name: input.name?.trim() || null,
-          passwordChanged: Boolean(passwordHash),
-          sessionsRevoked: true,
-        },
-      },
-    });
-  });
-  return true;
+  return platformDb.$transaction(tx => changeUserAccess(tx, input));
 }
 
 export type SaaSPaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "REFUNDED" | "VOID";
@@ -398,76 +270,14 @@ export interface CreateSaaSPaymentInput {
   periodEnd: Date;
 }
 
-async function synchronizeSubscriptionFromPayment(
-  tx: Prisma.TransactionClient,
-  payment: { tenantId: string; subscriptionId: string; status: SaaSPaymentStatus; periodStart: Date; periodEnd: Date },
-) {
-  if (payment.status === "PAID") {
-    await tx.subscription.update({
-      where: { id: payment.subscriptionId },
-      data: { status: "ACTIVE", currentPeriodStart: payment.periodStart, currentPeriodEnd: payment.periodEnd, trialEndsAt: null },
-    });
-    await tx.tenant.update({ where: { id: payment.tenantId }, data: { status: "ACTIVE" } });
-  } else if (payment.status === "OVERDUE") {
-    await tx.subscription.update({ where: { id: payment.subscriptionId }, data: { status: "PAST_DUE" } });
-    await tx.tenant.update({ where: { id: payment.tenantId }, data: { status: "PAST_DUE" } });
-  }
-}
+
 
 export async function createSaaSPayment(input: CreateSaaSPaymentInput) {
-  const subscription = await platformDb.subscription.findUnique({ where: { tenantId: input.tenantId }, select: { id: true } });
-  if (!subscription) throw new Error("SUBSCRIPTION_NOT_FOUND");
-  if (input.periodEnd <= input.periodStart) throw new Error("INVALID_PERIOD");
-
-  return platformDb.$transaction(async (tx) => {
-    const payment = await tx.saaSPayment.create({
-      data: {
-        tenantId: input.tenantId,
-        subscriptionId: subscription.id,
-        amount: input.amount,
-        currency: input.currency,
-        status: input.status,
-        method: input.method?.trim() || null,
-        reference: input.reference?.trim() || null,
-        notes: input.notes?.trim() || null,
-        dueAt: input.dueAt || null,
-        paidAt: input.status === "PAID" ? input.paidAt || new Date() : input.paidAt || null,
-        periodStart: input.periodStart,
-        periodEnd: input.periodEnd,
-      },
-    });
-    await synchronizeSubscriptionFromPayment(tx, { ...payment, status: payment.status as SaaSPaymentStatus });
-    await tx.platformAuditLog.create({
-      data: {
-        tenantId: input.tenantId,
-        action: "SAAS_PAYMENT_RECORDED",
-        resource: "SaaSPayment",
-        details: { paymentId: payment.id, amount: payment.amount, currency: payment.currency, status: payment.status, reference: payment.reference },
-      },
-    });
-    return payment;
-  });
+  return platformDb.$transaction(tx => recordPayment(tx, input));
 }
 
 export async function updateSaaSPaymentStatus(paymentId: string, status: SaaSPaymentStatus, paidAt?: Date | null) {
-  return platformDb.$transaction(async (tx) => {
-    const existing = await tx.saaSPayment.findUnique({ where: { id: paymentId } });
-    if (!existing) throw new Error("PAYMENT_NOT_FOUND");
-    const payment = await tx.saaSPayment.update({
-      where: { id: paymentId },
-      data: { status, paidAt: status === "PAID" ? paidAt || existing.paidAt || new Date() : paidAt ?? existing.paidAt },
-    });
-    await synchronizeSubscriptionFromPayment(tx, { ...payment, status: payment.status as SaaSPaymentStatus });
-    await tx.platformAuditLog.create({
-      data: {
-        tenantId: payment.tenantId,
-        action: "SAAS_PAYMENT_STATUS_UPDATED",
-        resource: "SaaSPayment",
-        details: { paymentId, previousStatus: existing.status, newStatus: status, paidAt: payment.paidAt?.toISOString() || null },
-      },
-    });
-    return payment;
-  });
+  return platformDb.$transaction(tx => changePaymentStatus(tx, paymentId, status, paidAt));
 }
 
 export interface ProvisionTenantInput {
@@ -483,25 +293,26 @@ export interface ProvisionTenantInput {
   locationPhone?: string;
 }
 
-export async function provisionNewTenant(input: ProvisionTenantInput) {
+export async function provisionNewTenant(input: ProvisionTenantInput, transaction?: Prisma.TransactionClient) {
+  const client = transaction || platformDb;
   const cleanSlug = input.slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, "-");
   if (!cleanSlug || cleanSlug.length < 2) throw new Error("SLUG_INVALID");
 
-  const existing = await platformDb.tenant.findUnique({ where: { slug: cleanSlug } });
+  const existing = await client.tenant.findUnique({ where: { slug: cleanSlug } });
   if (existing) throw new Error("SLUG_ALREADY_EXISTS");
 
-  const plan = await platformDb.plan.findUnique({ where: { code: input.planCode } });
+  const plan = await client.plan.findUnique({ where: { code: input.planCode } });
   if (!plan) throw new Error("PLAN_NOT_FOUND");
   const planFeatures = Array.isArray(plan.features) ? plan.features.filter((feature): feature is string => typeof feature === "string") : [];
   if (!input.ownerPassword || input.ownerPassword.length < 12) throw new Error("OWNER_PASSWORD_WEAK");
   const normalizedOwnerEmail = input.ownerEmail.toLowerCase().trim();
-  const existingOwner = await platformDb.user.findUnique({ where: { email: normalizedOwnerEmail } });
+  const existingOwner = await client.user.findUnique({ where: { email: normalizedOwnerEmail } });
   if (existingOwner && !(await verifyUserPassword(input.ownerPassword, existingOwner.passwordHash))) {
     throw new Error("OWNER_EMAIL_EXISTS");
   }
   const ownerPasswordHash = await hashUserPassword(input.ownerPassword);
 
-  return platformDb.$transaction(async (tx) => {
+  const create = async (tx: Prisma.TransactionClient) => {
     // 1. Create Tenant
     const tenant = await tx.tenant.create({
       data: {
@@ -645,21 +456,16 @@ export async function provisionNewTenant(input: ProvisionTenantInput) {
     });
 
     return tenant;
-  });
+  };
+  return transaction ? create(transaction) : platformDb.$transaction(create);
 }
 
 export async function setTenantStatus(tenantId: string, status: "TRIAL" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELED") {
   const updated = await platformDb.$transaction(async (tx) => {
     const tenant = await tx.tenant.update({ where: { id: tenantId }, data: { status } });
     await tx.subscription.updateMany({ where: { tenantId }, data: { status } });
+    await tx.platformAuditLog.create({ data: { tenantId, action: `TENANT_STATUS_${status}`, resource: "Tenant", details: { newStatus: status } } });
     return tenant;
-  });
-
-  await recordAuditLog({
-    tenantId,
-    action: `TENANT_STATUS_${status}`,
-    resource: "Tenant",
-    details: { newStatus: status },
   });
 
   return updated;
@@ -670,28 +476,20 @@ export async function setTenantPlan(tenantId: string, planCode: string) {
   if (!plan) throw new Error("PLAN_NOT_FOUND");
 
   return platformDb.$transaction(async (tx) => {
-    // 1. Update or create subscription
-    await tx.subscription.upsert({
-      where: { tenantId },
-      update: { planId: plan.id, status: "ACTIVE" },
-      create: {
-        tenantId,
-        planId: plan.id,
-        status: "ACTIVE",
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
-    });
+    await tx.$queryRaw`SELECT id FROM Tenant WHERE id = ${tenantId} FOR UPDATE`;
+    // Changing a plan neither renews a period nor silently activates access.
+    const subscription = await tx.subscription.findUnique({ where: { tenantId } });
+    if (!subscription) throw new Error("SUBSCRIPTION_NOT_FOUND");
+    await tx.subscription.update({ where: { tenantId }, data: { planId: plan.id } });
 
-    // 2. El cambio de plan restablece excepciones individuales.
-    await tx.tenantFeature.deleteMany({ where: { tenantId } });
+    // Explicit tenant overrides survive a plan change. Inheritance is a separate action.
 
-    await recordAuditLog({
+    await tx.platformAuditLog.create({ data: {
       tenantId,
       action: "TENANT_PLAN_CHANGED",
       resource: "Subscription",
       details: { planCode },
-    });
+    } });
 
     return true;
   });
