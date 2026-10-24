@@ -253,6 +253,7 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
                 <h2 className="text-lg font-black">ARMADO DE HAMBURGUESAS</h2>
                 <p className="text-base font-black">PEDIDO #{order.id.slice(-5).toUpperCase()}</p>
                 <p className="text-base font-black">CLIENTE: {order.clientName}</p>
+                <p><strong>Fecha:</strong> {new Date(order.createdAt).toLocaleString("es-AR")}</p>
               </div>
               <div className="divide-y divide-dashed divide-black">
                 {burgers.map((burger, idx) => (

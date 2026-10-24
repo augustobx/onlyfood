@@ -72,6 +72,7 @@ function kitchenBlocks(order: PrintableOrder, pattyOptions: KitchenPattyOptions 
     { text: "COCINA", size: 14, bold: true, align: "center" },
     { text: `#${orderCode(order)}`, size: 14, bold: true, align: "center" },
     { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 12, bold: true, align: "center", after: 1 },
+    { text: new Date(order.createdAt).toLocaleString("es-AR"), align: "center", after: 1 },
     { text: order.deliveryTime || "HORARIO NO INFORMADO", size: 14, bold: true, align: "center", after: 1 },
     { text: order.needsDelivery ? "ENVIO" : "RETIRO", size: 10, bold: true, align: "center", after: 1 },
     { type: "separator", after: 1 },
@@ -115,6 +116,7 @@ function assemblyBlocks(order: PrintableOrder, options: KitchenPattyOptions = {}
     { text: "ARMADO DE HAMBURGUESAS", size: 14, bold: true, align: "center" },
     { text: `PEDIDO #${orderCode(order)}`, size: 14, bold: true, align: "center", after: 1 },
     { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 14, bold: true, align: "center", after: 1 },
+    { text: new Date(order.createdAt).toLocaleString("es-AR"), align: "center", after: 1 },
     { type: "separator", before: 1, after: 1 },
   ];
   for (const burger of burgers) {
