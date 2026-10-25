@@ -139,7 +139,7 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
             <p className="text-base font-black uppercase">CLIENTE: {order.clientName}</p>
             <p><strong>Fecha:</strong> {new Date(order.createdAt).toLocaleString("es-AR")}</p>
             <p><strong>TIPO:</strong> {order.needsDelivery ? "ENVÍO" : "RETIRO AL MOSTRADOR"}</p>
-            <p><strong>Hora Est.:</strong> {order.deliveryTime}</p>
+            <p><strong>Hora Est.:</strong> {order.deliveryTime || "Horario no informado"}</p>
           </div>
 
           <div className="mb-4 divide-y divide-dashed divide-black border-y border-dashed border-black py-1">
@@ -195,7 +195,7 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
             <p><strong>Tel:</strong> {order.clientPhone}</p>
             <p><strong>TIPO:</strong> {order.needsDelivery ? "ENVÍO" : "RETIRO AL MOSTRADOR"}</p>
             {order.needsDelivery && <p><strong>Dirección:</strong> {order.deliveryAddress}</p>}
-            <p><strong>Hora Est.:</strong> {order.deliveryTime}</p>
+            <p><strong>Hora Est.:</strong> {order.deliveryTime || "Horario no informado"}</p>
           </div>
 
           <div className="mb-4 space-y-2 border-y border-dashed border-black py-2">
@@ -254,6 +254,8 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
                 <p className="text-base font-black">PEDIDO #{order.id.slice(-5).toUpperCase()}</p>
                 <p className="text-base font-black">CLIENTE: {order.clientName}</p>
                 <p><strong>Fecha:</strong> {new Date(order.createdAt).toLocaleString("es-AR")}</p>
+                <p><strong>TIPO:</strong> {order.needsDelivery ? "ENVÍO" : "RETIRO AL MOSTRADOR"}</p>
+                <p className="text-base font-black">{order.deliveryTime || "Horario no informado"}</p>
               </div>
               <div className="divide-y divide-dashed divide-black">
                 {burgers.map((burger, idx) => (

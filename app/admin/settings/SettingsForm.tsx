@@ -10,13 +10,14 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { updateConfig, broadcastPushNotification, disconnectWhatsAppIntegration, retryWhatsAppNotification, testWhatsAppConnection } from "@/app/actions/admin-settings";
 import { testConfiguredPrinter } from "@/app/actions/admin-printing";
-import { Save, Store, Palette, Wallet, Megaphone, Send, Printer, CreditCard, MessageCircle, Calendar, Clock, CircleCheck, CircleAlert, RefreshCw, Unplug, Mail } from "lucide-react";
+import { Save, Store, Palette, Wallet, Megaphone, Send, Printer, CreditCard, MessageCircle, Calendar, Clock, CircleCheck, CircleAlert, RefreshCw, Unplug, Mail, Eye } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parseBusinessHours, DaySchedule } from "@/lib/business-hours";
 import { MediaPickerInput } from "@/components/admin/MediaPickerInput";
 import { PrintAgentManager } from "@/components/admin/PrintAgentManager";
 import { EmailSettingsPanel } from "@/components/admin/EmailSettingsPanel";
+import { getPreviewOrderId } from "@/app/actions/admin-ticket-preview";
 import type { EmailProvider } from "@/lib/email-configuration";
 
 export function SettingsForm({
@@ -68,6 +69,7 @@ export function SettingsForm({
   const [retryingNotification, setRetryingNotification] = useState<string | null>(null);
   const [waConfigured, setWaConfigured] = useState(whatsappIntegrationConfigured);
   const [mpConfigured, setMpConfigured] = useState(Boolean(mpIntegrationConfigured));
+  const [previewingTicket, setPreviewingTicket] = useState<string | null>(null);
 
   const updateField = (field: string, value: any) => {
     setCfg((prev: any) => ({ ...prev, [field]: value }));
@@ -205,6 +207,23 @@ export function SettingsForm({
     if (result.success) toast.success("Prueba enviada a PrintNode", { description: `Trabajo #${"jobId" in result ? result.jobId ?? "aceptado" : "aceptado"}` });
     else toast.error("No se pudo imprimir", { description: result.error });
     setTestingPrinter(null);
+  };
+
+  const handleTicketPreview = async (kind: "ALL" | "KITCHEN" | "COUNTER" | "ASSEMBLY") => {
+    setPreviewingTicket(kind);
+    try {
+      const { orderId } = await getPreviewOrderId();
+      if (!orderId) {
+        toast.error("No hay pedidos", { description: "Necesitás al menos un pedido para ver la vista previa." });
+        setPreviewingTicket(null);
+        return;
+      }
+      const url = `/admin/live/print/${orderId}${kind === "ALL" ? "" : `?kind=${kind}`}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      toast.error("Error al buscar pedido para vista previa.");
+    }
+    setPreviewingTicket(null);
   };
 
   const handleBroadcastPush = async () => {
@@ -1131,6 +1150,32 @@ export function SettingsForm({
                     <p className="text-xs font-bold text-amber-900">Activar solo después de probar la impresión del comercio.</p>
                   </div>
                 )}
+              </div>
+
+              {/* Vista previa de tickets */}
+              <div className="space-y-3 rounded-xl border-2 border-violet-200 bg-violet-50 p-4">
+                <div className="space-y-1">
+                  <Label className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Eye className="w-5 h-5 text-violet-600" /> Vista Previa de Tickets
+                  </Label>
+                  <p className="text-sm text-slate-600">Abrí una pestaña nueva con la vista real de cada ticket usando el último pedido del comercio.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" className="border-blue-300 bg-white text-blue-700 hover:bg-blue-50" disabled={previewingTicket !== null} onClick={() => handleTicketPreview("COUNTER")}>
+                    <Eye className="mr-2 h-4 w-4" /> {previewingTicket === "COUNTER" ? "Abriendo..." : "Ticket Mostrador"}
+                  </Button>
+                  <Button type="button" variant="outline" className="border-orange-300 bg-white text-orange-700 hover:bg-orange-50" disabled={previewingTicket !== null} onClick={() => handleTicketPreview("KITCHEN")}>
+                    <Eye className="mr-2 h-4 w-4" /> {previewingTicket === "KITCHEN" ? "Abriendo..." : "Comanda Cocina"}
+                  </Button>
+                  {cfg.assemblyPrintEnabled && (
+                    <Button type="button" variant="outline" className="border-amber-300 bg-white text-amber-700 hover:bg-amber-50" disabled={previewingTicket !== null} onClick={() => handleTicketPreview("ASSEMBLY")}>
+                      <Eye className="mr-2 h-4 w-4" /> {previewingTicket === "ASSEMBLY" ? "Abriendo..." : "Armado Hamburguesas"}
+                    </Button>
+                  )}
+                  <Button type="button" variant="outline" className="border-slate-300 bg-white text-slate-700 hover:bg-slate-50" disabled={previewingTicket !== null} onClick={() => handleTicketPreview("ALL")}>
+                    <Eye className="mr-2 h-4 w-4" /> {previewingTicket === "ALL" ? "Abriendo..." : "Todos (combinado)"}
+                  </Button>
+                </div>
               </div>
 
               {/* Impresora Mostrador */}

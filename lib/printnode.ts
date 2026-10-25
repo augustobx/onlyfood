@@ -117,6 +117,8 @@ function assemblyBlocks(order: PrintableOrder, options: KitchenPattyOptions = {}
     { text: `PEDIDO #${orderCode(order)}`, size: 14, bold: true, align: "center", after: 1 },
     { text: `CLIENTE: ${order.clientName.toUpperCase()}`, size: 14, bold: true, align: "center", after: 1 },
     { text: new Date(order.createdAt).toLocaleString("es-AR"), align: "center", after: 1 },
+    { text: order.deliveryTime || "HORARIO NO INFORMADO", size: 14, bold: true, align: "center", after: 1 },
+    { text: order.needsDelivery ? "ENVIO" : "RETIRO", size: 10, bold: true, align: "center", after: 1 },
     { type: "separator", before: 1, after: 1 },
   ];
   for (const burger of burgers) {
