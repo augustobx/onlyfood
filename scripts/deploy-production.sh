@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 077
 
 ONLYFOOD_PROJECT_DIR="${ONLYFOOD_PROJECT_DIR:-/opt/apps/onlyfood}"
 ONLYFOOD_PROJECT_NAME="onlyfood"
@@ -52,6 +53,11 @@ validate_runtime_env() {
   require_env R2_ACCESS_KEY_ID
   require_env R2_SECRET_ACCESS_KEY
   require_env R2_PUBLIC_URL
+  require_env HUB_INTEGRATION_TOKEN
+  require_env HUB_MANAGEMENT_TOKEN
+  [[ "$(env_value HUB_MANAGEMENT_ENABLED)" == "true" ]] || fail "HUB_MANAGEMENT_ENABLED debe ser true; no deshabilitar la integración al actualizar."
+  [[ ${#ONLYFOOD_READ_TOKEN} -ge 32 && ${#ONLYFOOD_MANAGEMENT_TOKEN} -ge 32 ]] || fail "Las claves del Hub deben tener al menos 32 caracteres."
+  [[ "$ONLYFOOD_READ_TOKEN" != "$ONLYFOOD_MANAGEMENT_TOKEN" ]] || fail "Las claves de lectura y gestión deben ser independientes."
   if [[ -z "$(env_value ENCRYPTION_KEY)" && -z "$(env_value ENCRYPTION_MASTER_KEY)" ]]; then
     fail "Falta ENCRYPTION_KEY o ENCRYPTION_MASTER_KEY en .env.docker."
   fi
@@ -66,7 +72,13 @@ validate_runtime_env() {
 [[ -f "$ONLYFOOD_BACKUP_SCRIPT" ]] || fail "Falta el script de backup."
 
 cd "$ONLYFOOD_PROJECT_DIR"
+ONLYFOOD_READ_TOKEN="$(env_value HUB_INTEGRATION_TOKEN)"
+ONLYFOOD_MANAGEMENT_TOKEN="$(env_value HUB_MANAGEMENT_TOKEN)"
 validate_runtime_env
+mkdir -p "$ONLYFOOD_PROJECT_DIR/.secrets"
+chmod 700 "$ONLYFOOD_PROJECT_DIR/.secrets"
+printf '%s' "$(env_value NEXT_SERVER_ACTIONS_ENCRYPTION_KEY)" > "$ONLYFOOD_PROJECT_DIR/.secrets/next-server-actions.key"
+chmod 600 "$ONLYFOOD_PROJECT_DIR/.secrets/next-server-actions.key"
 compose config --quiet
 
 [[ "$(git branch --show-current)" == "main" ]] || fail "El checkout productivo debe estar en main."
@@ -97,10 +109,13 @@ if [[ "$ONLYFOOD_PREVIOUS_COMMIT" != "$ONLYFOOD_TARGET_COMMIT" ]]; then
   git merge --ff-only origin/main
 fi
 
-compose build app database-init
-compose up -d --no-build db
+compose build --build-arg BUILD_REVISION="$ONLYFOOD_TARGET_COMMIT" app
+if [[ -z "$ONLYFOOD_DB_CONTAINER" ]]; then
+  compose up -d --no-build db
+fi
 
 if [[ "$ONLYFOOD_RUN_MIGRATIONS" == "true" ]]; then
+  compose build database-init
   printf 'Aplicando únicamente migraciones Prisma pendientes. No se ejecutan seeds.\n'
   compose --profile migration run --rm database-init
 else

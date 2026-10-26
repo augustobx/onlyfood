@@ -18,7 +18,11 @@ ENV NODE_ENV=production \
     DATABASE_URL=mysql://build:build@127.0.0.1:3306/build
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-RUN ./node_modules/.bin/prisma generate \
+RUN --mount=type=secret,id=next_server_actions_encryption_key \
+    if [ -f /run/secrets/next_server_actions_encryption_key ]; then \
+      export NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(cat /run/secrets/next_server_actions_encryption_key)"; \
+    fi; \
+    ./node_modules/.bin/prisma generate \
     && npm run build
 
 # Production migration image. It never runs seeds and is not part of the
