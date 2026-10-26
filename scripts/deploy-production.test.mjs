@@ -1,9 +1,9 @@
-const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const os=require('node:os');
-const path=require('node:path');
-const {spawnSync}=require('node:child_process');
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 
 test('production deploy refuses a disconnected Hub before invoking Docker', {skip:process.platform==='win32'}, ()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'onlyfood-deploy-'));
@@ -18,7 +18,7 @@ test('production deploy refuses a disconnected Hub before invoking Docker', {ski
     Object.assign(base,{STORAGE_PROVIDER:'r2',ALLOW_LOCAL_STORAGE:'false',SEED_DEMO_DATA:'false',HUB_MANAGEMENT_ENABLED:'true',HUB_INTEGRATION_TOKEN:'r'.repeat(64),HUB_MANAGEMENT_TOKEN:'m'.repeat(64)});
     for(const change of [{HUB_INTEGRATION_TOKEN:''},{HUB_MANAGEMENT_TOKEN:'short'},{HUB_MANAGEMENT_ENABLED:'false'},{HUB_MANAGEMENT_TOKEN:base.HUB_INTEGRATION_TOKEN},{}]) {
       fs.writeFileSync(path.join(root,'.env.docker'),Object.entries({...base,...change}).map(([k,v])=>k+'='+v).join('\n')+'\n');
-      const result=spawnSync('bash',[path.join(__dirname,'deploy-production.sh')],{encoding:'utf8',env:{...process.env,ONLYFOOD_PROJECT_DIR:root,PATH:path.join(root,'bin')+path.delimiter+process.env.PATH}});
+      const result=spawnSync('bash',[path.join(import.meta.dirname,'deploy-production.sh')],{encoding:'utf8',env:{...process.env,ONLYFOOD_PROJECT_DIR:root,PATH:path.join(root,'bin')+path.delimiter+process.env.PATH}});
       assert.equal(result.error,undefined);
       const valid=Object.keys(change).length===0;
       assert.equal(result.status,valid?77:1,result.stderr);
