@@ -1,5 +1,6 @@
 .git
 .gitignore
+.secrets
 
 .next
 node_modules

@@ -47,6 +47,8 @@ services:
     build:
       context: .
       target: runner
+      secrets:
+        - next_server_actions_encryption_key
     restart: unless-stopped
     environment:
       DATABASE_URL: mysql://${DB_USER:-onlyfood}:${DB_PASSWORD}@db:3306/${DB_NAME:-onlyfood}
@@ -54,6 +56,7 @@ services:
       HUB_INTEGRATION_TOKEN: ${HUB_INTEGRATION_TOKEN:-}
       HUB_MANAGEMENT_ENABLED: ${HUB_MANAGEMENT_ENABLED:-false}
       HUB_MANAGEMENT_TOKEN: ${HUB_MANAGEMENT_TOKEN:-}
+      HUB_MANAGEMENT_OPERATIONS: ${HUB_MANAGEMENT_OPERATIONS:-tenant.create,tenant.update,tenant.status,subscription.update,subscription.renew,module.set,admin.update,admin.revoke,plan.create,plan.update,payment.record,payment.status}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-${ENCRYPTION_MASTER_KEY:-}}
       NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
       BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
@@ -93,6 +96,10 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
+
+secrets:
+  next_server_actions_encryption_key:
+    file: ./.secrets/next-server-actions.key
 
 volumes:
   mariadb_data:

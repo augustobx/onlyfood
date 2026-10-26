@@ -61,3 +61,28 @@ configuración, dispositivos y sesiones. No pasar secretos productivos al build.
 Recrear solo `app` con `--no-deps --no-build`; no ejecutar migrador ni seeds.
 Rollback de aplicación usa imagen/configuración anteriores y conserva la base
 viva: restaurar un dump viejo descartaría los pedidos posteriores al respaldo.
+
+## Configuración persistente de producción
+
+Las tres variables del conector deben estar en `/opt/apps/onlyfood/.env.docker`,
+no únicamente en una capa de despliegue temporal. `deploy-onlyfood` rechaza claves
+ausentes, cortas, iguales o gestión desactivada antes de invocar Docker.
+`HUB_MANAGEMENT_OPERATIONS` permite restringir las doce operaciones del catálogo.
+
+El actualizador conserva la clave histórica de Server Actions en
+`.secrets/next-server-actions.key` (directorio 700, archivo 600, fuera de Git y del
+contexto Docker). Compose la entrega mediante un secreto de BuildKit; Next.js
+la incorpora a su manifiesto privado del servidor. No se publica como variable
+del cliente. La revisión Git se pasa como `BUILD_REVISION` al construir la imagen.
+
+Después de actualizar el script versionado, reinstalar el comando canónico:
+
+```bash
+install -m 0755 /opt/apps/onlyfood/scripts/deploy-production.sh /usr/local/bin/deploy-onlyfood
+```
+
+La actualización normal construye y reemplaza sólo `app`. La imagen de migración
+se construye únicamente con `--migrate`; una DB existente no se recrea para
+actualizar la web. No usar este modo para la integración del Hub: no requiere
+cambios de esquema. Validar lectura y catálogo firmado después de cada release,
+además del healthcheck.
