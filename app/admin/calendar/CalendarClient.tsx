@@ -483,13 +483,13 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
         {/* Navigation buttons */}
         <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
-          <Button variant="ghost" size="icon" onClick={handlePrev} className="h-8 w-8 rounded-lg text-slate-600 hover:bg-slate-100">
+          <Button variant="ghost" size="icon" aria-label="Período anterior" onClick={handlePrev} className="h-8 w-8 rounded-lg text-slate-600 hover:bg-slate-100">
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1 text-center font-black text-slate-800 text-sm tracking-tight">
             {headerTitle}
           </div>
-          <Button variant="ghost" size="icon" onClick={handleNext} className="h-8 w-8 rounded-lg text-slate-600 hover:bg-slate-100">
+          <Button variant="ghost" size="icon" aria-label="Período siguiente" onClick={handleNext} className="h-8 w-8 rounded-lg text-slate-600 hover:bg-slate-100">
             <ChevronRight className="w-5 h-5" />
           </Button>
         </div>

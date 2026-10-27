@@ -204,7 +204,7 @@ export function HistoryClient({ initialOrders, initialResult, initialMessengers 
           <div className="flex flex-wrap gap-2">
             {/* Rango de fechas */}
             <select
-              value={dateRange}
+              aria-label="Período del historial" value={dateRange}
               onChange={(e: any) => setDateRange(e.target.value)}
               className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold outline-none"
             >
@@ -218,7 +218,7 @@ export function HistoryClient({ initialOrders, initialResult, initialMessengers 
 
             {/* Estado */}
             <select
-              value={statusFilter}
+              aria-label="Estado del pedido" value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold outline-none"
             >
@@ -234,7 +234,7 @@ export function HistoryClient({ initialOrders, initialResult, initialMessengers 
 
             {/* Tipo */}
             <select
-              value={typeFilter}
+              aria-label="Modalidad del pedido" value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
               className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold outline-none"
             >
@@ -246,7 +246,7 @@ export function HistoryClient({ initialOrders, initialResult, initialMessengers 
 
             {/* Método de pago */}
             <select
-              value={paymentFilter}
+              aria-label="Medio de pago" value={paymentFilter}
               onChange={(e) => setPaymentFilter(e.target.value)}
               className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold outline-none"
             >

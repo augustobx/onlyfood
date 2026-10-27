@@ -363,14 +363,14 @@ export function SettingsForm({
                   {!emailServiceConfigured && <p className="text-xs font-semibold text-amber-700">Configurá primero SMTP, Resend o Brevo en la pestaña Correo para habilitar esta opción.</p>}
                   <p className="text-sm text-muted-foreground">Cuando está activo, cada cliente deberá registrarse o iniciar sesión para confirmar pedidos. No afecta al panel administrativo.</p>
                 </div>
-                <Switch checked={Boolean(cfg.requireLoginForCheckout)} onCheckedChange={v => updateField('requireLoginForCheckout', v)} />
+                <Switch aria-label="Exigir cuenta para comprar" checked={Boolean(cfg.requireLoginForCheckout)} onCheckedChange={v => updateField('requireLoginForCheckout', v)} />
               </div>
               <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50">
                 <div className="space-y-0.5">
                   <Label className="text-base text-slate-800 font-bold">Local Abierto (Aceptar Pedidos)</Label>
                   <p className="text-sm text-muted-foreground">Si se desactiva, los clientes verán el mensaje de cierre y no podrán comprar.</p>
                 </div>
-                <Switch checked={cfg.isStoreOpen} onCheckedChange={v => updateField('isStoreOpen', v)} />
+                <Switch aria-label="Aceptar pedidos" checked={cfg.isStoreOpen} onCheckedChange={v => updateField('isStoreOpen', v)} />
               </div>
 
               {!cfg.isStoreOpen && (
@@ -403,7 +403,7 @@ export function SettingsForm({
                     <p className="text-xs text-muted-foreground">Usa únicamente los horarios configurados y disponibles.</p>
                   </div>
                   <Switch
-                    checked={cfg.allowImmediateOrders ?? true}
+                    aria-label="Pedidos para hoy" checked={cfg.allowImmediateOrders ?? true}
                     onCheckedChange={(v) => updateField("allowImmediateOrders", v)}
                   />
                 </div>
@@ -414,7 +414,7 @@ export function SettingsForm({
                     <p className="text-xs text-muted-foreground">Programación para el día siguiente.</p>
                   </div>
                   <Switch
-                    checked={cfg.allowScheduledTomorrow ?? true}
+                    aria-label="Pedidos para mañana" checked={cfg.allowScheduledTomorrow ?? true}
                     onCheckedChange={(v) => updateField("allowScheduledTomorrow", v)}
                   />
                 </div>
@@ -425,7 +425,7 @@ export function SettingsForm({
                     <p className="text-xs text-muted-foreground">Calendario de fecha futura y eventos.</p>
                   </div>
                   <Switch
-                    checked={cfg.allowAdvanceOrders ?? true}
+                    aria-label="Pedidos por encargo" checked={cfg.allowAdvanceOrders ?? true}
                     onCheckedChange={(v) => updateField("allowAdvanceOrders", v)}
                   />
                 </div>
@@ -494,7 +494,7 @@ export function SettingsForm({
                   >
                     <div className="flex items-center gap-3 min-w-[130px]">
                       <Switch
-                        checked={day.isOpen}
+                        aria-label={`Atender el ${day.dayName}`} checked={day.isOpen}
                         onCheckedChange={(v) => updateDaySchedule(idx, { isOpen: v })}
                       />
                       <div>
@@ -575,12 +575,12 @@ export function SettingsForm({
 
                 <div className="flex items-center justify-between border rounded-lg p-3">
                   <Label>Efectivo (Pago al recibir/retirar)</Label>
-                  <Switch checked={cfg.paymentCash} onCheckedChange={v => updateField('paymentCash', v)} />
+                  <Switch aria-label="Habilitar efectivo" checked={cfg.paymentCash} onCheckedChange={v => updateField('paymentCash', v)} />
                 </div>
 
                 <div className="flex items-center justify-between border rounded-lg p-3">
                   <Label>Mercado Pago (checkout online)</Label>
-                  <Switch checked={cfg.paymentMp} onCheckedChange={v => updateField('paymentMp', v)} />
+                  <Switch aria-label="Habilitar Mercado Pago" checked={cfg.paymentMp} onCheckedChange={v => updateField('paymentMp', v)} />
                 </div>
                 <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -663,7 +663,7 @@ export function SettingsForm({
                   <Label className="text-base text-slate-800 font-bold">Activar avisos de pedidos</Label>
                   <p className="text-sm text-muted-foreground">Los avisos se envían automáticamente al teléfono informado por el cliente.</p>
                 </div>
-                <Switch checked={cfg.whatsappNotificationsEnabled} onCheckedChange={v => updateField('whatsappNotificationsEnabled', v)} />
+                <Switch aria-label="Activar avisos por WhatsApp" checked={cfg.whatsappNotificationsEnabled} onCheckedChange={v => updateField('whatsappNotificationsEnabled', v)} />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -710,7 +710,7 @@ export function SettingsForm({
                   ["whatsappNotifyOrderConfirmed", "Pedido confirmado", "Productos, cantidades, total y modalidad."],
                   ["whatsappNotifyOrderPreparing", "Pedido en cocina", "Cuando pasa a En preparación."],
                   ["whatsappNotifyOrderReady", "Pedido listo", "Texto diferente para retiro o envío."],
-                ].map(([field, title, description]) => <div key={field} className="flex items-start justify-between gap-3 rounded-xl border p-3"><div><p className="text-sm font-bold">{title}</p><p className="text-xs text-muted-foreground">{description}</p></div><Switch checked={Boolean(cfg[field])} onCheckedChange={value => updateField(field, value)} /></div>)}
+                ].map(([field, title, description]) => <div key={field} className="flex items-start justify-between gap-3 rounded-xl border p-3"><div><p className="text-sm font-bold">{title}</p><p className="text-xs text-muted-foreground">{description}</p></div><Switch aria-label={String(title)} checked={Boolean(cfg[field])} onCheckedChange={value => updateField(field, value)} /></div>)}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2"><Label>Idioma</Label><Input aria-label="Idioma" value={cfg.whatsappTemplateLanguage || 'es_AR'} onChange={e => updateField('whatsappTemplateLanguage', e.target.value)} /></div>
@@ -783,7 +783,7 @@ export function SettingsForm({
               <div className="border rounded-xl p-4 bg-slate-50 space-y-4">
                 <div className="flex justify-between items-center">
                   <Label className="text-base font-bold text-slate-800">Pantalla de Carga (Splash Screen)</Label>
-                  <Switch checked={cfg.splashEnabled} onCheckedChange={v => updateField('splashEnabled', v)} />
+                  <Switch aria-label="Pantalla de presentación" checked={cfg.splashEnabled} onCheckedChange={v => updateField('splashEnabled', v)} />
                 </div>
                 {cfg.splashEnabled && (
                   <div className="space-y-4 animate-in fade-in">
@@ -842,7 +842,7 @@ export function SettingsForm({
               <div className="border rounded-xl p-4 bg-slate-50 space-y-4">
                 <div className="flex justify-between items-center">
                   <Label className="text-base font-bold text-slate-800">Globo Pop-up de Bienvenida</Label>
-                  <Switch checked={cfg.welcomeBalloonEnabled} onCheckedChange={v => updateField('welcomeBalloonEnabled', v)} />
+                  <Switch aria-label="Invitación de bienvenida" checked={cfg.welcomeBalloonEnabled} onCheckedChange={v => updateField('welcomeBalloonEnabled', v)} />
                 </div>
                 {cfg.welcomeBalloonEnabled && (
                   <div className="space-y-4 animate-in fade-in">
@@ -862,13 +862,13 @@ export function SettingsForm({
               <div className="space-y-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div><Label className="text-base font-bold text-slate-800">Tablón de noticias</Label><p className="mt-1 text-xs text-slate-600">Se abre al entrar a la tienda, toma los colores del tema y se muestra una vez por sesión para cada mensaje.</p></div>
-                  <Switch checked={Boolean(cfg.noticeBoardEnabled)} onCheckedChange={value => updateField('noticeBoardEnabled', value)} />
+                  <Switch aria-label="Tablón de noticias" checked={Boolean(cfg.noticeBoardEnabled)} onCheckedChange={value => updateField('noticeBoardEnabled', value)} />
                 </div>
                 {cfg.noticeBoardEnabled && (
                   <div className="space-y-4 animate-in fade-in">
                     <div className="space-y-2"><Label>Título</Label><Input aria-label="Título" value={cfg.noticeBoardTitle || ''} onChange={event => updateField('noticeBoardTitle', event.target.value)} maxLength={80} placeholder="Ej: Novedades de esta semana" /></div>
                     <div className="space-y-2"><Label>Noticia o aviso</Label><Textarea aria-label="Noticia o aviso" value={cfg.noticeBoardMessage || ''} onChange={event => updateField('noticeBoardMessage', event.target.value)} maxLength={2000} rows={5} placeholder="Contá una promoción, cambio de horario, producto nuevo o cualquier novedad." /><p className="text-right text-[10px] text-slate-500">{(cfg.noticeBoardMessage || '').length}/2000</p></div>
-                    <div className="flex items-center justify-between rounded-xl border bg-white p-3"><div><Label className="font-bold">Cerrar automáticamente</Label><p className="text-xs text-muted-foreground">El botón de cerrar siempre estará disponible.</p></div><Switch checked={Boolean(cfg.noticeBoardAutoClose)} onCheckedChange={value => updateField('noticeBoardAutoClose', value)} /></div>
+                    <div className="flex items-center justify-between rounded-xl border bg-white p-3"><div><Label className="font-bold">Cerrar automáticamente</Label><p className="text-xs text-muted-foreground">El botón de cerrar siempre estará disponible.</p></div><Switch aria-label="Cerrar noticias automáticamente" checked={Boolean(cfg.noticeBoardAutoClose)} onCheckedChange={value => updateField('noticeBoardAutoClose', value)} /></div>
                     {cfg.noticeBoardAutoClose && <div className="space-y-2"><Label>Tiempo visible (segundos)</Label><Input aria-label="Tiempo visible (segundos)" type="number" min="3" max="120" value={cfg.noticeBoardDuration || 8} onChange={event => updateField('noticeBoardDuration', event.target.value)} /></div>}
                   </div>
                 )}
@@ -1086,7 +1086,7 @@ export function SettingsForm({
                 {cfg.backgroundUrl && (
                   <div className="flex items-center justify-between border rounded-lg p-3 bg-slate-50">
                     <Label>Efecto de Desfoque Oscuro (Blur + Opacity)</Label>
-                    <Switch checked={cfg.backgroundBlur || false} onCheckedChange={v => updateField('backgroundBlur', v)} />
+                    <Switch aria-label="Difuminar el fondo" checked={cfg.backgroundBlur || false} onCheckedChange={v => updateField('backgroundBlur', v)} />
                   </div>
                 )}
               </div>
@@ -1146,7 +1146,7 @@ export function SettingsForm({
                   <Label className="text-base text-slate-800 font-bold">Auto-Impresión de Tickets</Label>
                   <p className="text-sm text-muted-foreground">{cfg.printingMode === "PRINTNODE" ? "Los pedidos en efectivo se envían al crearse y los de Mercado Pago al acreditarse." : "La app abrirá el ticket y el diálogo del navegador cuando ingrese un pedido nuevo."}</p>
                 </div>
-                <Switch checked={cfg.autoPrintTickets} onCheckedChange={v => updateField('autoPrintTickets', v)} />
+                <Switch aria-label="Impresión automática" checked={cfg.autoPrintTickets} onCheckedChange={v => updateField('autoPrintTickets', v)} />
               </div>
 
               <div className="space-y-4 rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
@@ -1155,7 +1155,7 @@ export function SettingsForm({
                     <Label className="text-base font-bold text-slate-800">Total de medallones en comanda</Label>
                     <p className="text-sm text-muted-foreground">Muestra al final del ticket de cocina cuántos medallones requiere el pedido, incluidos productos, combos y extras.</p>
                   </div>
-                  <Switch checked={Boolean(cfg.kitchenPattyCountEnabled)} onCheckedChange={v => updateField("kitchenPattyCountEnabled", v)} />
+                  <Switch aria-label="Contar medallones en comanda" checked={Boolean(cfg.kitchenPattyCountEnabled)} onCheckedChange={v => updateField("kitchenPattyCountEnabled", v)} />
                 </div>
                 {cfg.kitchenPattyCountEnabled && (
                   <div className="space-y-2">
@@ -1177,7 +1177,7 @@ export function SettingsForm({
                     <Label className="text-base font-bold text-slate-800">Tercer ticket: armado de hamburguesas</Label>
                     <p className="text-sm text-slate-600">Genera una comanda independiente con nombre del cliente, hamburguesas y tamaños reales, ingredientes quitados, extras y total de panes. Solo se imprime cuando el pedido contiene hamburguesas.</p>
                   </div>
-                  <Switch checked={Boolean(cfg.assemblyPrintEnabled)} onCheckedChange={v=>updateField("assemblyPrintEnabled",v)} />
+                  <Switch aria-label="Ticket de armado" checked={Boolean(cfg.assemblyPrintEnabled)} onCheckedChange={v=>updateField("assemblyPrintEnabled",v)} />
                 </div>
                 {cfg.assemblyPrintEnabled && (
                   <div className="space-y-2 rounded-xl border border-orange-200 bg-white p-3">
