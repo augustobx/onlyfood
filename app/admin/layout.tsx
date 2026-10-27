@@ -6,6 +6,7 @@ import { ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { buildTenantMetadata } from "@/lib/tenant-branding";
 import { createTenantDb } from "@/lib/tenant-db";
+import { ERPThemeProvider } from "@/components/nanolabs-visual/ThemeContext";
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await getTenantContext();
@@ -17,9 +18,33 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const isAdmin = await isAdminAuthenticated();
+  let tenantName = "OnlyFood";
+  let tenantArea = "OnlyFood · Gestión Gastronómica";
+  let tenantBajada = "Sistema de gestión integral para OnlyFood.";
+  let tenantLogo: string | null = null;
+
+  try {
+    const tenant = await getTenantContext();
+    const branding = await createTenantDb(tenant.id).systemConfig.findFirst({
+      select: { appName: true, logoUrl: true },
+    });
+    tenantName = branding?.appName || tenant.settings?.appName || tenant.name;
+    tenantArea = `${tenantName} · Gestión Gastronómica`;
+    tenantBajada = `Sistema de gestión integral para ${tenantName}.`;
+    tenantLogo = branding?.logoUrl || tenant.settings?.logoUrl || null;
+  } catch {
+    // fallback if context resolution fails
+  }
 
   if (!isAdmin) {
-    return <AdminLoginForm />;
+    return (
+      <AdminLoginForm
+        tenantName={tenantName}
+        tenantArea={tenantArea}
+        tenantBajada={tenantBajada}
+        tenantLogo={tenantLogo}
+      />
+    );
   }
 
   const tenant = await getTenantContext();
@@ -44,5 +69,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
-  return <AdminShell enabledFeatures={[...tenant.features]}>{children}</AdminShell>;
+  return (
+    <ERPThemeProvider initialTheme="2">
+      <AdminShell
+        enabledFeatures={[...tenant.features]}
+        tenantName={tenantName}
+        tenantLogo={tenantLogo}
+      >
+        {children}
+      </AdminShell>
+    </ERPThemeProvider>
+  );
 }

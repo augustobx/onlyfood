@@ -1,78 +1,75 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import React, { useState, useEffect } from "react";
 import { loginAdmin } from "@/app/actions/admin-auth";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Lock, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Login } from "@/components/intro/Login";
+import "@/components/intro/base.css";
+import "@/components/intro/login.css";
 
-export default function AdminLoginForm() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [loading, setLoading] = useState(false);
-    const router = useRouter();
+export interface AdminLoginFormProps {
+  tenantName?: string;
+  tenantArea?: string;
+  tenantBajada?: string;
+  tenantLogo?: string | null;
+}
 
-    // Limpieza preventiva: aseguramos que el body no esté bloqueado
-    useEffect(() => {
-        document.body.style.pointerEvents = "auto";
-        document.body.removeAttribute("data-scroll-locked");
-    }, []);
+export default function AdminLoginForm({
+  tenantName = "OnlyFood",
+  tenantArea = "OnlyFood · Gestión Gastronómica",
+  tenantBajada = "Sistema de gestión integral gastronómica y pedidos.",
+  tenantLogo = null,
+}: AdminLoginFormProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        const res = await loginAdmin(email, password);
-        if (res.success) {
-            toast.success("Acceso concedido");
-            // Transición suave nativa de Next.js (evita el bug de la pantalla oscura)
-            router.refresh();
-        } else {
-            toast.error(res.error);
-            setLoading(false);
-        }
-    };
+  useEffect(() => {
+    document.body.style.pointerEvents = "auto";
+    document.body.removeAttribute("data-scroll-locked");
+  }, []);
 
-    return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-900 px-4">
-            <div className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-2xl border border-slate-200">
-                <div className="flex flex-col items-center mb-6">
-                    <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                        <Lock className="w-6 h-6 text-slate-700" />
-                    </div>
-                    <h1 className="text-2xl font-black text-center text-slate-800">Acceso Restringido</h1>
-                    <p className="text-sm text-slate-500 mt-1">Panel de Administración</p>
-                </div>
-                <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                        <div className="relative mb-3">
-                            <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                            <Input
-                                type="email"
-                                placeholder="Correo del usuario"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="h-12 bg-slate-50 pl-10"
-                                autoComplete="email"
-                                required
-                                autoFocus
-                            />
-                        </div>
-                        <Input
-                            type="password"
-                            placeholder="Contraseña"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="h-12 text-center text-lg tracking-widest bg-slate-50"
-                            autoComplete="current-password"
-                            required
-                        />
-                    </div>
-                    <Button type="submit" disabled={loading} className="w-full h-12 bg-orange-600 hover:bg-orange-700 text-white font-bold text-lg rounded-xl transition-all">
-                        Ingresar
-                    </Button>
-                </form>
-            </div>
-        </div>
-    );
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const res = await loginAdmin(email, password);
+    if (res.success) {
+      toast.success("Acceso concedido");
+      router.refresh();
+      setTimeout(() => {
+        window.location.reload();
+      }, 350);
+    } else {
+      const msg = res.error || "Credenciales incorrectas";
+      setError(msg);
+      toast.error(msg);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Login
+      modo="ingreso"
+      config={{
+        producto: tenantName,
+        area: tenantArea,
+        bajada: tenantBajada,
+      }}
+      ingreso={{
+        email,
+        setEmail,
+        password,
+        setPassword,
+        loading,
+        error,
+        onSubmit: handleLogin,
+        logoUrl: tenantLogo,
+      }}
+    />
+  );
 }

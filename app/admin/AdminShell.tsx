@@ -23,11 +23,14 @@ import {
   Dices,
   BookOpenCheck,
   ShieldOff,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { LogoutButton } from "./LogoutButton";
 import { ClientResetNotificationBell } from "@/components/admin/ClientResetNotificationBell";
+import { LayoutNanoLabs } from "@/components/nanolabs-visual/LayoutNanoLabs";
+import { useERPTheme } from "@/components/nanolabs-visual/ThemeContext";
 
 const routes = [
   { name: "Pedidos Hoy", href: "/admin/live", icon: LayoutDashboard, feature: "orders" },
@@ -71,9 +74,24 @@ function NavigationLinks({ compact = false, enabledFeatures = [] }: { compact?: 
   );
 }
 
-export function AdminShell({ children, enabledFeatures = [] }: { children: React.ReactNode; enabledFeatures?: string[] }) {
+export function AdminShell({
+  children,
+  enabledFeatures = [],
+  tenantName = "OnlyFood",
+  tenantLogo = null,
+  userName = "Administrador",
+  currentRole = "ADMIN",
+}: {
+  children: React.ReactNode;
+  enabledFeatures?: string[];
+  tenantName?: string;
+  tenantLogo?: string | null;
+  userName?: string;
+  currentRole?: string;
+}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { theme, setTheme } = useERPTheme();
 
   useEffect(() => {
     setCollapsed(localStorage.getItem("adminSidebarCollapsed") === "true");
@@ -91,6 +109,23 @@ export function AdminShell({ children, enabledFeatures = [] }: { children: React
   // su min-height montados genera una gran zona en blanco en rollos térmicos.
   if (pathname.startsWith("/admin/live/print/")) return <>{children}</>;
 
+  // Si estamos en Tema 2 (NanoLabs Visual oficial), renderizamos con LayoutNanoLabs
+  if (theme === "2") {
+    return (
+      <LayoutNanoLabs
+        tenantName={tenantName}
+        tenantLogo={tenantLogo}
+        userName={userName}
+        currentRole={currentRole}
+        enabledFeatures={enabledFeatures}
+        onSwitchTheme={setTheme}
+      >
+        {children}
+      </LayoutNanoLabs>
+    );
+  }
+
+  // Tema 1 (Clásico): Se mantiene accesible para pruebas de compatibilidad
   const currentRoute = routes.find((route) => pathname === route.href || pathname.startsWith(`${route.href}/`));
   const blockedRoute = currentRoute?.feature && !enabledFeatures.includes(currentRoute.feature);
   const pageContent = blockedRoute ? (
@@ -113,7 +148,7 @@ export function AdminShell({ children, enabledFeatures = [] }: { children: React
       <aside className={`relative hidden shrink-0 flex-col bg-slate-900 text-white transition-[width] duration-300 md:flex ${collapsed ? "w-20" : "w-64"}`}>
         <div className={`flex h-16 items-center border-b border-slate-800 ${collapsed ? "justify-center px-2" : "px-4"}`}>
           <Link href="/admin/live" className="overflow-hidden whitespace-nowrap text-lg font-black tracking-tight" title="OnlyFood Admin">
-            {collapsed ? "OF" : "OnlyFood"}
+            {collapsed ? "OF" : tenantName || "OnlyFood"}
           </Link>
         </div>
 
@@ -122,7 +157,7 @@ export function AdminShell({ children, enabledFeatures = [] }: { children: React
           onClick={toggleSidebar}
           aria-label={collapsed ? "Desplegar menú lateral" : "Plegar menú lateral"}
           title={collapsed ? "Desplegar menú" : "Plegar menú"}
-          className="absolute -right-3 top-[4.6rem] z-20 flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition-transform hover:scale-105 hover:bg-slate-50"
+          className="absolute -right-3 top-[4.6rem] z-20 flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition-transform hover:scale-105 hover:bg-slate-50 cursor-pointer"
         >
           {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>
@@ -143,15 +178,27 @@ export function AdminShell({ children, enabledFeatures = [] }: { children: React
               <span className="sr-only">Abrir menú</span>
             </SheetTrigger>
             <SheetContent side="left" className="w-72 border-none bg-slate-900 p-0 text-white" showCloseButton={false}>
-              <div className="flex h-16 items-center border-b border-slate-800 px-4 text-xl font-black">OnlyFood Admin</div>
+              <div className="flex h-16 items-center border-b border-slate-800 px-4 text-xl font-black">{tenantName || "OnlyFood Admin"}</div>
               <nav className="flex flex-1 flex-col p-4">
                 <NavigationLinks enabledFeatures={enabledFeatures} />
                 <div className="mt-auto border-t border-slate-800 pt-4"><LogoutButton /></div>
               </nav>
             </SheetContent>
           </Sheet></div>
-          <span className="font-black text-slate-900">OnlyFood Admin</span>
-          <div className="ml-auto"><ClientResetNotificationBell /></div>
+          <span className="font-black text-slate-900">{tenantName || "OnlyFood Admin"}</span>
+          <div className="ml-auto flex items-center gap-3">
+            {/* Botón para cambiar a Tema 2 */}
+            <button
+              type="button"
+              onClick={() => setTheme("2")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 text-xs font-bold text-orange-800 transition-all cursor-pointer shadow-xs"
+              title="Probar nuevo diseño visual NanoLabs (Tema 2)"
+            >
+              <Palette className="w-3.5 h-3.5 text-orange-600" />
+              <span>Tema 2 (NanoLabs)</span>
+            </button>
+            <ClientResetNotificationBell />
+          </div>
         </header>
         <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">{pageContent}</main>
       </div>
