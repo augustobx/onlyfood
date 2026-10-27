@@ -6,6 +6,7 @@ import { ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { buildTenantMetadata } from "@/lib/tenant-branding";
 import { createTenantDb } from "@/lib/tenant-db";
+import { getLoggedUser } from "@/lib/user-auth";
 import { ERPThemeProvider } from "@/components/nanolabs-visual/ThemeContext";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -69,12 +70,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
+  const user = await getLoggedUser();
+  const currentRole = user?.isSuperAdmin ? "SUPERADMIN" : user?.memberships.find(item => item.tenantId === tenant.id)?.role || "STAFF";
   return (
     <ERPThemeProvider initialTheme="2">
       <AdminShell
         enabledFeatures={[...tenant.features]}
         tenantName={tenantName}
         tenantLogo={tenantLogo}
+        currentRole={currentRole}
+        userName={user?.name || "Administrador"}
       >
         {children}
       </AdminShell>

@@ -32,11 +32,12 @@ import {
   UtensilsCrossed,
   Menu,
 } from 'lucide-react';
+import { canAccessAdminRoute } from "@/lib/admin-navigation";
 import { logoutAdmin } from '@/app/actions/admin-auth';
 import { PaletteSelector } from './PaletteSelector';
 import { useERPTheme } from './ThemeContext';
 import { ClientResetNotificationBell } from '@/components/admin/ClientResetNotificationBell';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import './nanolabs-theme.css';
 import './nanolabs-theme-extra.css';
@@ -69,44 +70,29 @@ export interface AdminCategoryGroup {
 }
 
 export const ADMIN_CATEGORIES: AdminCategoryGroup[] = [
-  {
-    title: 'Operaciones',
-    items: [
-      { name: 'Pedidos Hoy', href: '/admin/live', icon: LayoutDashboard, feature: 'orders' },
-      { name: 'Agenda / Calendario', href: '/admin/calendar', icon: CalendarDays, feature: 'orders' },
-      { name: 'Historial', href: '/admin/history', icon: History, feature: 'orders' },
-      { name: 'Caja diaria', href: '/admin/cash', icon: WalletCards, feature: 'cashRegister' },
-    ],
-  },
-  {
-    title: 'Catálogo y Ventas',
-    items: [
-      { name: 'Catálogo', href: '/admin/catalog', icon: ShoppingBag, feature: 'orders' },
-      { name: 'Promociones', href: '/admin/promotions', icon: BadgePercent, feature: 'quantityDiscounts' },
-      { name: 'Galería de Medios', href: '/admin/media', icon: ImageIcon, feature: 'orders' },
-      { name: 'Valoraciones', href: '/admin/reviews', icon: MessageSquareHeart, feature: 'orders' },
-    ],
-  },
-  {
-    title: 'Clientes y Fidelización',
-    items: [
-      { name: 'Clientes y cuentas', href: '/admin/users', icon: Users },
-      { name: 'Canje de Puntos', href: '/admin/rewards', icon: Gift, feature: 'loyalty' },
-      { name: 'Ruleta de Premios', href: '/admin/games', icon: Dices, feature: 'roulette' },
-    ],
-  },
-  {
-    title: 'Análisis y Ayuda',
-    items: [
-      { name: 'Métricas', href: '/admin/metricas', icon: TrendingUp, feature: 'advancedReports' },
-      { name: 'Puesta en Marcha', href: '/admin/wizard', icon: Sparkles },
-      { name: 'Guías', href: '/admin/guides', icon: BookOpenCheck },
-    ],
-  },
+ {title:'Operación',items:[
+  {name:'Pedidos de hoy',href:'/admin/live',icon:LayoutDashboard,feature:'orders'},
+  {name:'Programados',href:'/admin/calendar',icon:CalendarDays,feature:'orders'},
+  {name:'Historial',href:'/admin/history',icon:History,feature:'orders'}]},
+ {title:'Menú',items:[
+  {name:'Productos y combos',href:'/admin/catalog',icon:ShoppingBag,feature:'orders'},
+  {name:'Imágenes',href:'/admin/media',icon:ImageIcon,feature:'orders'}]},
+ {title:'Clientes',items:[
+  {name:'Clientes y cuentas',href:'/admin/users',icon:Users},
+  {name:'Valoraciones',href:'/admin/reviews',icon:MessageSquareHeart,feature:'orders'},
+  {name:'Beneficios y puntos',href:'/admin/rewards',icon:Gift,feature:'loyalty'},
+  {name:'Ruleta de premios',href:'/admin/games',icon:Dices,feature:'roulette'}]},
+ {title:'Negocio',items:[
+  {name:'Caja diaria',href:'/admin/cash',icon:WalletCards,feature:'cashRegister'},
+  {name:'Resultados',href:'/admin/metricas',icon:TrendingUp,feature:'advancedReports'},
+  {name:'Descuentos por cantidad',href:'/admin/promotions',icon:BadgePercent,feature:'quantityDiscounts'}]},
+ {title:'Ayuda',items:[
+  {name:'Preparar mi tienda',href:'/admin/wizard',icon:Sparkles},
+  {name:'Guías',href:'/admin/guides',icon:BookOpenCheck}]},
 ];
 
 export const SETTINGS_ROUTE: AdminRouteItem = {
-  name: 'Configuración',
+  name: 'Ajustes',
   href: '/admin/settings',
   icon: Settings,
 };
@@ -139,6 +125,7 @@ export function LayoutNanoLabs({
   const { palette, isDark, toggleDarkMode } = useERPTheme();
   const [plegado, setPlegado] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [tooltip, setTooltip] = useState<{ texto: string; top: number } | null>(null);
 
   // Cotización en vivo del Dólar Blue
@@ -237,12 +224,13 @@ export function LayoutNanoLabs({
         <div className="flex items-center gap-3">
           {/* Menú Móvil (Drawer) */}
           <div className="md:hidden">
-            <Sheet>
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger render={<Button variant="ghost" size="icon" className="shrink-0" />}>
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Abrir menú</span>
               </SheetTrigger>
-              <SheetContent side="left" className="w-72 border-none bg-slate-900 p-0 text-white flex flex-col" showCloseButton={false}>
+              <SheetContent side="left" className="w-72 border-none bg-slate-900 p-0 text-white flex flex-col" showCloseButton={false} onClickCapture={(event) => { if ((event.target as HTMLElement).closest("a")) setMobileOpen(false); }}>
+                <SheetTitle className="sr-only">Menú de administración</SheetTitle>
                 <div className="flex h-16 items-center gap-3 border-b border-slate-800 px-4 text-xl font-black shrink-0">
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
@@ -255,7 +243,7 @@ export function LayoutNanoLabs({
                 <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
                   {ADMIN_CATEGORIES.map((category) => {
                     const visibleInCat = category.items.filter(
-                      (item) => !item.feature || enabledFeatures.includes(item.feature)
+                      (item) => canAccessAdminRoute(item.href, currentRole) && (!item.feature || enabledFeatures.includes(item.feature))
                     );
                     if (visibleInCat.length === 0) return null;
 
@@ -286,7 +274,7 @@ export function LayoutNanoLabs({
                     );
                   })}
                   <div className="border-t border-slate-800 pt-3 space-y-1">
-                    <Link
+                    {canAccessAdminRoute(SETTINGS_ROUTE.href, currentRole) && <Link
                       href={SETTINGS_ROUTE.href}
                       className={`flex h-10 items-center gap-3 rounded-xl px-3 transition-all ${
                         isActive(SETTINGS_ROUTE.href)
@@ -296,7 +284,7 @@ export function LayoutNanoLabs({
                     >
                       <Settings size={18} />
                       <span className="text-sm truncate">{SETTINGS_ROUTE.name}</span>
-                    </Link>
+                    </Link>}
                   </div>
                 </nav>
                 <div className="border-t border-slate-800 p-4 shrink-0">
@@ -358,13 +346,13 @@ export function LayoutNanoLabs({
           <PaletteSelector />
 
           {/* Campana de Solicitudes de Reseteo */}
-          <ClientResetNotificationBell />
+          {canAccessAdminRoute("/admin/users", currentRole) && <ClientResetNotificationBell />}
 
           {/* Usuario y Rol */}
           <div className="ot-usuario" title={userEmail}>
             <div className="bh-list-primary font-bold">{userName}</div>
             <div className="bh-list-secondary text-xs uppercase tracking-wider font-semibold opacity-75">
-              {currentRole}
+              {{OWNER:"Dueño",MANAGER:"Encargado",KITCHEN:"Cocina",CASHIER:"Caja",DELIVERY:"Reparto",STAFF:"Equipo",SUPERADMIN:"Administrador de plataforma"}[currentRole] || currentRole}
             </div>
           </div>
 
@@ -397,7 +385,7 @@ export function LayoutNanoLabs({
           <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 py-1">
             {ADMIN_CATEGORIES.map((category, catIdx) => {
               const visibleInCat = category.items.filter(
-                (item) => !item.feature || enabledFeatures.includes(item.feature)
+                (item) => canAccessAdminRoute(item.href, currentRole) && (!item.feature || enabledFeatures.includes(item.feature))
               );
               if (visibleInCat.length === 0) return null;
 
@@ -442,22 +430,22 @@ export function LayoutNanoLabs({
           {/* ═══ SIDEBAR FOOTER: CONFIGURACIÓN + TEMA (CLARO/OSCURO) + PLEGAR ═══ */}
           <div className={`bh-sidebar__footer${plegado ? ' bh-sidebar__footer--collapsed' : ''}`}>
             {/* 1. Botón Configuración */}
-            <Link
+            {canAccessAdminRoute(SETTINGS_ROUTE.href, currentRole) && <Link
               href={SETTINGS_ROUTE.href}
               className={`bh-sidebar__icon-btn cursor-pointer${
                 isActive(SETTINGS_ROUTE.href) ? ' active text-orange-500 font-bold bg-orange-50 dark:bg-orange-950/40' : ''
               }`}
-              aria-label="Configuración"
-              title="Configuración"
+              aria-label="Ajustes"
+              title="Ajustes"
               onMouseEnter={(e) => {
                 if (!plegado) return;
                 const r = e.currentTarget.getBoundingClientRect();
-                setTooltip({ texto: 'Configuración', top: r.top + r.height / 2 });
+                setTooltip({ texto: 'Ajustes', top: r.top + r.height / 2 });
               }}
               onMouseLeave={() => setTooltip(null)}
             >
               <Settings size={18} />
-            </Link>
+            </Link>}
 
             {/* 2. Botón Modo Claro / Oscuro */}
             <button

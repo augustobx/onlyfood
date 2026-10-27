@@ -1,5 +1,6 @@
 "use client";
 
+import { useAdminRole } from "@/components/admin/AdminRoleContext";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Calendar as CalendarIcon,
@@ -70,6 +71,7 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; b
 };
 
 export function CalendarClient({ initialOrders = [], initialMessengers = [] }: { initialOrders?: any[]; initialMessengers?: any[] }) {
+  const canPrint = useAdminRole() !== "DELIVERY";
   const [orders, setOrders] = useState<any[]>(initialOrders);
   const [messengers, setMessengers] = useState<any[]>(initialMessengers);
   const [isLoading, setIsLoading] = useState(false);
@@ -779,7 +781,7 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
                               ${(order.total || 0).toLocaleString("es-AR")}
                             </span>
                             <div className="flex items-center gap-1">
-                              <Button
+                              {canPrint && <Button
                                 size="icon"
                                 variant="ghost"
                                 className="h-6 w-6 text-slate-400 hover:text-slate-900 rounded-md"
@@ -790,7 +792,7 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
                                 title="Imprimir comanda"
                               >
                                 <Printer className="w-3 h-3" />
-                              </Button>
+                              </Button>}
                               <Button
                                 size="icon"
                                 variant="ghost"
@@ -916,7 +918,7 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
                       </div>
 
                       <div className="flex items-center gap-1.5">
-                        <Button
+                        {canPrint && <Button
                           size="sm"
                           variant="outline"
                           className="rounded-xl font-bold text-xs h-9"
@@ -927,7 +929,7 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
                         >
                           <Printer className="w-3.5 h-3.5 mr-1 text-slate-500" />
                           Imprimir
-                        </Button>
+                        </Button>}
                         <Button
                           size="sm"
                           className="rounded-xl font-bold text-xs h-9 bg-purple-600 hover:bg-purple-500 text-white"
@@ -959,7 +961,7 @@ export function CalendarClient({ initialOrders = [], initialMessengers = [] }: {
         messengers={messengers}
         onStatusChange={handleStatusChange}
         onMessengerChange={handleMessengerChange}
-        onPrint={handlePrint}
+        onPrint={canPrint ? handlePrint : undefined}
       />
     </div>
   );

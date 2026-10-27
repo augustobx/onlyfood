@@ -216,7 +216,7 @@ export default function SuperAdminDashboardClient({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Comercios Activos</span>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Comercios registrados</span>
               <div className="p-2 rounded-xl bg-orange-500/10 text-orange-400">
                 <Building2 className="w-5 h-5" />
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ type EmailSettingsView = {
   configured: boolean;
 };
 
-export function EmailSettingsPanel({ initialSettings }: { initialSettings: EmailSettingsView }) {
+export function EmailSettingsPanel({ initialSettings, onPendingChange }: { initialSettings: EmailSettingsView; onPendingChange?: (pending: boolean) => void }) {
   const router = useRouter();
   const [provider, setProvider] = useState<EmailProvider>(initialSettings.provider);
   const [host, setHost] = useState(initialSettings.smtpHost);
@@ -36,6 +36,10 @@ export function EmailSettingsPanel({ initialSettings }: { initialSettings: Email
   const [testTo, setTestTo] = useState("");
   const [busy, setBusy] = useState<"SAVE" | "TEST" | null>(null);
   const [configured, setConfigured] = useState(initialSettings.configured);
+  const fingerprint = JSON.stringify([provider, host, port, user, from]);
+  const [savedFingerprint, setSavedFingerprint] = useState(fingerprint);
+  const pending = fingerprint !== savedFingerprint || Boolean(smtpPass || resendApiKey || brevoApiKey);
+  useEffect(() => { onPendingChange?.(pending); }, [pending, onPendingChange]);
 
   async function save() {
     setBusy("SAVE");
@@ -51,6 +55,7 @@ export function EmailSettingsPanel({ initialSettings }: { initialSettings: Email
         setSmtpPass("");
         setResendApiKey("");
         setBrevoApiKey("");
+        setSavedFingerprint(fingerprint);
         toast.success(response.configured ? "Correo configurado correctamente." : "Configuración guardada. Falta completar la credencial.");
         router.refresh();
       }
@@ -75,10 +80,11 @@ export function EmailSettingsPanel({ initialSettings }: { initialSettings: Email
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Mail className="w-5 h-5" /> Correo electrónico / SMTP</CardTitle>
         <CardDescription>
-          Configuración por comercio basada en OnlyPadel. Las claves se guardan cifradas y nunca se vuelven a mostrar.
+          Configurá el envío de mensajes y la recuperación de cuentas. Las claves se guardan cifradas. Guardá los cambios con “Guardar correo”.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        <p role="status" className="text-sm font-bold">{pending ? "Cambios de correo sin guardar" : "Correo sin cambios pendientes"}</p>
         <div className="space-y-2">
           <Label htmlFor="onlyfood-email-provider">Método de envío</Label>
           <select id="onlyfood-email-provider" value={provider} onChange={e => setProvider(e.target.value as EmailProvider)}

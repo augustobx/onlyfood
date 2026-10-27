@@ -266,7 +266,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
-      <TabsList className="bg-slate-100 border p-1 rounded-lg">
+      <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-slate-100 border p-1 rounded-lg">
         <TabsTrigger value="products" className="rounded-md"><Tag className="w-4 h-4 mr-2" /> Menú y Productos</TabsTrigger>
         <TabsTrigger value="combos" className="rounded-md"><Layers className="w-4 h-4 mr-2" /> Combos</TabsTrigger>
         <TabsTrigger value="ingredients" className="rounded-md"><Carrot className="w-4 h-4 mr-2" /> Ingredientes y Stock</TabsTrigger>
@@ -297,11 +297,11 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Nombre del Combo</Label>
-                        <Input value={newCombo.name} onChange={e => setNewCombo({ ...newCombo, name: e.target.value })} required />
+                        <Input aria-label="Nombre del Combo" value={newCombo.name} onChange={e => setNewCombo({ ...newCombo, name: e.target.value })} required />
                       </div>
                       <div className="space-y-2">
                         <Label>Precio ($)</Label>
-                        <Input
+                        <Input aria-label="Precio ($)"
                           type="number"
                           min="0"
                           step="0.01"
@@ -320,17 +320,17 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Puntos (Otorga)</Label>
-                        <Input type="number" min="0" value={newCombo.points} onChange={e => setNewCombo({ ...newCombo, points: e.target.value })} title="Puntos para el carrito" />
+                        <Label>Puntos que otorga (opcional)</Label>
+                        <Input aria-label="Puntos que otorga (opcional)" type="number" min="0" value={newCombo.points} onChange={e => setNewCombo({ ...newCombo, points: e.target.value })} title="Puntos para el carrito" />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Descripción</Label>
-                      <Textarea value={newCombo.description} onChange={e => setNewCombo({ ...newCombo, description: e.target.value })} />
+                      <Textarea aria-label="Descripción" value={newCombo.description} onChange={e => setNewCombo({ ...newCombo, description: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label>URL de Imagen (Opcional)</Label>
-                      <Input placeholder="https://..." value={newCombo.imageUrl} onChange={e => setNewCombo({ ...newCombo, imageUrl: e.target.value })} />
+                      <Input aria-label="URL de Imagen (Opcional)" placeholder="https://..." value={newCombo.imageUrl} onChange={e => setNewCombo({ ...newCombo, imageUrl: e.target.value })} />
                     </div>
 
                     <div className="border-t pt-4">
@@ -354,7 +354,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                             <div className="flex gap-2.5 items-center">
                               <div className="flex items-center gap-1">
                                 <Label className="text-[11px] font-semibold text-slate-500">Unidades:</Label>
-                                <Input className="w-14 h-8 text-xs text-center font-bold" type="number" min="1" value={item.quantity} onChange={(e) => {
+                                <Input aria-label="Unidades:" className="w-14 h-8 text-xs text-center font-bold" type="number" min="1" value={item.quantity} onChange={(e) => {
                                   const nb = parseInt(e.target.value) || 1;
                                   const nv = [...newCombo.comboItemsData];
                                   nv[idx].quantity = nb;
@@ -363,7 +363,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                               </div>
                               <div className="flex items-center gap-1">
                                 <Label className="text-[11px] font-semibold text-amber-700">Piezas:</Label>
-                                <Input className="w-16 h-8 text-xs text-center font-black border-amber-300 bg-amber-50/60 text-amber-900" type="number" min="0" placeholder="0" value={item.pieces ?? ""} onChange={(e) => {
+                                <Input aria-label="Piezas:" className="w-16 h-8 text-xs text-center font-black border-amber-300 bg-amber-50/60 text-amber-900" type="number" min="0" placeholder="0" value={item.pieces ?? ""} onChange={(e) => {
                                   const nb = parseInt(e.target.value) || 0;
                                   const nv = [...newCombo.comboItemsData];
                                   nv[idx].pieces = nb;
@@ -464,7 +464,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
             <form className="flex items-end gap-4" onSubmit={handleCreateCategory}>
               <div className="flex-1 space-y-2">
                 <Label>Nueva Categoría</Label>
-                <Input placeholder="Ej. Hamburguesas" value={newCatName} onChange={e => setNewCatName(e.target.value)} required />
+                <Input aria-label="Nueva Categoría" placeholder="Ej. Hamburguesas" value={newCatName} onChange={e => setNewCatName(e.target.value)} required />
               </div>
               <Button type="submit"><Plus className="w-4 h-4 mr-2" /> Agregar Categoría</Button>
             </form>
@@ -499,35 +499,21 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                   <DialogContent className="flex h-[min(860px,calc(100vh-2rem))] w-[calc(100vw-2rem)] max-w-6xl flex-col overflow-hidden p-5 sm:max-w-6xl">
                     <DialogHeader className="shrink-0 border-b pb-3 pr-10">
                       <DialogTitle className="text-xl font-black">{newProduct.id ? "Editar producto" : "Agregar producto"}</DialogTitle>
-                      <DialogDescription>Datos, receta y extras organizados en una vista amplia.</DialogDescription>
+                      <DialogDescription>Completá nombre y precio. Abrí las opciones de personalización y receta si las necesitás.</DialogDescription>
                     </DialogHeader>
                     <form id={`add-prod-${cat.id}`} onSubmit={handleCreateProduct} className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1 lg:grid lg:grid-cols-[0.9fr_1.1fr] lg:gap-5 lg:space-y-0 lg:overflow-hidden">
 
                       <div className="space-y-4 lg:overflow-y-auto lg:pr-2">
 
-                      <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4 sm:grid-cols-2">
-                        <div className="flex items-center space-x-2">
-                          <Switch id="sw-half" checked={newProduct.allowHalf} onCheckedChange={(v) => setNewProduct({ ...newProduct, allowHalf: v, onlyHalf: false })} />
-                          <Label htmlFor="sw-half" className="cursor-pointer">Permitir vender media (Mitad y Mitad)</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Switch id="sw-only" checked={newProduct.onlyHalf} disabled={!newProduct.allowHalf} onCheckedChange={(v) => setNewProduct({ ...newProduct, onlyHalf: v })} />
-                          <Label htmlFor="sw-only" className={`cursor-pointer ${!newProduct.allowHalf ? 'opacity-50' : ''}`}>Modo solo media</Label>
-                        </div>
-                        <div className="flex items-center space-x-2 sm:col-span-2">
-                          <Switch id="sw-remove" checked={newProduct.allowRemoveIngredients} onCheckedChange={(v) => setNewProduct({ ...newProduct, allowRemoveIngredients: v })} />
-                          <Label htmlFor="sw-remove" className="cursor-pointer text-slate-700">Permitir al cliente quitar ingredientes de la receta (ej. "Sin Tomate")</Label>
-                        </div>
-                      </div>
 
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-2 sm:col-span-2">
                           <Label>Nombre</Label>
-                          <Input value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} required />
+                          <Input aria-label="Nombre" value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} required />
                         </div>
                         <div className="space-y-2">
                           <Label>Precio Base</Label>
-                          <Input
+                          <Input aria-label="Precio Base"
                             type="number"
                             min="0"
                             step="0.01"
@@ -546,17 +532,33 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Puntos (Otorga)</Label>
-                          <Input type="number" min="0" value={newProduct.points} onChange={e => setNewProduct({ ...newProduct, points: e.target.value })} required />
+                          <Label>Puntos que otorga (opcional)</Label>
+                          <Input aria-label="Puntos que otorga (opcional)" type="number" min="0" value={newProduct.points} onChange={e => setNewProduct({ ...newProduct, points: e.target.value })} required />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <Label>Descripción</Label>
-                        <Textarea className="min-h-20 resize-none" value={newProduct.description} onChange={e => setNewProduct({ ...newProduct, description: e.target.value })} />
+                        <Textarea aria-label="Descripción" className="min-h-20 resize-none" value={newProduct.description} onChange={e => setNewProduct({ ...newProduct, description: e.target.value })} />
                       </div>
+                      <details className="rounded-xl border p-3"><summary className="cursor-pointer font-bold">Personalización · mitades e ingredientes</summary>                      <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4 sm:grid-cols-2">
+                        <div className="flex items-center space-x-2">
+                          <Switch id="sw-half" checked={newProduct.allowHalf} onCheckedChange={(v) => setNewProduct({ ...newProduct, allowHalf: v, onlyHalf: false })} />
+                          <Label htmlFor="sw-half" className="cursor-pointer">Permitir vender media (Mitad y Mitad)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Switch id="sw-only" checked={newProduct.onlyHalf} disabled={!newProduct.allowHalf} onCheckedChange={(v) => setNewProduct({ ...newProduct, onlyHalf: v })} />
+                          <Label htmlFor="sw-only" className={`cursor-pointer ${!newProduct.allowHalf ? 'opacity-50' : ''}`}>Modo solo media</Label>
+                        </div>
+                        <div className="flex items-center space-x-2 sm:col-span-2">
+                          <Switch id="sw-remove" checked={newProduct.allowRemoveIngredients} onCheckedChange={(v) => setNewProduct({ ...newProduct, allowRemoveIngredients: v })} />
+                          <Label htmlFor="sw-remove" className="cursor-pointer text-slate-700">Permitir al cliente quitar ingredientes de la receta (ej. "Sin Tomate")</Label>
+                        </div>
+                      </div>
+
+                      </details>
                       <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
                         <Label>Alérgenos declarados por el comercio (opcional)</Label>
-                        <Textarea maxLength={500} className="min-h-16 resize-none"
+                        <Textarea aria-label="Alérgenos declarados por el comercio (opcional)" maxLength={500} className="min-h-16 resize-none"
                           value={newProduct.allergenInfo}
                           placeholder="Ej.: Contiene trigo, leche y huevo. Puede contener trazas de maní."
                           onChange={e => setNewProduct({ ...newProduct, allergenInfo: e.target.value })}/>
@@ -625,7 +627,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
 
                       </div>
 
-                      <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
+                      <details className="space-y-4 rounded-xl border p-4 lg:min-h-0 lg:overflow-y-auto lg:pr-2"><summary className="cursor-pointer font-bold">Receta, costos y extras (opcional)</summary>
 
                       <div className="border-t pt-4">
                         <div className="mb-3 flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
@@ -660,7 +662,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                                 {isSelected && (
                                   <div className="flex items-center space-x-2 ml-6 bg-white p-1.5 rounded border shadow-sm">
                                     <Label className="text-xs font-medium">Lleva (Uds):</Label>
-                                    <Input type="number" min="0.01" step="0.01" className="h-7 w-20 text-xs px-2 text-center" value={qty} onChange={e => {
+                                    <Input aria-label="Lleva (Uds):" type="number" min="0.01" step="0.01" className="h-7 w-20 text-xs px-2 text-center" value={qty} onChange={e => {
                                       const val = parseFloat(e.target.value) || 0;
                                       setNewProduct({
                                         ...newProduct,
@@ -700,7 +702,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                         </div>
                       </div>
 
-                      </div>
+                      </details>
 
                     </form>
                     <DialogFooter className="shrink-0">
@@ -760,7 +762,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                           <Switch checked={prod.isActive} onCheckedChange={() => handleToggleProduct(prod.id, prod.isActive)} />
                         </div>
                         <div className="flex flex-col items-center gap-1 ml-2">
-                          <Button variant="ghost" size="icon" className="text-blue-500 hover:bg-blue-50 h-8 w-8" onClick={() => {
+                          <Button variant="ghost" size="icon" aria-label="Editar producto" className="text-blue-500 hover:bg-blue-50 h-8 w-8" onClick={() => {
                             setNewProduct({
                               id: prod.id, name: prod.name, basePrice: prod.basePrice.toString(), points: prod.points.toString(), description: prod.description || "", allergenInfo: prod.allergenInfo || "", categoryId: prod.categoryId, imageUrl: prod.imageUrl || "", allowHalf: prod.allowHalf, onlyHalf: prod.onlyHalf, allowRemoveIngredients: prod.allowRemoveIngredients ?? true, availableDays: parseAvailableDays(prod.availableDays), isCombo: false,
                               ingredientsData: prod.ingredients?.map((i: any) => ({ id: i.ingredientId, quantity: i.quantity })) || [], extraIds: prod.extras?.map((e: any) => e.extraId) || [], comboItemsData: []
@@ -794,7 +796,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
           <form onSubmit={handleRenameCategory} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="category-name">Nombre</Label>
-              <Input id="category-name" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} maxLength={250} autoFocus required />
+              <Input aria-label="Nombre" id="category-name" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} maxLength={250} autoFocus required />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCategoryToRename(null)}>Cancelar</Button>
@@ -816,11 +818,11 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nombre del Ingrediente Final</Label>
-                  <Input placeholder="Ej. Medallón de Carne 150g" className="bg-white" value={newIngredient.name} onChange={e => setNewIngredient({ ...newIngredient, name: e.target.value })} required />
+                  <Input aria-label="Nombre del Ingrediente Final" placeholder="Ej. Medallón de Carne 150g" className="bg-white" value={newIngredient.name} onChange={e => setNewIngredient({ ...newIngredient, name: e.target.value })} required />
                 </div>
                 <div className="space-y-2">
                   <Label>Referencia de Compra (Opcional)</Label>
-                  <Input placeholder="Ej. 100 Kg de carne picada" className="bg-white" value={newIngredient.purchaseVolume} onChange={e => setNewIngredient({ ...newIngredient, purchaseVolume: e.target.value })} />
+                  <Input aria-label="Referencia de Compra (Opcional)" placeholder="Ej. 100 Kg de carne picada" className="bg-white" value={newIngredient.purchaseVolume} onChange={e => setNewIngredient({ ...newIngredient, purchaseVolume: e.target.value })} />
                 </div>
               </div>
 
@@ -903,7 +905,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                     <Button variant="outline" size="sm" className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" onClick={() => setRestockModal(ing.id)}>
                       <PackagePlus className="w-4 h-4 mr-2" /> Recargar Stock
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50" onClick={() => handleDeleteIngredient(ing.id)}>
+                    <Button variant="ghost" size="icon" aria-label="Eliminar ingrediente o extra" className="text-red-500 hover:bg-red-50" onClick={() => handleDeleteIngredient(ing.id)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -928,7 +930,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nombre de la opción / extra</Label>
-                  <Input
+                  <Input aria-label="Nombre de la opción / extra"
                     placeholder="Ej. Papas Rústicas con Romero / Extra Cheddar"
                     value={newExtra.name}
                     onChange={e => setNewExtra({ ...newExtra, name: e.target.value })}
@@ -938,7 +940,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
 
                 <div className="space-y-2">
                   <Label>Precio adicional (+ $)</Label>
-                  <Input
+                  <Input aria-label="Precio adicional (+ $)"
                     type="number"
                     min="0"
                     step="0.01"
@@ -953,7 +955,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Grupo / Categoría de Opciones</Label>
-                  <Input
+                  <Input aria-label="Grupo / Categoría de Opciones"
                     placeholder="Ej. Guarnición / Papas"
                     value={newExtra.groupName}
                     onChange={e => setNewExtra({ ...newExtra, groupName: e.target.value })}
@@ -1088,7 +1090,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                           >
                             <Pen className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50" onClick={() => handleDeleteExtra(ext.id)}>
+                          <Button variant="ghost" size="icon" aria-label="Eliminar ingrediente o extra" className="text-red-500 hover:bg-red-50" onClick={() => handleDeleteExtra(ext.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -1118,16 +1120,16 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>¿Qué compraste? (Ref opcional)</Label>
-              <Input placeholder="Ej: 10 Kg de carne" value={restockForm.purchaseVolume} onChange={e => setRestockForm({ ...restockForm, purchaseVolume: e.target.value })} />
+              <Input aria-label="¿Qué compraste? (Ref opcional)" placeholder="Ej: 10 Kg de carne" value={restockForm.purchaseVolume} onChange={e => setRestockForm({ ...restockForm, purchaseVolume: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Pagué en total ($)</Label>
-                <Input type="number" min="0" value={restockForm.purchasePrice} onChange={e => setRestockForm({ ...restockForm, purchasePrice: e.target.value })} />
+                <Input aria-label="Pagué en total ($)" type="number" min="0" value={restockForm.purchasePrice} onChange={e => setRestockForm({ ...restockForm, purchasePrice: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Rinde (Unidades)</Label>
-                <Input type="number" min="1" value={restockForm.yieldUnits} onChange={e => setRestockForm({ ...restockForm, yieldUnits: e.target.value })} />
+                <Input aria-label="Rinde (Unidades)" type="number" min="1" value={restockForm.yieldUnits} onChange={e => setRestockForm({ ...restockForm, yieldUnits: e.target.value })} />
               </div>
             </div>
           </div>

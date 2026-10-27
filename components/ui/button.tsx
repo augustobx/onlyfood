@@ -50,6 +50,7 @@ function Button({
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
+      aria-label={props["aria-label"] || props.title}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}

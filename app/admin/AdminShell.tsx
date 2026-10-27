@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { LayoutNanoLabs } from "@/components/nanolabs-visual/LayoutNanoLabs";
 import { useERPTheme } from "@/components/nanolabs-visual/ThemeContext";
+import { AdminRoleContext } from "@/components/admin/AdminRoleContext";
 import { AdminShellClassic } from "./AdminShellClassic";
 
 /**
@@ -38,7 +39,7 @@ export function AdminShell({
   const forceClassic = searchParams?.get("theme") === "1" || theme === "1";
   if (forceClassic) {
     return (
-      <AdminShellClassic
+      <AdminRoleContext.Provider value={currentRole}><AdminShellClassic
         enabledFeatures={enabledFeatures}
         tenantName={tenantName}
         tenantLogo={tenantLogo}
@@ -46,13 +47,13 @@ export function AdminShell({
         currentRole={currentRole}
       >
         {children}
-      </AdminShellClassic>
+      </AdminShellClassic></AdminRoleContext.Provider>
     );
   }
 
   // Por defecto oficial: Theme 2 (NanoLabs Visual)
   return (
-    <LayoutNanoLabs
+    <AdminRoleContext.Provider value={currentRole}><LayoutNanoLabs
       tenantName={tenantName}
       tenantLogo={tenantLogo}
       userName={userName}
@@ -60,6 +61,6 @@ export function AdminShell({
       enabledFeatures={enabledFeatures}
     >
       {children}
-    </LayoutNanoLabs>
+    </LayoutNanoLabs></AdminRoleContext.Provider>
   );
 }

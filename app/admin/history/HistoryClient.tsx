@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Search, Calendar, Filter, Clock, MapPin, Truck, Phone, User, CheckCircle2, AlertCircle, XCircle, ChevronRight, Download, Receipt, ArrowUpDown, Eye, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +11,19 @@ import { OrderDetailModal } from "@/components/admin/OrderDetailModal";
 import { toast } from "sonner";
 import { updateOrderStatus, assignMessenger } from "@/app/actions/admin-orders";
 
+import { getHistoryPage } from "@/app/actions/admin-history";
+import { useSearchParams } from "next/navigation";
+import { historyFromSearchParams } from "@/lib/history-query";
+
 interface HistoryClientProps {
+  initialResult: Awaited<ReturnType<typeof getHistoryPage>>;
   initialOrders: any[];
   initialMessengers?: any[];
 }
 
-export function HistoryClient({ initialOrders, initialMessengers = [] }: HistoryClientProps) {
+export function HistoryClient({ initialOrders, initialResult, initialMessengers = [] }: HistoryClientProps) {
+  const searchParams = useSearchParams();
+  const initialQuery = historyFromSearchParams(Object.fromEntries(searchParams.entries()));
   const [orders, setOrders] = useState<any[]>(initialOrders);
   const [messengers, setMessengers] = useState<any[]>(initialMessengers);
 
@@ -28,90 +35,46 @@ export function HistoryClient({ initialOrders, initialMessengers = [] }: History
       })
       .catch(() => {});
   }, []);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [typeFilter, setTypeFilter] = useState("ALL");
-  const [paymentFilter, setPaymentFilter] = useState("ALL");
-  const [dateRange, setDateRange] = useState<"TODAY" | "YESTERDAY" | "LAST_7_DAYS" | "THIS_MONTH" | "ALL" | "CUSTOM">("ALL");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [searchTerm, setSearchTerm] = useState(initialQuery.search);
+  const [statusFilter, setStatusFilter] = useState<string>(initialQuery.status);
+  const [typeFilter, setTypeFilter] = useState<string>(initialQuery.type);
+  const [paymentFilter, setPaymentFilter] = useState<string>(initialQuery.payment);
+  const [dateRange, setDateRange] = useState(initialQuery.range);
+  const [customFrom, setCustomFrom] = useState(initialQuery.from);
+  const [customTo, setCustomTo] = useState(initialQuery.to);
 
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
-  // Filtrado reactivo de órdenes
-  const filteredOrders = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
-
-    const last7Days = new Date();
-    last7Days.setDate(last7Days.getDate() - 7);
-
-    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    return orders.filter((order) => {
-      // Búsqueda por texto (ID, nombre, teléfono, notas)
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        const matchesId = order.id.toLowerCase().includes(term);
-        const matchesName = (order.clientName || "").toLowerCase().includes(term);
-        const matchesPhone = (order.clientPhone || "").toLowerCase().includes(term);
-        const matchesAddress = (order.deliveryAddress || "").toLowerCase().includes(term);
-        if (!matchesId && !matchesName && !matchesPhone && !matchesAddress) return false;
+  const [page, setPage] = useState(initialQuery.page);
+  const [result, setResult] = useState(initialResult);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [reload, setReload] = useState(0);
+  const requestId = useRef(0);
+  const filters = JSON.stringify({search: searchTerm, status: statusFilter, type: typeFilter, payment: paymentFilter, range: dateRange, from: customFrom, to: customTo});
+  const previousFilters = useRef(filters);
+  useEffect(() => {
+    if (previousFilters.current !== filters && page !== 1) { previousFilters.current = filters; setPage(1); return; }
+    previousFilters.current = filters;
+    const id = ++requestId.current;
+    setBusy(true); setError("");
+    const timer = setTimeout(() => {
+      const url = new URL(window.location.href);
+      for (const [key, value] of Object.entries({...JSON.parse(filters), page})) {
+        const name = key === "search" ? "q" : key;
+        if (value === "" || value === "ALL" || (key === "page" && value === 1)) url.searchParams.delete(name);
+        else url.searchParams.set(name, String(value));
       }
-
-      // Filtro por Estado
-      if (statusFilter !== "ALL" && order.status !== statusFilter) return false;
-
-      // Filtro por Tipo de Pedido
-      if (typeFilter !== "ALL") {
-        if (typeFilter === "IMMEDIATE" && order.orderType && order.orderType !== "IMMEDIATE") return false;
-        if (typeFilter === "SCHEDULED_TOMORROW" && order.orderType !== "SCHEDULED_TOMORROW") return false;
-        if (typeFilter === "CUSTOM_DATE" && order.orderType !== "CUSTOM_DATE") return false;
-      }
-
-      // Filtro por Medio de Pago
-      if (paymentFilter !== "ALL") {
-        if (paymentFilter === "CASH" && order.paymentMethod !== "CASH" && order.paymentMethod !== "EFVO") return false;
-        if (paymentFilter === "MP" && order.paymentMethod !== "MP") return false;
-        if (paymentFilter === "ADMIN" && order.paymentMethod !== "ADMIN") return false;
-      }
-
-      // Filtro por Rango de Fechas
-      const orderDate = new Date(order.createdAt);
-      const orderDateStr = orderDate.toISOString().split("T")[0];
-
-      if (dateRange === "TODAY") {
-        if (orderDateStr !== todayStr) return false;
-      } else if (dateRange === "YESTERDAY") {
-        if (orderDateStr !== yesterdayStr) return false;
-      } else if (dateRange === "LAST_7_DAYS") {
-        if (orderDate < last7Days) return false;
-      } else if (dateRange === "THIS_MONTH") {
-        if (orderDate < firstOfMonth) return false;
-      } else if (dateRange === "CUSTOM") {
-        if (customFrom && orderDateStr < customFrom) return false;
-        if (customTo && orderDateStr > customTo) return false;
-      }
-
-      return true;
-    });
-  }, [orders, searchTerm, statusFilter, typeFilter, paymentFilter, dateRange, customFrom, customTo]);
-
-  // Métricas agregadas del filtro actual
-  const stats = useMemo(() => {
-    const totalRevenue = filteredOrders
-      .filter((o) => o.status !== "CANCELLED")
-      .reduce((sum, o) => sum + (o.total || 0), 0);
-    const completedCount = filteredOrders.filter((o) => o.status === "DELIVERED" || o.status === "FINISHED").length;
-    const cancelledCount = filteredOrders.filter((o) => o.status === "CANCELLED").length;
-    const averageTicket = filteredOrders.length > 0 ? totalRevenue / Math.max(1, filteredOrders.length - cancelledCount) : 0;
-
-    return { totalRevenue, completedCount, cancelledCount, averageTicket };
-  }, [filteredOrders]);
+      window.history.replaceState(null, "", url);
+      getHistoryPage({...JSON.parse(filters), page}).then(next => {
+        if (id !== requestId.current) return;
+        setResult(next); setOrders(next.orders); setBusy(false);
+      }).catch(() => { if (id === requestId.current) { setError("No se pudo actualizar el historial. Reintentá."); setBusy(false); } });
+    }, 250);
+    return () => { clearTimeout(timer); requestId.current++; };
+  }, [filters, page, reload]);
+  const filteredOrders = orders;
+  const stats = result.stats;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -154,7 +117,7 @@ export function HistoryClient({ initialOrders, initialMessengers = [] }: History
       if (selectedOrder?.id === orderId) {
         setSelectedOrder((prev: any) => ({ ...prev, status: newStatus }));
       }
-      toast.success(`Estado actualizado a: ${newStatus}`);
+      setReload(value => value + 1); toast.success(`Estado actualizado a: ${newStatus}`);
     } else {
       toast.error(res.error || "No se pudo actualizar el estado");
       throw new Error(res.error);
@@ -178,7 +141,7 @@ export function HistoryClient({ initialOrders, initialMessengers = [] }: History
           messengerId: cleanId,
         }));
       }
-      toast.success(m ? `Asignado a ${m.name}` : "Cadete desasignado");
+      setReload(value => value + 1); toast.success(m ? `Asignado a ${m.name}` : "Cadete desasignado");
     } else {
       toast.error(res.error || "Error al asignar cadete");
       throw new Error(res.error);
@@ -186,7 +149,7 @@ export function HistoryClient({ initialOrders, initialMessengers = [] }: History
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={busy}><p role="status" aria-live="polite" className="text-sm text-slate-600">{busy ? "Buscando en todo el historial…" : error || "Filtros aplicados a todo el historial del comercio"}</p>
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -199,14 +162,14 @@ export function HistoryClient({ initialOrders, initialMessengers = [] }: History
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-bold uppercase">Facturación del Filtro</CardDescription>
+            <CardDescription className="text-xs font-bold uppercase">Valor de pedidos del filtro</CardDescription>
             <CardTitle className="text-2xl font-black text-emerald-600">${stats.totalRevenue.toLocaleString("es-AR")}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-bold uppercase">Pedidos Encontrados</CardDescription>
-            <CardTitle className="text-2xl font-black text-slate-800">{filteredOrders.length}</CardTitle>
+            <CardTitle className="text-2xl font-black text-slate-800">{result.total}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -289,7 +252,7 @@ export function HistoryClient({ initialOrders, initialMessengers = [] }: History
             >
               <option value="ALL">💳 Todos los pagos</option>
               <option value="CASH">Efectivo</option>
-              <option value="MP">Mercado Pago</option>
+              <option value="MP">Mercado Pago</option><option value="TRANSFER">Transferencia</option>
               <option value="ADMIN">Manual mostrador</option>
             </select>
           </div>
@@ -357,7 +320,7 @@ export function HistoryClient({ initialOrders, initialMessengers = [] }: History
                   <td className="px-5 py-4">{getStatusBadge(order.status)}</td>
                   <td className="px-5 py-4">
                     <span className="font-bold text-xs block text-slate-700">
-                      {order.paymentMethod === "ADMIN" ? "Manual" : order.paymentMethod === "MP" ? "Mercado Pago" : "Efectivo"}
+                      {order.paymentMethod === "ADMIN" ? "Manual" : order.paymentMethod === "MP" ? "Mercado Pago" : order.paymentMethod === "TRANSFER" ? "Transferencia" : "Efectivo"}
                     </span>
                     <span
                       className={`text-[10px] font-bold uppercase ${
@@ -394,6 +357,11 @@ export function HistoryClient({ initialOrders, initialMessengers = [] }: History
         </div>
       </div>
 
+      <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 text-sm">
+        <span>{busy ? "Buscando en todo el historial…" : error || `${result.total} pedidos · página ${result.page} de ${Math.max(1, Math.ceil(result.total / 50))}`}</span>
+        <div className="flex gap-2"><Button variant="outline" disabled={busy || result.page <= 1} onClick={() => setPage(result.page - 1)}>Anterior</Button><Button variant="outline" disabled={busy || result.page * 50 >= result.total} onClick={() => setPage(result.page + 1)}>Siguiente</Button>{error && <Button onClick={() => setReload(value => value + 1)}>Reintentar</Button>}</div>
+        <p className="w-full text-xs text-slate-500">Totales de todos los resultados del filtro, sin cancelados. El valor de pedidos incluye pagos pendientes; no equivale a dinero cobrado.</p>
+      </div>
       {/* Modal de Detalle de la Orden */}
       <OrderDetailModal
         order={selectedOrder}

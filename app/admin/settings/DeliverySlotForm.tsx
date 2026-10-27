@@ -63,11 +63,11 @@ export function DeliverySlotForm({ initialSlots }: { initialSlots: any[] }) {
         <form onSubmit={handleAddSlot} className="flex gap-4 items-end">
           <div className="flex-1 space-y-2">
             <Label>Hora (ej: 21:00)</Label>
-            <Input type="time" required value={newTime} onChange={e=>setNewTime(e.target.value)} />
+            <Input aria-label="Hora (ej: 21:00)" type="time" required value={newTime} onChange={e=>setNewTime(e.target.value)} />
           </div>
           <div className="w-24 space-y-2">
             <Label>Cupos</Label>
-            <Input type="number" min="1" required value={newCapacity} onChange={e=>setNewCapacity(e.target.value)} />
+            <Input aria-label="Cupos" type="number" min="1" required value={newCapacity} onChange={e=>setNewCapacity(e.target.value)} />
           </div>
           <Button type="submit"><Plus className="w-4 h-4 mr-2" /> Agregar</Button>
         </form>
@@ -85,7 +85,7 @@ export function DeliverySlotForm({ initialSlots }: { initialSlots: any[] }) {
                    <Label className="text-xs text-muted-foreground">{slot.isActive ? 'Activo' : 'Pausado'}</Label>
                    <Switch checked={slot.isActive} onCheckedChange={() => handleToggle(slot.id, slot.isActive)} />
                 </div>
-                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(slot.id)}>
+                <Button aria-label={`Eliminar horario ${slot.time}`} variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(slot.id)}>
                    <Trash2 className="w-4 h-4" />
                 </Button>
               </div>

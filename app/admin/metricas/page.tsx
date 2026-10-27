@@ -55,11 +55,12 @@ export default async function MetricsPage() {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Métricas y Rentabilidad</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Resultados</h2>
         <p className="text-muted-foreground hidden sm:block">
            Inteligencia de negocios y Food Cost general.
         </p>
       </div>    
+      <p className="rounded-xl border bg-amber-50 p-4 text-sm text-amber-950">Período por fecha de creación. Incluye pedidos no cancelados con pagos pendientes. Insumos estimados con recetas y costos actuales: no representa cobros ni rentabilidad contable histórica.</p>
       <MetricsClient orders={orders} products={products} ingredients={ingredients} />
     </div>
   );

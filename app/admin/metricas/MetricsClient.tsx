@@ -163,7 +163,7 @@ export function MetricsClient({ orders, products, ingredients }: { orders: any[]
          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Ventas Brutas</CardTitle>
+                  <CardTitle className="text-sm font-medium">Valor de pedidos</CardTitle>
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                </CardHeader>
                <CardContent>
@@ -174,7 +174,7 @@ export function MetricsClient({ orders, products, ingredients }: { orders: any[]
 
             <Card>
                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Gastos Insumos</CardTitle>
+                  <CardTitle className="text-sm font-medium">Insumos estimados</CardTitle>
                   <Utensils className="h-4 w-4 text-orange-500" />
                </CardHeader>
                <CardContent>
@@ -185,7 +185,7 @@ export function MetricsClient({ orders, products, ingredients }: { orders: any[]
 
             <Card>
                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Utilidad Operativa</CardTitle>
+                  <CardTitle className="text-sm font-medium">Margen estimado de insumos</CardTitle>
                   <TrendingUp className="h-4 w-4 text-green-500" />
                </CardHeader>
                <CardContent>
@@ -198,7 +198,7 @@ export function MetricsClient({ orders, products, ingredients }: { orders: any[]
 
             <Card className={`${totals.foodCostPct > 35 ? 'border-red-400 bg-red-50' : totals.foodCostPct > 0 ? 'border-green-400 bg-green-50' : ''}`}>
                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-bold">Food Cost % (Real)</CardTitle>
+                  <CardTitle className="text-sm font-bold">Costo de insumos estimado %</CardTitle>
                   {totals.foodCostPct > 35 ? <AlertOctagon className="h-4 w-4 text-red-500" /> : <DollarSign className="h-4 w-4 text-green-500" />}
                </CardHeader>
                <CardContent>
@@ -214,7 +214,7 @@ export function MetricsClient({ orders, products, ingredients }: { orders: any[]
 
          <Card>
             <CardHeader>
-               <CardTitle>Flujo de Ingresos vs Gastos</CardTitle>
+               <CardTitle>Valor de pedidos e insumos estimados</CardTitle>
                <CardDescription>Comparativa diaria de facturación contra compras de bodega.</CardDescription>
             </CardHeader>
             <CardContent className="h-[350px]">

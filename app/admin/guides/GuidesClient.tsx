@@ -29,7 +29,7 @@ export default function GuidesClient({
 }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<GuideCategory | "Todas">("Todas");
-  const [availableOnly, setAvailableOnly] = useState(false);
+  const [availableOnly, setAvailableOnly] = useState(true);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const storageKey = `onlyfoodGuidesCompleted:${tenantId}`;
 
@@ -77,7 +77,7 @@ export default function GuidesClient({
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Todo lo que {tenantName} necesita para configurar, operar y aprovechar la plataforma sin depender de asistencia permanente.</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
-            <div className="flex items-end justify-between"><span className="text-sm font-bold text-slate-300">Progreso del equipo</span><strong className="text-3xl text-orange-300">{progress}%</strong></div>
+            <div className="flex items-end justify-between"><span className="text-sm font-bold text-slate-300">Tu lectura en este dispositivo</span><strong className="text-3xl text-orange-300">{progress}%</strong></div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-700"><div className="h-full rounded-full bg-orange-400 transition-all" style={{ width: `${progress}%` }} /></div>
             <p className="mt-2 text-xs text-slate-400">{completedAvailable} de {availableGuides.length} guías disponibles marcadas como leídas en este dispositivo.</p>
           </div>

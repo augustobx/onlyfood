@@ -47,11 +47,11 @@ export function MessengerForm({ initialMessengers }: { initialMessengers: any[] 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Nombre</Label>
-              <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Ej. Carlos Delivery" required />
+              <Input aria-label="Nombre" value={name} onChange={e=>setName(e.target.value)} placeholder="Ej. Carlos Delivery" required />
             </div>
             <div className="space-y-2">
               <Label>Teléfono</Label>
-              <Input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Ej. 1122334455" required />
+              <Input aria-label="Teléfono" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Ej. 1122334455" required />
             </div>
           </div>
           <Button type="submit" disabled={isAdding} className="w-full bg-slate-900 border" variant="outline">

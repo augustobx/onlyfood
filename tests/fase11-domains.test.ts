@@ -1,8 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { addTenantDomain, verifyTenantDomain, setPrimaryTenantDomain } from '@/lib/domains';
 
 describe('FASE 11: Dynamic Subdomains & Custom Domains', () => {
+  // These tests exercise domain uniqueness, not plan denial. Enable the
+  // prerequisite explicitly on disposable fixtures instead of changing plans.
+  const fixtureTenants: string[] = [];
+  beforeAll(async () => {
+    for (const slug of ['beats', 'roma']) {
+      const tenant = await prisma.tenant.findUniqueOrThrow({ where: { slug } });
+      fixtureTenants.push(tenant.id);
+      await prisma.tenantFeature.upsert({ where: { tenantId_featureKey: { tenantId: tenant.id, featureKey: 'customDomain' } }, create: { tenantId: tenant.id, featureKey: 'customDomain', isEnabled: true }, update: { isEnabled: true } });
+    }
+  });
+  afterAll(async () => { await prisma.tenantFeature.deleteMany({ where: { tenantId: { in: fixtureTenants }, featureKey: 'customDomain' } }); });
   it('should register and verify custom domains for tenants', async () => {
     const tenant = await prisma.tenant.findUniqueOrThrow({ where: { slug: 'beats' } });
     const hostname = 'pedidos.beatsburgers.com.ar';
