@@ -70,6 +70,14 @@ export function SettingsForm({
 
   const dirty = emailDirty || JSON.stringify(cfg) !== JSON.stringify(savedConfig) || JSON.stringify(businessHours) !== savedHours;
   useEffect(() => {
+    if (dirty || isSaving || String(initialConfig.updatedAt) === String(savedConfig.updatedAt)) return;
+    // Revalidation can carry a newer change from another operator. Refresh
+    // untouched values only after the local draft has been saved/discarded.
+    const hours = parseBusinessHours(initialConfig.businessHours);
+    setCfg(initialConfig); setSavedConfig(initialConfig);
+    setBusinessHours(hours); setSavedHours(JSON.stringify(hours));
+  }, [dirty, isSaving, initialConfig, savedConfig.updatedAt]);
+  useEffect(() => {
     if (!dirty) return;
     const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); };
     const navigation = (event: MouseEvent) => {
