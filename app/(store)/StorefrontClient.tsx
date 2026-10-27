@@ -434,12 +434,6 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPointsModalOpen, setIsPointsModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (!loggedClient && !sessionStorage.getItem("nfood_auth_dismissed")) {
-      setIsAuthModalOpen(true);
-    }
-  }, [loggedClient]);
-
   const [showSplash, setShowSplash] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showNoticeBoard, setShowNoticeBoard] = useState(false);
