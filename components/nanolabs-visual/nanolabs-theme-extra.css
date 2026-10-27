@@ -385,3 +385,68 @@ body[data-theme='dark'],
   backdrop-filter: blur(8px) !important;
 }
 
+/* Sidebar footer con 3 controles: Configuración, Tema (Sol/Luna) y Plegado */
+.bh-sidebar__footer {
+  margin-top: auto;
+  padding: 12px 10px;
+  border-top: 1px solid var(--border-neutral-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 6px;
+}
+.bh-sidebar__footer--collapsed {
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 4px;
+}
+.bh-sidebar__footer .bh-sidebar__icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-neutral-subtle);
+  transition: all 0.15s ease;
+}
+.bh-sidebar__footer .bh-sidebar__icon-btn:hover {
+  background: var(--bg-neutral-muted);
+  color: var(--icon-neutral-default);
+}
+.bh-sidebar__footer .bh-sidebar__icon-btn.active {
+  color: var(--color-brand, #FF6600);
+}
+
+/* Blindaje estricto para tickets térmicos e impresión en general */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .bh-layout,
+  .bh-header,
+  .bh-sidebar,
+  .bh-sidebar__footer,
+  .bh-sidebar__tooltip {
+    display: none !important;
+  }
+  .bh-main {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+  [data-print-ticket],
+  [data-print-ticket] * {
+    background-color: transparent !important;
+    color: #000000 !important;
+    border-color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+

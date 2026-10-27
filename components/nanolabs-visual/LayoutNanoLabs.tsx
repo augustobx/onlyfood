@@ -28,7 +28,6 @@ import {
   Sun,
   PanelLeftClose,
   PanelLeftOpen,
-  Palette,
   LogOut,
   UtensilsCrossed,
   Menu,
@@ -64,22 +63,58 @@ export interface AdminRouteItem {
   feature?: string;
 }
 
-export const ADMIN_ROUTES: AdminRouteItem[] = [
-  { name: 'Pedidos Hoy', href: '/admin/live', icon: LayoutDashboard, feature: 'orders' },
-  { name: 'Agenda / Calendario', href: '/admin/calendar', icon: CalendarDays, feature: 'orders' },
-  { name: 'Historial', href: '/admin/history', icon: History, feature: 'orders' },
-  { name: 'Valoraciones', href: '/admin/reviews', icon: MessageSquareHeart, feature: 'orders' },
-  { name: 'Caja diaria', href: '/admin/cash', icon: WalletCards, feature: 'cashRegister' },
-  { name: 'Catálogo', href: '/admin/catalog', icon: ShoppingBag, feature: 'orders' },
-  { name: 'Promociones', href: '/admin/promotions', icon: BadgePercent, feature: 'quantityDiscounts' },
-  { name: 'Galería de Medios', href: '/admin/media', icon: ImageIcon, feature: 'orders' },
-  { name: 'Métricas', href: '/admin/metricas', icon: TrendingUp, feature: 'advancedReports' },
-  { name: 'Canje de Puntos', href: '/admin/rewards', icon: Gift, feature: 'loyalty' },
-  { name: 'Ruleta de Premios', href: '/admin/games', icon: Dices, feature: 'roulette' },
-  { name: 'Clientes y cuentas', href: '/admin/users', icon: Users },
-  { name: 'Puesta en Marcha', href: '/admin/wizard', icon: Sparkles },
-  { name: 'Guías', href: '/admin/guides', icon: BookOpenCheck },
-  { name: 'Configuración', href: '/admin/settings', icon: Settings },
+export interface AdminCategoryGroup {
+  title: string;
+  items: AdminRouteItem[];
+}
+
+export const ADMIN_CATEGORIES: AdminCategoryGroup[] = [
+  {
+    title: 'Operaciones',
+    items: [
+      { name: 'Pedidos Hoy', href: '/admin/live', icon: LayoutDashboard, feature: 'orders' },
+      { name: 'Agenda / Calendario', href: '/admin/calendar', icon: CalendarDays, feature: 'orders' },
+      { name: 'Historial', href: '/admin/history', icon: History, feature: 'orders' },
+      { name: 'Caja diaria', href: '/admin/cash', icon: WalletCards, feature: 'cashRegister' },
+    ],
+  },
+  {
+    title: 'Catálogo y Ventas',
+    items: [
+      { name: 'Catálogo', href: '/admin/catalog', icon: ShoppingBag, feature: 'orders' },
+      { name: 'Promociones', href: '/admin/promotions', icon: BadgePercent, feature: 'quantityDiscounts' },
+      { name: 'Galería de Medios', href: '/admin/media', icon: ImageIcon, feature: 'orders' },
+      { name: 'Valoraciones', href: '/admin/reviews', icon: MessageSquareHeart, feature: 'orders' },
+    ],
+  },
+  {
+    title: 'Clientes y Fidelización',
+    items: [
+      { name: 'Clientes y cuentas', href: '/admin/users', icon: Users },
+      { name: 'Canje de Puntos', href: '/admin/rewards', icon: Gift, feature: 'loyalty' },
+      { name: 'Ruleta de Premios', href: '/admin/games', icon: Dices, feature: 'roulette' },
+    ],
+  },
+  {
+    title: 'Análisis y Ayuda',
+    items: [
+      { name: 'Métricas', href: '/admin/metricas', icon: TrendingUp, feature: 'advancedReports' },
+      { name: 'Puesta en Marcha', href: '/admin/wizard', icon: Sparkles },
+      { name: 'Guías', href: '/admin/guides', icon: BookOpenCheck },
+    ],
+  },
+];
+
+export const SETTINGS_ROUTE: AdminRouteItem = {
+  name: 'Configuración',
+  href: '/admin/settings',
+  icon: Settings,
+};
+
+// Lista unificada para verificaciones de permisos y bloqueo de rutas
+export const ALL_ADMIN_ROUTES: AdminRouteItem[] = [
+  ...ADMIN_CATEGORIES.flatMap((c) => c.items),
+  SETTINGS_ROUTE,
 ];
 
 export interface LayoutNanoLabsProps {
@@ -89,7 +124,6 @@ export interface LayoutNanoLabsProps {
   userEmail?: string;
   currentRole?: string;
   enabledFeatures?: string[];
-  onSwitchTheme?: (theme: '1' | '2') => void;
   children: ReactNode;
 }
 
@@ -99,7 +133,6 @@ export function LayoutNanoLabs({
   userEmail = '',
   currentRole = 'ADMIN',
   enabledFeatures = [],
-  onSwitchTheme,
   children,
 }: LayoutNanoLabsProps) {
   const pathname = usePathname();
@@ -108,7 +141,7 @@ export function LayoutNanoLabs({
   const [mounted, setMounted] = useState(false);
   const [tooltip, setTooltip] = useState<{ texto: string; top: number } | null>(null);
 
-  // Live Dólar Quotation
+  // Cotización en vivo del Dólar Blue
   const [dolarCotiz, setDolarCotiz] = useState<number | null>(null);
   const [isSyncingDolar, setIsSyncingDolar] = useState(false);
 
@@ -116,7 +149,6 @@ export function LayoutNanoLabs({
     setMounted(true);
     setPlegado(localStorage.getItem(CLAVE_PLEGADO) === '1');
 
-    // Fetch live dollar quotation
     const fetchDolar = async () => {
       try {
         const res = await fetch('https://dolarapi.com/v1/dolares/blue');
@@ -163,21 +195,17 @@ export function LayoutNanoLabs({
     window.location.reload();
   };
 
-  const visibleItems = ADMIN_ROUTES.filter(
-    (item) => !item.feature || enabledFeatures.includes(item.feature)
-  );
-
   const isActive = (href: string) => {
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  // El ticket térmico debe renderizarse limpio sin sidebar ni header
+  // El ticket térmico se imprime directo sin shell de navegación
   if (pathname.startsWith('/admin/live/print/')) {
     return <>{children}</>;
   }
 
-  // Comprobar si la ruta actual está deshabilitada para este tenant
-  const currentRoute = ADMIN_ROUTES.find(
+  // Comprobar si la ruta actual está deshabilitada por configuración de features
+  const currentRoute = ALL_ADMIN_ROUTES.find(
     (route) => pathname === route.href || pathname.startsWith(`${route.href}/`)
   );
   const isBlocked = currentRoute?.feature && !enabledFeatures.includes(currentRoute.feature);
@@ -204,60 +232,88 @@ export function LayoutNanoLabs({
 
   return (
     <div className="bh-layout theme-nanolabs" data-nl-theme="2">
-      {/* HEADER 80px */}
+      {/* ═══ HEADER OFICIAL 80px ═══ */}
       <header className="bh-header bh-header--retail">
         <div className="flex items-center gap-3">
-          {/* Mobile Sheet Trigger */}
+          {/* Menú Móvil (Drawer) */}
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger render={<Button variant="ghost" size="icon" className="shrink-0" />}>
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Abrir menú</span>
               </SheetTrigger>
-              <SheetContent side="left" className="w-72 border-none bg-slate-900 p-0 text-white" showCloseButton={false}>
-                <div className="flex h-16 items-center gap-3 border-b border-slate-800 px-4 text-xl font-black">
+              <SheetContent side="left" className="w-72 border-none bg-slate-900 p-0 text-white flex flex-col" showCloseButton={false}>
+                <div className="flex h-16 items-center gap-3 border-b border-slate-800 px-4 text-xl font-black shrink-0">
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
                     style={{ background: palette.gradient }}
                   >
                     <UtensilsCrossed size={16} />
                   </div>
-                  <span>{tenantName}</span>
+                  <span className="truncate">{tenantName}</span>
                 </div>
-                <nav className="flex flex-1 flex-col p-4 space-y-1 overflow-y-auto">
-                  {visibleItems.map((route) => {
-                    const active = isActive(route.href);
-                    const Icon = route.icon;
+                <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
+                  {ADMIN_CATEGORIES.map((category) => {
+                    const visibleInCat = category.items.filter(
+                      (item) => !item.feature || enabledFeatures.includes(item.feature)
+                    );
+                    if (visibleInCat.length === 0) return null;
+
                     return (
-                      <Link
-                        key={route.href}
-                        href={route.href}
-                        className={`flex h-10 items-center gap-3 rounded-xl px-3 transition-all ${
-                          active
-                            ? 'bg-white text-slate-950 font-bold shadow-xs'
-                            : 'text-slate-300 hover:bg-slate-800 hover:text-white font-medium'
-                        }`}
-                      >
-                        <Icon size={18} />
-                        <span className="text-sm truncate">{route.name}</span>
-                      </Link>
+                      <div key={category.title} className="space-y-1">
+                        <div className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          {category.title}
+                        </div>
+                        {visibleInCat.map((route) => {
+                          const active = isActive(route.href);
+                          const Icon = route.icon;
+                          return (
+                            <Link
+                              key={route.href}
+                              href={route.href}
+                              className={`flex h-10 items-center gap-3 rounded-xl px-3 transition-all ${
+                                active
+                                  ? 'bg-white text-slate-950 font-bold shadow-xs'
+                                  : 'text-slate-300 hover:bg-slate-800 hover:text-white font-medium'
+                              }`}
+                            >
+                              <Icon size={18} />
+                              <span className="text-sm truncate">{route.name}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
                     );
                   })}
-                  <div className="mt-auto border-t border-slate-800 pt-4">
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 text-sm font-bold transition-colors cursor-pointer"
+                  <div className="border-t border-slate-800 pt-3 space-y-1">
+                    <Link
+                      href={SETTINGS_ROUTE.href}
+                      className={`flex h-10 items-center gap-3 rounded-xl px-3 transition-all ${
+                        isActive(SETTINGS_ROUTE.href)
+                          ? 'bg-white text-slate-950 font-bold shadow-xs'
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white font-medium'
+                      }`}
                     >
-                      <LogOut size={18} />
-                      <span>Cerrar sesión</span>
-                    </button>
+                      <Settings size={18} />
+                      <span className="text-sm truncate">{SETTINGS_ROUTE.name}</span>
+                    </Link>
                   </div>
                 </nav>
+                <div className="border-t border-slate-800 p-4 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 text-sm font-bold transition-colors cursor-pointer"
+                  >
+                    <LogOut size={18} />
+                    <span>Cerrar sesión</span>
+                  </button>
+                </div>
               </SheetContent>
             </Sheet>
           </div>
 
+          {/* Logo Corporativo e Isotipo */}
           <Link href="/admin/live" className="bh-logo" style={{ textDecoration: 'none' }}>
             <div className="bh-logo__mark">
               <span
@@ -277,8 +333,9 @@ export function LayoutNanoLabs({
           </Link>
         </div>
 
+        {/* Acciones del Header */}
         <div className="bh-header__actions">
-          {/* Live Dólar Quotation Pill */}
+          {/* Cotización Dólar Blue */}
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur text-xs font-bold text-slate-700 dark:text-slate-200 shadow-xs">
             <DollarSign size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="text-[10px] uppercase tracking-wider text-slate-400">Dólar Blue</span>
@@ -289,6 +346,7 @@ export function LayoutNanoLabs({
               type="button"
               onClick={handleSyncDolar}
               disabled={isSyncingDolar}
+              aria-label="Actualizar cotización"
               title="Actualizar cotización"
               className="p-1 rounded text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors disabled:opacity-50 cursor-pointer"
             >
@@ -296,29 +354,13 @@ export function LayoutNanoLabs({
             </button>
           </div>
 
-          {/* Color Palette Selector */}
+          {/* Selector de Paletas Corporativas (7 Paletas NanoLabs) */}
           <PaletteSelector />
 
-          {/* Theme Switcher Button */}
-          {onSwitchTheme && (
-            <button
-              type="button"
-              onClick={() => onSwitchTheme('1')}
-              className="bh-btn bh-btn-secondary bh-btn--small flex items-center gap-2 font-bold cursor-pointer"
-              title="Estás en Tema 2 (NanoLabs Visual). Clic para volver a Tema 1 (Clásico)"
-            >
-              <Palette size={14} className="text-amber-500 shrink-0" />
-              <span className="hidden md:inline text-xs">Tema 2</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold uppercase tracking-wider">
-                Volver a Tema 1
-              </span>
-            </button>
-          )}
-
-          {/* Password Reset Requests Bell */}
+          {/* Campana de Solicitudes de Reseteo */}
           <ClientResetNotificationBell />
 
-          {/* User info */}
+          {/* Usuario y Rol */}
           <div className="ot-usuario" title={userEmail}>
             <div className="bh-list-primary font-bold">{userName}</div>
             <div className="bh-list-secondary text-xs uppercase tracking-wider font-semibold opacity-75">
@@ -326,12 +368,12 @@ export function LayoutNanoLabs({
             </div>
           </div>
 
-          {/* Avatar initials */}
+          {/* Avatar con Iniciales */}
           <div className="bh-avatar" title={userName}>
             {iniciales(userName)}
           </div>
 
-          {/* Logout button */}
+          {/* Cerrar Sesión */}
           <button
             type="button"
             className="bh-header__icon-btn text-red-500 hover:text-red-700 cursor-pointer"
@@ -344,68 +386,122 @@ export function LayoutNanoLabs({
         </div>
       </header>
 
-      {/* BODY WITH COLLAPSIBLE SIDEBAR */}
+      {/* ═══ CUERPO PRINCIPAL CON SIDEBAR CATEGORIZADA ═══ */}
       <div className="bh-layout__body">
         <aside
           className={`bh-sidebar${plegado ? ' bh-sidebar--collapsed' : ''}`}
           aria-label="Pantallas"
           style={plegado ? { ['--bh-sidebar-width' as string]: `${PLEGADO_W}px` } : undefined}
         >
-          <div className="flex-1 overflow-y-auto space-y-1">
-            {visibleItems.map(({ href, name, icon: Icon }) => {
-              const active = isActive(href);
+          {/* Rutas Categorizadas */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 py-1">
+            {ADMIN_CATEGORIES.map((category, catIdx) => {
+              const visibleInCat = category.items.filter(
+                (item) => !item.feature || enabledFeatures.includes(item.feature)
+              );
+              if (visibleInCat.length === 0) return null;
+
               return (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-label={name}
-                  className={`bh-sidebar__item${active ? ' active' : ''}${plegado ? ' bh-sidebar__item--collapsed' : ''}`}
-                  onMouseEnter={(e) => {
-                    if (!plegado) return;
-                    const r = e.currentTarget.getBoundingClientRect();
-                    setTooltip({ texto: name, top: r.top + r.height / 2 });
-                  }}
-                  onMouseLeave={() => setTooltip(null)}
-                >
-                  <span className="bh-sidebar__icon-chip">
-                    <Icon size={17} strokeWidth={2} />
-                  </span>
-                  {!plegado && <span className="truncate">{name}</span>}
-                </Link>
+                <div key={category.title} className="space-y-0.5">
+                  {/* Título de categoría o separador sutil */}
+                  {!plegado ? (
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 select-none">
+                      {category.title}
+                    </div>
+                  ) : (
+                    catIdx > 0 && <div className="my-1.5 border-t border-slate-200/60 dark:border-slate-800/60 mx-2" />
+                  )}
+
+                  {visibleInCat.map(({ href, name, icon: Icon }) => {
+                    const active = isActive(href);
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        aria-label={name}
+                        className={`bh-sidebar__item${active ? ' active' : ''}${plegado ? ' bh-sidebar__item--collapsed' : ''}`}
+                        onMouseEnter={(e) => {
+                          if (!plegado) return;
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setTooltip({ texto: name, top: r.top + r.height / 2 });
+                        }}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        <span className="bh-sidebar__icon-chip">
+                          <Icon size={17} strokeWidth={2} />
+                        </span>
+                        {!plegado && <span className="truncate text-sm font-medium">{name}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
               );
             })}
           </div>
 
-          {/* SIDEBAR FOOTER: THEME (LIGHT/DARK) + COLLAPSE */}
+          {/* ═══ SIDEBAR FOOTER: CONFIGURACIÓN + TEMA (CLARO/OSCURO) + PLEGAR ═══ */}
           <div className={`bh-sidebar__footer${plegado ? ' bh-sidebar__footer--collapsed' : ''}`}>
+            {/* 1. Botón Configuración */}
+            <Link
+              href={SETTINGS_ROUTE.href}
+              className={`bh-sidebar__icon-btn cursor-pointer${
+                isActive(SETTINGS_ROUTE.href) ? ' active text-orange-500 font-bold bg-orange-50 dark:bg-orange-950/40' : ''
+              }`}
+              aria-label="Configuración"
+              title="Configuración"
+              onMouseEnter={(e) => {
+                if (!plegado) return;
+                const r = e.currentTarget.getBoundingClientRect();
+                setTooltip({ texto: 'Configuración', top: r.top + r.height / 2 });
+              }}
+              onMouseLeave={() => setTooltip(null)}
+            >
+              <Settings size={18} />
+            </Link>
+
+            {/* 2. Botón Modo Claro / Oscuro */}
             <button
               type="button"
               className="bh-sidebar__icon-btn cursor-pointer"
               onClick={toggleDarkMode}
               aria-label="Cambiar tema claro u oscuro"
               title={isDark ? 'Modo claro' : 'Modo oscuro'}
+              onMouseEnter={(e) => {
+                if (!plegado) return;
+                const r = e.currentTarget.getBoundingClientRect();
+                setTooltip({ texto: isDark ? 'Modo claro' : 'Modo oscuro', top: r.top + r.height / 2 });
+              }}
+              onMouseLeave={() => setTooltip(null)}
             >
               {isDark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+
+            {/* 3. Botón Plegar / Expandir Sidebar */}
             <button
               type="button"
               className="bh-sidebar__icon-btn bh-sidebar__desktop-only cursor-pointer"
               onClick={togglePlegado}
               aria-label={plegado ? 'Expandir menú' : 'Plegar menú'}
               title={plegado ? 'Expandir menú' : 'Plegar menú'}
+              onMouseEnter={(e) => {
+                if (!plegado) return;
+                const r = e.currentTarget.getBoundingClientRect();
+                setTooltip({ texto: plegado ? 'Expandir menú' : 'Plegar menú', top: r.top + r.height / 2 });
+              }}
+              onMouseLeave={() => setTooltip(null)}
             >
               {plegado ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
           </div>
         </aside>
 
-        {/* MAIN CONTENT AREA */}
+        {/* ═══ ÁREA DE CONTENIDO PRINCIPAL ═══ */}
         <main className="bh-main bh-cascada ot-pagina min-w-0 flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           {mainContent}
         </main>
       </div>
 
-      {/* PORTAL TOOLTIP WHEN SIDEBAR IS COLLAPSED */}
+      {/* PORTAL PARA TOOLTIP CUANDO LA SIDEBAR ESTÁ PLEGADA */}
       {mounted &&
         tooltip &&
         createPortal(

@@ -2,7 +2,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "./nexo-theme.css";
-@import "./admin-users-halloween.css";
 @import "./halloween-theme.css";
 
 @custom-variant dark (&:is(.dark *));

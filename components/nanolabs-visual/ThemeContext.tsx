@@ -43,20 +43,18 @@ export function ERPThemeProvider({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // 1. Theme 1 vs 2 resolution
+    // 1. Theme 1 vs 2 resolution: Theme 2 fijo por defecto oficial
     const searchParams = new URLSearchParams(window.location.search);
     const urlTheme = searchParams.get('theme');
-    let resolvedTheme = initialTheme;
+    let resolvedTheme: ERPTheme = '2';
 
     if (urlTheme === '1' || urlTheme === '2') {
       resolvedTheme = urlTheme;
       document.cookie = `onlyfood_theme=${urlTheme}; path=/; max-age=31536000; SameSite=Lax`;
       localStorage.setItem('onlyfood_theme', urlTheme);
     } else {
-      const savedTheme = localStorage.getItem('onlyfood_theme');
-      if (savedTheme === '1' || savedTheme === '2') {
-        resolvedTheme = savedTheme;
-      }
+      resolvedTheme = '2';
+      localStorage.setItem('onlyfood_theme', '2');
     }
     setThemeState(resolvedTheme);
 

@@ -28,17 +28,17 @@ export function ClientAccountsTabs({ initialUsers, rewards, tiers, resetRequests
   };
   return (
     <div className="space-y-4">
-      <nav className="flex flex-wrap gap-2 border-b pb-3" aria-label="Secciones de clientes">
+      <nav className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-3" aria-label="Secciones de clientes">
         <button type="button" onClick={() => changeTab("CLIENTS")}
           aria-current={tab === "CLIENTS" ? "page" : undefined}
-          className={`rounded-xl px-4 py-2 text-sm font-bold ${tab === "CLIENTS"
-            ? "bg-orange-600 text-white" : "bg-white text-slate-700 border"}`}>
+          className={`rounded-xl px-4 py-2 text-sm font-bold transition-all cursor-pointer ${tab === "CLIENTS"
+            ? "bg-orange-600 text-white shadow-xs" : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
           Clientes y cuentas
         </button>
         <button type="button" onClick={() => changeTab("RESETS")}
           aria-current={tab === "RESETS" ? "page" : undefined}
-          className={`rounded-xl px-4 py-2 text-sm font-bold ${tab === "RESETS"
-            ? "bg-orange-600 text-white" : "bg-white text-slate-700 border"}`}>
+          className={`rounded-xl px-4 py-2 text-sm font-bold transition-all cursor-pointer ${tab === "RESETS"
+            ? "bg-orange-600 text-white shadow-xs" : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
           Solicitudes de reseteo ({resetRequests.length})
         </button>
       </nav>

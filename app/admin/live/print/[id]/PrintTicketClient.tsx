@@ -86,6 +86,20 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
     };
   }, [paperWidth, paperWidthMm]);
 
+  useEffect(() => {
+    // Aislar totalmente la vista de impresión contra temas oscuros o variables de modo oscuro
+    const html = document.documentElement;
+    const hadDark = html.classList.contains("dark");
+    const prevTheme = html.getAttribute("data-theme");
+    if (hadDark) html.classList.remove("dark");
+    if (prevTheme) html.removeAttribute("data-theme");
+
+    return () => {
+      if (hadDark) html.classList.add("dark");
+      if (prevTheme) html.setAttribute("data-theme", prevTheme);
+    };
+  }, []);
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -93,13 +107,31 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
           margin: 0 !important;
           padding: 0 !important;
           min-height: 0 !important;
-          background: white !important;
+          background: #ffffff !important;
+          background-color: #ffffff !important;
+          color: #000000 !important;
+        }
+        [data-print-ticket] {
+          background: #ffffff !important;
+          background-color: #ffffff !important;
+          color: #000000 !important;
+        }
+        [data-print-ticket] * {
+          color: #000000 !important;
+          border-color: #000000 !important;
+          box-shadow: none !important;
+          text-shadow: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
         @media print {
           html, body {
             width: ${paperWidth} !important;
             height: auto !important;
             overflow: visible !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
             print-color-adjust: exact !important;
             -webkit-print-color-adjust: exact !important;
           }
@@ -108,6 +140,8 @@ export function PrintTicketClient({ order, config, ticketKind = "ALL" }: { order
             max-width: ${paperWidth} !important;
             margin: 0 !important;
             box-shadow: none !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
           }
           .ticket-section { break-inside: avoid; page-break-inside: avoid; }
         }

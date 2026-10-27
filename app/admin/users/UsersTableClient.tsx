@@ -459,7 +459,7 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
   return (
     <div className="client-account-list space-y-4">
       {/* ═══ BARRA DE HERRAMIENTAS: BÚSQUEDA, FILTROS Y ACCIÓN DE DUPLICADOS ═══ */}
-      <div className="bg-white border rounded-2xl p-4 shadow-sm space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Buscador en Vivo */}
           <div className="relative flex-1">
@@ -468,13 +468,13 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar por nombre, teléfono o correo..."
-              className="pl-10 h-10 rounded-xl text-xs font-medium border-slate-200"
+              className="pl-10 h-10 rounded-xl text-xs font-medium border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -487,7 +487,7 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
               size="sm"
               disabled={isDetecting}
               onClick={handleDetectDuplicates}
-              className="h-10 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-orange-600 to-amber-600 hover:brightness-105 text-white shadow-sm flex items-center gap-1.5"
+              className="h-10 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-orange-600 to-amber-600 hover:brightness-105 text-white shadow-xs flex items-center gap-1.5 cursor-pointer"
             >
               {isDetecting ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -500,12 +500,12 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
         </div>
 
         {/* Fila de Filtros y Ordenamiento */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 border-t border-slate-100 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
           {/* Filtro por Rango VIP */}
           <div>
-            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Insignia / Rango</Label>
+            <Label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 mb-1 block">Insignia / Rango</Label>
             <Select value={tierFilter} onValueChange={(v) => setTierFilter(v ?? "ALL")}>
-              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                 <SelectValue placeholder="Todos los rangos" />
               </SelectTrigger>
               <SelectContent>
@@ -522,10 +522,10 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
 
           {/* Filtro por Saldo de Puntos */}
           <div>
-            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Saldo de Puntos</Label>
+            <Label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 mb-1 block">Saldo de Puntos</Label>
             <Select value={pointsFilter} onValueChange={(v) => setPointsFilter(v ?? "ALL")}>
-              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
-                <SelectValue placeholder="Todos" />
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">
+                <SelectValue placeholder="Todos los saldos" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todos los saldos</SelectItem>
@@ -537,9 +537,9 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
 
           {/* Filtro por Estado de Clave */}
           <div>
-            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Estado de Clave</Label>
+            <Label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 mb-1 block">Estado de Clave</Label>
             <Select value={passwordFilter} onValueChange={(v) => setPasswordFilter(v ?? "ALL")}>
-              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
@@ -552,9 +552,9 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
 
           {/* Filtro por Pedidos */}
           <div>
-            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Historial de Compras</Label>
+            <Label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 mb-1 block">Historial de Compras</Label>
             <Select value={ordersFilter} onValueChange={(v) => setOrdersFilter(v ?? "ALL")}>
-              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
@@ -567,9 +567,9 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
 
           {/* Ordenar por */}
           <div>
-            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Ordenar por</Label>
+            <Label className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 mb-1 block">Ordenar por</Label>
             <Select value={sortBy} onValueChange={(v: any) => setSortBy(v ?? "POINTS_DESC")}>
-              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200">
+              <SelectTrigger className="h-9 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                 <SelectValue placeholder="Ordenar..." />
               </SelectTrigger>
               <SelectContent>
@@ -584,17 +584,17 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
         </div>
 
         {/* Barra de Resumen de Filtros */}
-        <div className="flex items-center justify-between text-xs pt-1 text-slate-500">
+        <div className="flex items-center justify-between text-xs pt-1 text-slate-500 dark:text-slate-400">
           <span className="font-bold">
-            Mostrando <strong className="text-slate-900">{filteredUsers.length}</strong> de{" "}
-            <strong className="text-slate-900">{users.length}</strong> clientes
+            Mostrando <strong className="text-slate-900 dark:text-white">{filteredUsers.length}</strong> de{" "}
+            <strong className="text-slate-900 dark:text-white">{users.length}</strong> clientes
           </span>
 
           {hasActiveFilters && (
             <button
               type="button"
               onClick={handleClearFilters}
-              className="text-xs font-black text-orange-600 hover:text-orange-700 flex items-center gap-1 transition-colors"
+              className="text-xs font-black text-orange-600 dark:text-orange-400 hover:text-orange-700 flex items-center gap-1 transition-colors cursor-pointer"
             >
               <X className="w-3.5 h-3.5" /> Limpiar filtros
             </button>
@@ -605,55 +605,55 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
 
       <section className="client-card-grid grid grid-cols-1 gap-3 md:grid-cols-2" aria-label="Clientes en tarjetas">
         {filteredUsers.map(u => (
-          <article key={u.id} className="min-w-0 space-y-3 rounded-2xl border border-[#49304a] bg-[#1c1723] p-4 text-slate-100 shadow-lg">
+          <article key={u.id} className="min-w-0 space-y-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-slate-900 dark:text-slate-100 shadow-xs">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h3 className="break-words text-base font-black text-white">{u.name || "Sin nombre"}</h3>
-                <p className="mt-1 break-all text-xs text-slate-300">{u.phone}</p>
-                <p className="mt-1 break-all text-xs text-slate-400">{u.email || "Sin correo"}</p>
+                <h3 className="break-words text-base font-black text-slate-900 dark:text-white">{u.name || "Sin nombre"}</h3>
+                <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">{u.phone}</p>
+                <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">{u.email || "Sin correo"}</p>
               </div>
               <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${u.passwordSetupRequired || u.forcePasswordChange
-                ? "border-amber-500/50 bg-amber-500/15 text-amber-200"
-                : "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"}`}>
+                ? "border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                : "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"}`}>
                 {u.forcePasswordChange ? "Cambio de clave" : u.passwordSetupRequired ? "Setup pendiente" : "✓ Activa"}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {u.tier ? (
-                <span className="max-w-full break-words rounded-lg px-3 py-1.5 text-xs font-black text-white"
+                <span className="max-w-full break-words rounded-lg px-3 py-1.5 text-xs font-black text-white shadow-xs"
                   style={{ backgroundColor: u.tier.color || "#7c3aed" }}>👑 {u.tier.name}</span>
-              ) : <span className="text-xs text-slate-400">Cliente Base</span>}
+              ) : <span className="text-xs text-slate-400 dark:text-slate-500">Cliente Base</span>}
               {u.email && (
-                <span className={`text-xs ${u.emailVerifiedAt ? "text-emerald-300" : "text-amber-300"}`}>
+                <span className={`text-xs ${u.emailVerifiedAt ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
                   {u.emailVerifiedAt ? "Correo verificado" : "Correo pendiente"}
                 </span>
               )}
             </div>
-            <dl className="grid grid-cols-3 gap-2 rounded-xl border border-[#3b3043] bg-[#151119] p-3">
-              <div className="min-w-0"><dt className="text-[10px] text-slate-400">Compras</dt>
-                <dd className="mt-1 text-sm font-extrabold text-white">{u.ordersCount ?? u._count?.orders ?? 0}</dd></div>
-              <div className="min-w-0"><dt className="text-[10px] text-slate-400">Gastado</dt>
-                <dd className="mt-1 break-words text-sm font-extrabold text-white">${(u.totalSpent || 0).toLocaleString("es-AR")}</dd></div>
-              <div className="min-w-0"><dt className="text-[10px] text-slate-400">Puntos</dt>
-                <dd className="mt-1 text-sm font-extrabold text-amber-300">{u.points ?? 0}</dd></div>
+            <dl className="grid grid-cols-3 gap-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-3">
+              <div className="min-w-0"><dt className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase">Compras</dt>
+                <dd className="mt-1 text-sm font-extrabold text-slate-900 dark:text-white">{u.ordersCount ?? u._count?.orders ?? 0}</dd></div>
+              <div className="min-w-0"><dt className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase">Gastado</dt>
+                <dd className="mt-1 break-words text-sm font-extrabold text-slate-900 dark:text-white">${(u.totalSpent || 0).toLocaleString("es-AR")}</dd></div>
+              <div className="min-w-0"><dt className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase">Puntos</dt>
+                <dd className="mt-1 text-sm font-extrabold text-amber-600 dark:text-amber-400">🪙 {u.points ?? 0}</dd></div>
             </dl>
             <div className="space-y-2">
-              <h4 className="text-[10px] font-black uppercase tracking-wider text-orange-300">Acciones</h4>
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">Acciones</h4>
               {renderActions(u)}
             </div>
           </article>
         ))}
         {filteredUsers.length === 0 && (
-          <div className="rounded-xl border border-[#49304a] p-6 text-sm text-slate-300">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 text-sm text-slate-500 dark:text-slate-400">
             No se encontraron clientes con esos filtros.
           </div>
         )}
       </section>
 
       {/* ═══ TABLA DE CLIENTES ═══ */}
-      <div className="client-desktop-table overflow-x-auto rounded-2xl border border-[#392b42] bg-[#19171f] shadow-xl">
+      <div className="client-desktop-table overflow-x-auto custom-scrollbar rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
         <table className="w-full min-w-[1190px] table-fixed text-sm text-left">
-          <thead className="border-b border-[#453044] bg-[#231a2b] text-orange-300 uppercase text-[11px] font-black tracking-wider">
+          <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-slate-600 dark:text-slate-300 uppercase text-[11px] font-black tracking-wider">
             <tr>
               <th scope="col" className="w-[225px] px-4 py-4">Usuario</th>
               <th scope="col" className="w-[185px] px-4 py-4">Insignia / Rango</th>
@@ -663,30 +663,30 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
               <th scope="col" className="w-[425px] px-4 py-4 text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#33283a] text-xs">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
             {filteredUsers.map((u) => (
-              <tr key={u.id} className="transition-colors hover:bg-[#281e30]">
+              <tr key={u.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                 <td className="px-4 py-4 align-middle">
                   <div className="flex items-center gap-2">
-                    <div className="font-extrabold text-slate-900">{u.name || "Sin nombre"}</div>
+                    <div className="font-extrabold text-slate-900 dark:text-white">{u.name || "Sin nombre"}</div>
                     {u.passwordSetupRequired || u.forcePasswordChange ? (
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60">
                         {u.forcePasswordChange ? "Cambio de clave obligatorio" : "Setup Pendiente"}
                       </span>
                     ) : (
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-0.5">
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60 flex items-center gap-0.5">
                         ✓ Activa
                       </span>
                     )}
                   </div>
-                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">{u.phone}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">{u.phone}</div>
                    <div className="text-[11px] mt-1">
                      {u.email
-                       ? <span className="font-medium text-slate-700">{u.email}</span>
-                       : <span className="italic font-semibold text-amber-700">Sin correo</span>}
+                       ? <span className="font-medium text-slate-700 dark:text-slate-300">{u.email}</span>
+                       : <span className="italic font-semibold text-amber-700 dark:text-amber-400">Sin correo</span>}
                      {u.email && <span className={u.emailVerifiedAt
-                       ? "ml-2 text-emerald-700 font-semibold"
-                       : "ml-2 text-amber-700 font-semibold"}>
+                       ? "ml-2 text-emerald-700 dark:text-emerald-400 font-semibold"
+                       : "ml-2 text-amber-700 dark:text-amber-400 font-semibold"}>
                        {u.emailVerifiedAt ? "✓ Verificado" : "Pendiente de verificación"}
                      </span>}
                    </div>
@@ -694,25 +694,25 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
                 <td className="px-4 py-4 align-middle">
                   {u.tier ? (
                     <span
-                      className="inline-flex max-w-full items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-black uppercase leading-tight text-white shadow-sm"
+                      className="inline-flex max-w-full items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-black uppercase leading-tight text-white shadow-xs"
                       style={{ backgroundColor: u.tier.color || "#a855f7" }}
                     >
                       👑 <span className="min-w-0 break-words">{u.tier.name}</span>
                     </span>
                   ) : (
-                    <span className="text-slate-400 text-xs">Cliente Base</span>
+                    <span className="text-slate-400 dark:text-slate-500 text-xs">Cliente Base</span>
                   )}
                 </td>
-                <td className="px-3 py-4 align-middle text-center font-black text-slate-800">
-                  <span className="inline-flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-full text-xs font-bold text-slate-700">
+                <td className="px-3 py-4 align-middle text-center font-black text-slate-800 dark:text-slate-200">
+                  <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full text-xs font-bold text-slate-700 dark:text-slate-300">
                     <Receipt className="w-3.5 h-3.5 text-slate-500" /> {u.ordersCount ?? u._count?.orders ?? 0}
                   </span>
                 </td>
-                <td className="px-3 py-4 align-middle text-right font-black text-slate-900">
+                <td className="px-3 py-4 align-middle text-right font-black text-slate-900 dark:text-white">
                   ${(u.totalSpent || 0).toLocaleString("es-AR")}
                 </td>
                 <td className="px-3 py-4 align-middle text-right">
-                  <span className="font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl">
+                  <span className="font-black text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 px-2.5 py-1 rounded-xl">
                     🪙 {u.points} pts
                   </span>
                 </td>
@@ -723,7 +723,7 @@ export function UsersTableClient({ initialUsers, rewards, tiers = [] }: UsersTab
             ))}
             {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500">
                   {users.length === 0
                     ? "Todavía no hay clientes registrados en el sistema."
                     : "No se encontraron clientes que coincidan con los filtros aplicados."}
