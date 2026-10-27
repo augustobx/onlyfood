@@ -434,12 +434,6 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPointsModalOpen, setIsPointsModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (!loggedClient && !sessionStorage.getItem("nfood_auth_dismissed")) {
-      setIsAuthModalOpen(true);
-    }
-  }, [loggedClient]);
-
   const [showSplash, setShowSplash] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showNoticeBoard, setShowNoticeBoard] = useState(false);
@@ -453,13 +447,13 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
       return;
     }
 
-    const splashSeen = sessionStorage.getItem("nfood_splash_seen") === "true";
+    const splashSeen = sessionStorage.getItem(`onlyfood_entry_seen_${config?.id || "store"}`) === "true";
     if (splashSeen) {
       setShowSplash(false);
       return;
     }
 
-    sessionStorage.setItem("nfood_splash_seen", "true");
+    sessionStorage.setItem(`onlyfood_entry_seen_${config?.id || "store"}`, "true");
     setShowSplash(true);
     // La imagen usa la duración configurada. El video termina al disparar onEnded;
     // este límite evita bloquear la tienda si el navegador no puede reproducirlo.
@@ -476,7 +470,9 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
       return;
     }
     const seen = sessionStorage.getItem(`onlyfood_notice_seen_${noticeFingerprint}`) === "true";
-    setShowNoticeBoard(!seen);
+    const entrySeen = sessionStorage.getItem(`onlyfood_entry_seen_${config?.id || "store"}`) === "true";
+    setShowNoticeBoard(!seen && !entrySeen);
+    if (!seen && !entrySeen) sessionStorage.setItem(`onlyfood_entry_seen_${config?.id || "store"}`, "true");
     setNoticeGateReady(true);
   }, [config?.noticeBoardEnabled, config?.noticeBoardMessage, config?.noticeBoardTitle, noticeFingerprint, showSplash]);
 
@@ -484,16 +480,6 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
     sessionStorage.setItem(`onlyfood_notice_seen_${noticeFingerprint}`, "true");
     setShowNoticeBoard(false);
   }, [noticeFingerprint]);
-
-  // Welcome Banner VIP (sin sonidos ni ruidos, orientado al club y ranking)
-  useEffect(() => {
-    if (config?.welcomeBalloonEnabled && !showSplash && noticeGateReady && !showNoticeBoard) {
-      const welcomeSeen = sessionStorage.getItem("onlyfood_welcome_seen") === "true";
-      if (!welcomeSeen) {
-        setShowWelcome(true);
-      }
-    }
-  }, [config?.welcomeBalloonEnabled, noticeGateReady, showNoticeBoard, showSplash]);
 
   const handleAcceptWelcome = () => {
     sessionStorage.setItem("onlyfood_welcome_seen", "true");
@@ -564,6 +550,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
 
   const renderSharedModals = () => (
     <>
+      {(config?.noticeBoardEnabled || (loyaltyEnabled && config?.welcomeBalloonEnabled)) && <nav aria-label="Novedades y beneficios" className="flex flex-wrap justify-center gap-3 border-b bg-white px-4 py-2 text-sm text-slate-800">{config?.noticeBoardEnabled && <button type="button" className="min-h-11 rounded-xl px-3 font-bold underline" onClick={() => setShowNoticeBoard(true)}>Novedades del comercio</button>}{loyaltyEnabled && config?.welcomeBalloonEnabled && <button type="button" className="min-h-11 rounded-xl px-3 font-bold underline" onClick={() => setShowWelcome(true)}>Conocer mis beneficios</button>}</nav>}
       <StoreNoticeBoard open={showNoticeBoard} onClose={handleCloseNoticeBoard} config={config} />
       {/* ═══ MODAL DE BIENVENIDA VIP CLUB & RANKING ═══ */}
       <AnimatePresence>
@@ -658,7 +645,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
         onPointsUpdate={setCurrentPoints}
       />
 
-      {rouletteEnabled && config?.isRouletteActive && prizes.length > 0 && !showSplash && (
+      {rouletteEnabled && config?.isRouletteActive && prizes.length > 0 && !showSplash && !showNoticeBoard && !showWelcome && (
         <button
           type="button"
           aria-label="Abrir ruleta de premios"
@@ -1014,7 +1001,7 @@ export function StorefrontClient({ categories, combos, loggedClient, config, pri
       </AnimatePresence>
 
       {/* Botón Flotante de Canje de Puntos */}
-      {loyaltyEnabled && config?.isPointsCatalogActive !== false && !showSplash && (
+      {loyaltyEnabled && config?.isPointsCatalogActive !== false && !showSplash && !showNoticeBoard && !showWelcome && (
         <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[65] sm:bottom-[110px] sm:z-[90] sm:right-6">
           <motion.div
             animate={{ y: [0, -6, 0] }}

@@ -419,6 +419,26 @@ body[data-theme='dark'],
 }
 
 /* Blindaje estricto para tickets térmicos e impresión en general */
+/* At tablet widths keep the work area next to navigation. Phones use the
+   existing drawer, so the full menu never precedes the daily operation. */
+@media screen and (min-width: 768px) and (max-width: 1023px) {
+  .theme-nanolabs .bh-layout__body { flex-direction: row; }
+  .theme-nanolabs .bh-sidebar { width: 216px; flex-direction: column; height: calc(100dvh - 80px); position: sticky; top: 80px; }
+  .theme-nanolabs .bh-sidebar.bh-sidebar--collapsed { width: 76px; }
+}
+@media screen and (max-width: 767px) {
+  .theme-nanolabs .bh-sidebar { display: none !important; }
+  .theme-nanolabs .bh-layout__body { display: block; }
+  .theme-nanolabs .bh-header { height: 64px; padding: 0 8px; gap: 6px; }
+  .theme-nanolabs .bh-header > div:first-child { min-width: 0; flex: 1; gap: 6px; }
+  .theme-nanolabs .bh-logo { min-width: 0; gap: 6px; }
+  .theme-nanolabs .bh-logo__text { max-width: 125px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .theme-nanolabs .bh-logo__text span { display: none; }
+  .theme-nanolabs .bh-header__actions { gap: 4px; flex-shrink: 0; }
+  .theme-nanolabs .bh-avatar, .theme-nanolabs .ot-usuario { display: none; }
+  .theme-nanolabs .bh-main { padding: 16px 12px !important; }
+}
+
 @media print {
   html, body {
     background: #ffffff !important;

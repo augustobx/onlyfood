@@ -21,7 +21,7 @@ export default async function AdminRewardsPage() {
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-orange-600">
           <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" /> Fidelización, Insignias & Beneficios VIP
         </div>
-        <h1 className="text-3xl font-black tracking-tight text-slate-950">Fidelización & Ranking de Compradores</h1>
+        <h1 className="text-3xl font-black tracking-tight text-slate-950">Beneficios y puntos</h1>
         <p className="text-muted-foreground text-sm">
           Configurá los niveles de membresía (Beaters Select, Gold, Club), gestioná el ranking de los mejores compradores y asigná recompensas exclusivas.
         </p>

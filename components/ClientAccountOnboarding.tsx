@@ -37,9 +37,7 @@ export function ClientAccountOnboarding() {
       if (!current.email) {
         setEmail("");
         setStep("EMAIL");
-      } else if (!current.dniProvided &&
-        sessionStorage.getItem(`onlyfood:dni-skip:${current.clientId}`) !== "yes") {
-        setStep("DNI");
+
       } else {
         setStep(null);
       }
@@ -67,7 +65,7 @@ export function ClientAccountOnboarding() {
       if (!current?.email) { setError("No se pudo guardar el correo. Volvé a intentar."); return; }
       setStatus(current);
       toast[result.verificationSent ? "success" : "warning"](result.message, { duration: 8000 });
-      setStep(current.dniProvided ? null : "DNI");
+      setStep(passkeySupported && !current.hasPasskey ? "PASSKEY" : null);
       router.refresh();
     } catch { setError("No pudimos guardar el correo. Intentá nuevamente."); }
     finally { setBusy(false); }
@@ -137,7 +135,7 @@ export function ClientAccountOnboarding() {
   }
 
   // No cubrir las pantallas de verificación o restablecimiento de contraseña.
-  if (!step || pathname.startsWith("/verify-email") || pathname.startsWith("/reset-password")) return null;
+  if (!step || pathname !== "/profile") return null;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"

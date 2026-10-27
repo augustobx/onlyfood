@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,7 @@ import { getPreviewOrderId } from "@/app/actions/admin-ticket-preview";
 import type { EmailProvider } from "@/lib/email-configuration";
 
 export function SettingsForm({
-  initialConfig,
+  initialConfig, slotsPanel, messengersPanel, domains,
   printNodeApiKeyConfigured,
   whatsappIntegrationConfigured,
   metaAppSecretConfigured,
@@ -34,6 +35,7 @@ export function SettingsForm({
   emailSettings,
 }: {
   initialConfig: any;
+  slotsPanel: ReactNode; messengersPanel: ReactNode; domains: string[];
   printNodeApiKeyConfigured: boolean;
   whatsappIntegrationConfigured: boolean;
   metaAppSecretConfigured: boolean;
@@ -55,9 +57,42 @@ export function SettingsForm({
     configured: boolean;
   };
 }) {
+  const params = useSearchParams();
+  const section = params.get("section") || (params.get("tab") === "slots" ? "schedule" : "general");
+  const validSections = ["general", "schedule", "finance", "mercadopago", "whatsapp", "marketing", "theme", "printers", "email", "messengers", "domain"];
+  const currentSection = validSections.includes(section) ? section : "general";
+  const [savedConfig, setSavedConfig] = useState(initialConfig);
+  const [savedHours, setSavedHours] = useState(() => JSON.stringify(parseBusinessHours(initialConfig.businessHours)));
   const [cfg, setCfg] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
   const [businessHours, setBusinessHours] = useState<DaySchedule[]>(() => parseBusinessHours(initialConfig.businessHours));
+  const [emailDirty, setEmailDirty] = useState(false);
+
+  const dirty = emailDirty || JSON.stringify(cfg) !== JSON.stringify(savedConfig) || JSON.stringify(businessHours) !== savedHours;
+  useEffect(() => {
+    if (dirty || isSaving || String(initialConfig.updatedAt) === String(savedConfig.updatedAt)) return;
+    // Revalidation can carry a newer change from another operator. Refresh
+    // untouched values only after the local draft has been saved/discarded.
+    const hours = parseBusinessHours(initialConfig.businessHours);
+    setCfg(initialConfig); setSavedConfig(initialConfig);
+    setBusinessHours(hours); setSavedHours(JSON.stringify(hours));
+  }, [dirty, isSaving, initialConfig, savedConfig.updatedAt]);
+  useEffect(() => {
+    if (!dirty) return;
+    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    const navigation = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const anchor = target.closest("a");
+      if (anchor?.href && anchor.target !== "_blank" && !window.confirm("Tenés ajustes sin guardar. ¿Querés salir y descartarlos?")) { event.preventDefault(); event.stopPropagation(); }
+    };
+    window.addEventListener("beforeunload", unload);
+    document.addEventListener("click", navigation, true);
+    return () => { window.removeEventListener("beforeunload", unload); document.removeEventListener("click", navigation, true); };
+  }, [dirty]);
+  const changeSection = (value: string) => {
+    if (dirty) { toast.error("Guardá o descartá los ajustes antes de cambiar de sección."); return; }
+    const url = new URL(window.location.href); url.searchParams.set("section", value); window.history.pushState(null, "", url);
+  };
 
   // Estados para el envío masivo PUSH
   const [promoTitle, setPromoTitle] = useState("");
@@ -160,9 +195,15 @@ export function SettingsForm({
       metaApiVersion: cfg.metaApiVersion || "v23.0",
     };
 
-    const result = await updateConfig(cfg.id, dataToSave);
+    const changedFields = Object.keys(dataToSave).filter(key => key === "businessHours" ? JSON.stringify(businessHours) !== savedHours : JSON.stringify(cfg[key]) !== JSON.stringify(savedConfig[key]));
+    let result;
+    try { result = await updateConfig(cfg.id, dataToSave, changedFields); }
+    catch { toast.error("No se pudieron guardar los ajustes. Reintentá."); setIsSaving(false); return; }
     if (result.success) {
-      toast.success("Configuración general guardada");
+      setSavedConfig({...cfg, mpAccessToken: null, metaApiToken: null, metaVerifyToken: null});
+      setCfg((current: any) => ({...current, mpAccessToken: null, metaApiToken: null, metaVerifyToken: null}));
+      setSavedHours(JSON.stringify(businessHours));
+      toast.success("Ajustes de la sección guardados");
       if ("whatsappConfigured" in result) setWaConfigured(Boolean(result.whatsappConfigured));
       if ("mpConfigured" in result) setMpConfigured(Boolean(result.mpConfigured));
     } else {
@@ -251,27 +292,33 @@ export function SettingsForm({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isSaving} size="lg" className="bg-slate-900 hover:bg-slate-800 text-white shadow-lg font-bold">
-          <Save className="h-5 w-5 mr-2" /> Guardar Todos los Cambios
-        </Button>
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-end gap-3 rounded-xl border bg-white p-3 shadow-sm">
+        <span role="status" className="mr-auto text-sm text-slate-600">{dirty ? "Cambios sin guardar" : "Sin cambios pendientes"}</span>
+        {emailDirty && <span className="text-sm font-bold">Guardá con “Guardar correo” en el formulario.</span>}
+        {dirty && !emailDirty && <Button variant="outline" onClick={() => {setCfg(savedConfig); setBusinessHours(JSON.parse(savedHours));}}>Descartar</Button>}
+        {!["email", "messengers", "domain"].includes(currentSection) && <Button onClick={handleSave} disabled={isSaving || !dirty} size="lg" className="bg-slate-900 hover:bg-slate-800 text-white shadow-lg font-bold">
+          <Save className="h-5 w-5 mr-2" /> {isSaving ? "Guardando…" : "Guardar esta sección"}
+        </Button>}
       </div>
 
-      <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 sm:grid-cols-9 bg-slate-200 h-auto p-1 gap-1">
-          <TabsTrigger value="general"><Store className="w-4 h-4 mr-2" /> Negocio</TabsTrigger>
-          <TabsTrigger value="schedule"><Calendar className="w-4 h-4 mr-2" /> Horarios</TabsTrigger>
-          <TabsTrigger value="finance"><Wallet className="w-4 h-4 mr-2" /> Pagos</TabsTrigger>
-          <TabsTrigger value="mercadopago"><CreditCard className="w-4 h-4 mr-2" /> M. Pago</TabsTrigger>
+      <Tabs value={currentSection} onValueChange={changeSection} className="w-full">
+        <TabsList className="!grid !h-auto !w-full grid-cols-2 gap-2 rounded-xl bg-slate-100 !p-2 sm:grid-cols-3 lg:grid-cols-4 [&>button]:!h-auto [&>button]:min-h-11 [&>button]:justify-start [&>button]:whitespace-normal">
+          <TabsTrigger value="general"><Store className="w-4 h-4 mr-2" /> Comercio</TabsTrigger>
+          <TabsTrigger value="schedule"><Calendar className="w-4 h-4 mr-2" /> Horarios y cupos</TabsTrigger>
+          <TabsTrigger value="finance"><Wallet className="w-4 h-4 mr-2" /> Cobros</TabsTrigger>
+          <TabsTrigger value="mercadopago"><CreditCard className="w-4 h-4 mr-2" /> Conectar Mercado Pago</TabsTrigger>
           {whatsappEnabled && <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-2" /> WhatsApp</TabsTrigger>}
-          <TabsTrigger value="marketing"><Megaphone className="w-4 h-4 mr-2" /> Splash</TabsTrigger>
+          <TabsTrigger value="marketing"><Megaphone className="w-4 h-4 mr-2" /> Avisos</TabsTrigger>
           <TabsTrigger value="theme"><Palette className="w-4 h-4 mr-2" /> Diseño</TabsTrigger>
           <TabsTrigger value="printers"><Printer className="w-4 h-4 mr-2" /> Impresoras</TabsTrigger>
           <TabsTrigger value="email"><Mail className="w-4 h-4 mr-2" /> Correo</TabsTrigger>
+        <TabsTrigger value="messengers">Repartidores</TabsTrigger><TabsTrigger value="domain">Dirección pública</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="domain"><Card><CardHeader><CardTitle>Dirección pública de tu tienda</CardTitle><CardDescription>El administrador de la plataforma verifica y modifica los dominios. Para cambiar tu dirección, comunicate con el soporte de NanoLabs.</CardDescription></CardHeader><CardContent><a href="/" target="_blank" rel="noopener noreferrer" className="font-bold underline">Abrir mi tienda</a>{domains.map(domain => <p key={domain} className="mt-3 break-all">{domain} · verificado</p>)}{!domains.length && <p className="mt-3">Todavía no hay dominios verificados. Solicitá su configuración al administrador.</p>}</CardContent></Card></TabsContent>
+        <TabsContent value="messengers"><p className="mb-3 text-sm text-slate-500">Cada acción de repartidores se guarda al completarla.</p>{messengersPanel}</TabsContent>
         <TabsContent value="email" className="space-y-4 mt-4">
-          <EmailSettingsPanel initialSettings={emailSettings} />
+          <EmailSettingsPanel initialSettings={emailSettings} onPendingChange={setEmailDirty} />
         </TabsContent>
         <TabsContent value="general" className="space-y-4 mt-4">
           <Card>
@@ -283,7 +330,7 @@ export function SettingsForm({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Nombre de la Aplicación (Título)</Label>
-                  <Input value={cfg.appName} onChange={e => updateField('appName', e.target.value)} />
+                  <Input aria-label="Nombre de la Aplicación (Título)" value={cfg.appName} onChange={e => updateField('appName', e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <MediaPickerInput
@@ -300,7 +347,7 @@ export function SettingsForm({
                 <Label htmlFor="password-reset-whatsapp" className="font-bold text-slate-800">
                   WhatsApp para solicitudes de reseteo de clave
                 </Label>
-                <Input id="password-reset-whatsapp" type="tel"
+                <Input aria-label="WhatsApp para solicitudes de reseteo de clave" id="password-reset-whatsapp" type="tel"
                   value={cfg.passwordResetWhatsAppPhone || ""}
                   onChange={e => updateField("passwordResetWhatsAppPhone", e.target.value)}
                   placeholder="Ej. 5491123456789" />
@@ -316,20 +363,20 @@ export function SettingsForm({
                   {!emailServiceConfigured && <p className="text-xs font-semibold text-amber-700">Configurá primero SMTP, Resend o Brevo en la pestaña Correo para habilitar esta opción.</p>}
                   <p className="text-sm text-muted-foreground">Cuando está activo, cada cliente deberá registrarse o iniciar sesión para confirmar pedidos. No afecta al panel administrativo.</p>
                 </div>
-                <Switch checked={Boolean(cfg.requireLoginForCheckout)} onCheckedChange={v => updateField('requireLoginForCheckout', v)} />
+                <Switch aria-label="Exigir cuenta para comprar" checked={Boolean(cfg.requireLoginForCheckout)} onCheckedChange={v => updateField('requireLoginForCheckout', v)} />
               </div>
               <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50">
                 <div className="space-y-0.5">
                   <Label className="text-base text-slate-800 font-bold">Local Abierto (Aceptar Pedidos)</Label>
                   <p className="text-sm text-muted-foreground">Si se desactiva, los clientes verán el mensaje de cierre y no podrán comprar.</p>
                 </div>
-                <Switch checked={cfg.isStoreOpen} onCheckedChange={v => updateField('isStoreOpen', v)} />
+                <Switch aria-label="Aceptar pedidos" checked={cfg.isStoreOpen} onCheckedChange={v => updateField('isStoreOpen', v)} />
               </div>
 
               {!cfg.isStoreOpen && (
                 <div className="space-y-2">
                   <Label className="text-red-600 font-semibold">Mensaje de Local Cerrado</Label>
-                  <Textarea value={cfg.closedMessage} onChange={e => updateField('closedMessage', e.target.value)} placeholder="Ej: Ya cerramos por hoy. Volvemos mañana a las 20hs." />
+                  <Textarea aria-label="Mensaje de Local Cerrado" value={cfg.closedMessage} onChange={e => updateField('closedMessage', e.target.value)} placeholder="Ej: Ya cerramos por hoy. Volvemos mañana a las 20hs." />
                 </div>
               )}
 
@@ -338,7 +385,7 @@ export function SettingsForm({
         </TabsContent>
 
         {/* PESTAÑA HORARIOS & ENCARGOS */}
-        <TabsContent value="schedule" className="space-y-6 mt-4">
+        <TabsContent value="schedule" className="space-y-6 mt-4"><p className="text-sm text-slate-500">Guardá las reglas y turnos con el botón superior. Los cambios de cupos se guardan con cada acción.</p>{slotsPanel}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -356,7 +403,7 @@ export function SettingsForm({
                     <p className="text-xs text-muted-foreground">Usa únicamente los horarios configurados y disponibles.</p>
                   </div>
                   <Switch
-                    checked={cfg.allowImmediateOrders ?? true}
+                    aria-label="Pedidos para hoy" checked={cfg.allowImmediateOrders ?? true}
                     onCheckedChange={(v) => updateField("allowImmediateOrders", v)}
                   />
                 </div>
@@ -367,7 +414,7 @@ export function SettingsForm({
                     <p className="text-xs text-muted-foreground">Programación para el día siguiente.</p>
                   </div>
                   <Switch
-                    checked={cfg.allowScheduledTomorrow ?? true}
+                    aria-label="Pedidos para mañana" checked={cfg.allowScheduledTomorrow ?? true}
                     onCheckedChange={(v) => updateField("allowScheduledTomorrow", v)}
                   />
                 </div>
@@ -378,7 +425,7 @@ export function SettingsForm({
                     <p className="text-xs text-muted-foreground">Calendario de fecha futura y eventos.</p>
                   </div>
                   <Switch
-                    checked={cfg.allowAdvanceOrders ?? true}
+                    aria-label="Pedidos por encargo" checked={cfg.allowAdvanceOrders ?? true}
                     onCheckedChange={(v) => updateField("allowAdvanceOrders", v)}
                   />
                 </div>
@@ -387,7 +434,7 @@ export function SettingsForm({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold">Mínimo días de anticipación (Encargo)</Label>
-                  <Input
+                  <Input aria-label="Mínimo días de anticipación (Encargo)"
                     type="number"
                     min={0}
                     max={30}
@@ -399,7 +446,7 @@ export function SettingsForm({
 
                 <div className="space-y-2">
                   <Label className="text-xs font-bold">Máximo días de anticipación (Encargo)</Label>
-                  <Input
+                  <Input aria-label="Máximo días de anticipación (Encargo)"
                     type="number"
                     min={1}
                     max={180}
@@ -425,8 +472,8 @@ export function SettingsForm({
                 </div>
                 <div className="flex items-center gap-3 bg-purple-50 p-2.5 rounded-xl border border-purple-200">
                   <div className="text-right">
-                    <Label htmlFor="auto-sched" className="text-xs font-black text-purple-950 block">Apertura Automática</Label>
-                    <span className="text-[10px] text-purple-700">Abre/cierra según hora local</span>
+                    <Label htmlFor="auto-sched" className="text-xs font-black text-purple-950 block">Control por horario</Label>
+                    <span className="text-[10px] text-purple-700">Acepta pedidos dentro de los turnos si la recepción manual está habilitada</span>
                   </div>
                   <Switch
                     id="auto-sched"
@@ -447,7 +494,7 @@ export function SettingsForm({
                   >
                     <div className="flex items-center gap-3 min-w-[130px]">
                       <Switch
-                        checked={day.isOpen}
+                        aria-label={`Atender el ${day.dayName}`} checked={day.isOpen}
                         onCheckedChange={(v) => updateDaySchedule(idx, { isOpen: v })}
                       />
                       <div>
@@ -504,7 +551,7 @@ export function SettingsForm({
           </Card>
         </TabsContent>
 
-        <TabsContent value="finance" className="space-y-4 mt-4">
+        <TabsContent value="finance" className="space-y-4 mt-4"><button type="button" className="font-bold text-orange-700 underline" onClick={() => changeSection("mercadopago")}>Configurar conexión de Mercado Pago →</button>
           <Card>
             <CardHeader>
               <CardTitle>Pagos, Envíos y Descuentos</CardTitle>
@@ -528,12 +575,12 @@ export function SettingsForm({
 
                 <div className="flex items-center justify-between border rounded-lg p-3">
                   <Label>Efectivo (Pago al recibir/retirar)</Label>
-                  <Switch checked={cfg.paymentCash} onCheckedChange={v => updateField('paymentCash', v)} />
+                  <Switch aria-label="Habilitar efectivo" checked={cfg.paymentCash} onCheckedChange={v => updateField('paymentCash', v)} />
                 </div>
 
                 <div className="flex items-center justify-between border rounded-lg p-3">
                   <Label>Mercado Pago (checkout online)</Label>
-                  <Switch checked={cfg.paymentMp} onCheckedChange={v => updateField('paymentMp', v)} />
+                  <Switch aria-label="Habilitar Mercado Pago" checked={cfg.paymentMp} onCheckedChange={v => updateField('paymentMp', v)} />
                 </div>
                 <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -543,10 +590,10 @@ export function SettingsForm({
                     <Switch checked={Boolean(cfg.paymentTransfer)} onCheckedChange={v => updateField("paymentTransfer", v)} aria-label="Habilitar transferencia manual"/>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1"><Label>Alias</Label><Input value={cfg.transferAlias || ""} onChange={e => updateField("transferAlias", e.target.value)} placeholder="MI.COMERCIO"/></div>
-                    <div className="space-y-1"><Label>CBU / CVU (opcional si hay alias)</Label><Input inputMode="numeric" maxLength={22} value={cfg.transferCbu || ""} onChange={e => updateField("transferCbu", e.target.value)} placeholder="22 dígitos"/></div>
-                    <div className="space-y-1"><Label>Titular de la cuenta</Label><Input value={cfg.transferHolder || ""} onChange={e => updateField("transferHolder", e.target.value)} placeholder="Nombre del titular"/></div>
-                    <div className="space-y-1"><Label>WhatsApp para comprobantes</Label><Input inputMode="tel" value={cfg.transferWhatsApp || ""} onChange={e => updateField("transferWhatsApp", e.target.value)} placeholder="54911XXXXXXXX"/></div>
+                    <div className="space-y-1"><Label>Alias</Label><Input aria-label="Alias" value={cfg.transferAlias || ""} onChange={e => updateField("transferAlias", e.target.value)} placeholder="MI.COMERCIO"/></div>
+                    <div className="space-y-1"><Label>CBU / CVU (opcional si hay alias)</Label><Input aria-label="CBU / CVU (opcional si hay alias)" inputMode="numeric" maxLength={22} value={cfg.transferCbu || ""} onChange={e => updateField("transferCbu", e.target.value)} placeholder="22 dígitos"/></div>
+                    <div className="space-y-1"><Label>Titular de la cuenta</Label><Input aria-label="Titular de la cuenta" value={cfg.transferHolder || ""} onChange={e => updateField("transferHolder", e.target.value)} placeholder="Nombre del titular"/></div>
+                    <div className="space-y-1"><Label>WhatsApp para comprobantes</Label><Input aria-label="WhatsApp para comprobantes" inputMode="tel" value={cfg.transferWhatsApp || ""} onChange={e => updateField("transferWhatsApp", e.target.value)} placeholder="54911XXXXXXXX"/></div>
                   </div>
                   <p className="text-xs text-slate-600">Al activar, los datos se muestran al cliente al confirmar su pedido. Configurá un número que reciba fotos o archivos por WhatsApp normal/Web.</p>
                 </div>
@@ -577,7 +624,7 @@ export function SettingsForm({
               <div className="space-y-4 bg-slate-50 p-4 border rounded-xl">
                 <div className="space-y-2">
                   <Label className="font-bold">Access Token</Label>
-                  <Input
+                  <Input aria-label="Access Token"
                     type="password"
                     placeholder={mpConfigured ? "•••••••••••••••••••••••• (Guardado)" : "APP_USR-..."}
                     value={cfg.mpAccessToken || ''}
@@ -591,7 +638,7 @@ export function SettingsForm({
                 </div>
                 <div className="space-y-2 pt-2">
                   <Label className="font-bold">Public Key</Label>
-                  <Input
+                  <Input aria-label="Public Key"
                     placeholder="APP_USR-..."
                     value={cfg.mpPublicKey || ''}
                     onChange={e => updateField('mpPublicKey', e.target.value)}
@@ -616,7 +663,7 @@ export function SettingsForm({
                   <Label className="text-base text-slate-800 font-bold">Activar avisos de pedidos</Label>
                   <p className="text-sm text-muted-foreground">Los avisos se envían automáticamente al teléfono informado por el cliente.</p>
                 </div>
-                <Switch checked={cfg.whatsappNotificationsEnabled} onCheckedChange={v => updateField('whatsappNotificationsEnabled', v)} />
+                <Switch aria-label="Activar avisos por WhatsApp" checked={cfg.whatsappNotificationsEnabled} onCheckedChange={v => updateField('whatsappNotificationsEnabled', v)} />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -632,18 +679,18 @@ export function SettingsForm({
 
               <div className="space-y-2 rounded-xl border bg-slate-50 p-4">
                 <Label className="font-bold">URL del webhook para Meta</Label>
-                <Input readOnly value={whatsappWebhookUrl || "Configurá BASE_URL en el servidor"} className="font-mono text-xs" />
+                <Input aria-label="URL del webhook para Meta" readOnly value={whatsappWebhookUrl || "Configurá BASE_URL en el servidor"} className="font-mono text-xs" />
                 <p className="text-xs text-muted-foreground">Suscribí el campo <strong>messages</strong>. El endpoint registra entregas, lecturas y errores; ignora conversaciones entrantes.</p>
               </div>
 
               <div className="space-y-4 bg-slate-50 p-4 border rounded-xl">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2"><Label className="font-bold">Token de Acceso Permanente</Label><Input type="password" placeholder={waConfigured ? "Guardado · dejar vacío para conservar" : "EAA..."} value={cfg.metaApiToken || ''} onChange={e => updateField('metaApiToken', e.target.value)} /></div>
-                  <div className="space-y-2"><Label className="font-bold">Phone Number ID</Label><Input placeholder="1234567890" value={cfg.metaPhoneNumberId || ''} onChange={e => updateField('metaPhoneNumberId', e.target.value)} /></div>
-                  <div className="space-y-2"><Label className="font-bold">Token de verificación del webhook</Label><Input type="password" placeholder={waConfigured ? "Guardado · dejar vacío para conservar" : "Mínimo 16 caracteres"} value={cfg.metaVerifyToken || ''} onChange={e => updateField('metaVerifyToken', e.target.value)} /></div>
+                  <div className="space-y-2"><Label className="font-bold">Token de Acceso Permanente</Label><Input aria-label="Token de Acceso Permanente" type="password" placeholder={waConfigured ? "Guardado · dejar vacío para conservar" : "EAA..."} value={cfg.metaApiToken || ''} onChange={e => updateField('metaApiToken', e.target.value)} /></div>
+                  <div className="space-y-2"><Label className="font-bold">Phone Number ID</Label><Input aria-label="Phone Number ID" placeholder="1234567890" value={cfg.metaPhoneNumberId || ''} onChange={e => updateField('metaPhoneNumberId', e.target.value)} /></div>
+                  <div className="space-y-2"><Label className="font-bold">Token de verificación del webhook</Label><Input aria-label="Token de verificación del webhook" type="password" placeholder={waConfigured ? "Guardado · dejar vacío para conservar" : "Mínimo 16 caracteres"} value={cfg.metaVerifyToken || ''} onChange={e => updateField('metaVerifyToken', e.target.value)} /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2"><Label className="font-bold">Graph API</Label><Input value={cfg.metaApiVersion || 'v23.0'} onChange={e => updateField('metaApiVersion', e.target.value)} placeholder="v23.0" /></div>
-                    <div className="space-y-2"><Label className="font-bold">Prefijo país</Label><Input value={cfg.whatsappDefaultCountryCode || '549'} onChange={e => updateField('whatsappDefaultCountryCode', e.target.value)} placeholder="549" /></div>
+                    <div className="space-y-2"><Label className="font-bold">Graph API</Label><Input aria-label="Graph API" value={cfg.metaApiVersion || 'v23.0'} onChange={e => updateField('metaApiVersion', e.target.value)} placeholder="v23.0" /></div>
+                    <div className="space-y-2"><Label className="font-bold">Prefijo país</Label><Input aria-label="Prefijo país" value={cfg.whatsappDefaultCountryCode || '549'} onChange={e => updateField('whatsappDefaultCountryCode', e.target.value)} placeholder="549" /></div>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">Para Argentina usá <strong>549</strong>. Guardá teléfonos con código de área, sin 0 ni 15.</p>
@@ -663,14 +710,14 @@ export function SettingsForm({
                   ["whatsappNotifyOrderConfirmed", "Pedido confirmado", "Productos, cantidades, total y modalidad."],
                   ["whatsappNotifyOrderPreparing", "Pedido en cocina", "Cuando pasa a En preparación."],
                   ["whatsappNotifyOrderReady", "Pedido listo", "Texto diferente para retiro o envío."],
-                ].map(([field, title, description]) => <div key={field} className="flex items-start justify-between gap-3 rounded-xl border p-3"><div><p className="text-sm font-bold">{title}</p><p className="text-xs text-muted-foreground">{description}</p></div><Switch checked={Boolean(cfg[field])} onCheckedChange={value => updateField(field, value)} /></div>)}
+                ].map(([field, title, description]) => <div key={field} className="flex items-start justify-between gap-3 rounded-xl border p-3"><div><p className="text-sm font-bold">{title}</p><p className="text-xs text-muted-foreground">{description}</p></div><Switch aria-label={String(title)} checked={Boolean(cfg[field])} onCheckedChange={value => updateField(field, value)} /></div>)}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2"><Label>Idioma</Label><Input value={cfg.whatsappTemplateLanguage || 'es_AR'} onChange={e => updateField('whatsappTemplateLanguage', e.target.value)} /></div>
-                <div className="space-y-2"><Label>Confirmado · 6 variables</Label><Input value={cfg.whatsappConfirmedTemplate || ''} onChange={e => updateField('whatsappConfirmedTemplate', e.target.value)} /></div>
-                <div className="space-y-2"><Label>En cocina · 3 variables</Label><Input value={cfg.whatsappPreparingTemplate || ''} onChange={e => updateField('whatsappPreparingTemplate', e.target.value)} /></div>
-                <div className="space-y-2"><Label>Listo para retirar · 3 variables</Label><Input value={cfg.whatsappReadyPickupTemplate || ''} onChange={e => updateField('whatsappReadyPickupTemplate', e.target.value)} /></div>
-                <div className="space-y-2 md:col-span-2"><Label>Listo para enviar · 4 variables</Label><Input value={cfg.whatsappReadyDeliveryTemplate || ''} onChange={e => updateField('whatsappReadyDeliveryTemplate', e.target.value)} /></div>
+                <div className="space-y-2"><Label>Idioma</Label><Input aria-label="Idioma" value={cfg.whatsappTemplateLanguage || 'es_AR'} onChange={e => updateField('whatsappTemplateLanguage', e.target.value)} /></div>
+                <div className="space-y-2"><Label>Confirmado · 6 variables</Label><Input aria-label="Confirmado · 6 variables" value={cfg.whatsappConfirmedTemplate || ''} onChange={e => updateField('whatsappConfirmedTemplate', e.target.value)} /></div>
+                <div className="space-y-2"><Label>En cocina · 3 variables</Label><Input aria-label="En cocina · 3 variables" value={cfg.whatsappPreparingTemplate || ''} onChange={e => updateField('whatsappPreparingTemplate', e.target.value)} /></div>
+                <div className="space-y-2"><Label>Listo para retirar · 3 variables</Label><Input aria-label="Listo para retirar · 3 variables" value={cfg.whatsappReadyPickupTemplate || ''} onChange={e => updateField('whatsappReadyPickupTemplate', e.target.value)} /></div>
+                <div className="space-y-2 md:col-span-2"><Label>Listo para enviar · 4 variables</Label><Input aria-label="Listo para enviar · 4 variables" value={cfg.whatsappReadyDeliveryTemplate || ''} onChange={e => updateField('whatsappReadyDeliveryTemplate', e.target.value)} /></div>
               </div>
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-950 space-y-2">
                 <p><strong>Confirmado:</strong> 1 cliente, 2 pedido, 3 comercio, 4 detalle, 5 total, 6 entrega/retiro.</p>
@@ -708,7 +755,7 @@ export function SettingsForm({
                 <div className="space-y-4 bg-white p-4 rounded-lg border shadow-sm">
                   <div className="space-y-2">
                     <Label>Título de la Notificación</Label>
-                    <Input
+                    <Input aria-label="Título de la Notificación"
                       placeholder="Ej: Prueba del Sistema / ¡20% de Descuento Hoy!"
                       value={promoTitle}
                       onChange={(e) => setPromoTitle(e.target.value)}
@@ -716,7 +763,7 @@ export function SettingsForm({
                   </div>
                   <div className="space-y-2">
                     <Label>Mensaje (Cuerpo)</Label>
-                    <Textarea
+                    <Textarea aria-label="Mensaje (Cuerpo)"
                       placeholder="Ej: Esta es una notificación de prueba. / Ingresá ahora para ver nuestras promos."
                       value={promoBody}
                       onChange={(e) => setPromoBody(e.target.value)}
@@ -736,14 +783,14 @@ export function SettingsForm({
               <div className="border rounded-xl p-4 bg-slate-50 space-y-4">
                 <div className="flex justify-between items-center">
                   <Label className="text-base font-bold text-slate-800">Pantalla de Carga (Splash Screen)</Label>
-                  <Switch checked={cfg.splashEnabled} onCheckedChange={v => updateField('splashEnabled', v)} />
+                  <Switch aria-label="Pantalla de presentación" checked={cfg.splashEnabled} onCheckedChange={v => updateField('splashEnabled', v)} />
                 </div>
                 {cfg.splashEnabled && (
                   <div className="space-y-4 animate-in fade-in">
                     <div className="space-y-2">
                       <Label>Contenido activo</Label>
                       <Select value={cfg.splashType || "IMAGE"} onValueChange={value => updateField("splashType", value)}>
-                        <SelectTrigger className="bg-white"><SelectValue>{cfg.splashType === "VIDEO" ? "Video de apertura" : "Imagen tradicional"}</SelectValue></SelectTrigger>
+                        <SelectTrigger aria-label="Seleccionar opción" className="bg-white"><SelectValue>{cfg.splashType === "VIDEO" ? "Video de apertura" : "Imagen tradicional"}</SelectValue></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="IMAGE">Imagen tradicional</SelectItem>
                           <SelectItem value="VIDEO">Video de apertura</SelectItem>
@@ -782,7 +829,7 @@ export function SettingsForm({
                         </div>
                         <div className="space-y-2">
                           <Label>Tiempo de duración (segundos)</Label>
-                          <Input type="number" min="1" max="30" value={cfg.splashDuration} onChange={e => updateField('splashDuration', e.target.value)} />
+                          <Input aria-label="Tiempo de duración (segundos)" type="number" min="1" max="30" value={cfg.splashDuration} onChange={e => updateField('splashDuration', e.target.value)} />
                           <p className="text-xs text-slate-500">Este tiempo se usa solamente en el modo imagen.</p>
                         </div>
                       </>
@@ -795,17 +842,17 @@ export function SettingsForm({
               <div className="border rounded-xl p-4 bg-slate-50 space-y-4">
                 <div className="flex justify-between items-center">
                   <Label className="text-base font-bold text-slate-800">Globo Pop-up de Bienvenida</Label>
-                  <Switch checked={cfg.welcomeBalloonEnabled} onCheckedChange={v => updateField('welcomeBalloonEnabled', v)} />
+                  <Switch aria-label="Invitación de bienvenida" checked={cfg.welcomeBalloonEnabled} onCheckedChange={v => updateField('welcomeBalloonEnabled', v)} />
                 </div>
                 {cfg.welcomeBalloonEnabled && (
                   <div className="space-y-4 animate-in fade-in">
                     <div className="space-y-2">
                       <Label>Mensaje del Globo</Label>
-                      <Textarea value={cfg.welcomeBalloonText} onChange={e => updateField('welcomeBalloonText', e.target.value)} placeholder="¡Pedí por acá y ganá puntos!" />
+                      <Textarea aria-label="Mensaje del Globo" value={cfg.welcomeBalloonText} onChange={e => updateField('welcomeBalloonText', e.target.value)} placeholder="¡Pedí por acá y ganá puntos!" />
                     </div>
                     <div className="space-y-2">
                       <Label>Tiempo en pantalla (Segundos)</Label>
-                      <Input type="number" min="1" max="20" value={cfg.welcomeBalloonDuration} onChange={e => updateField('welcomeBalloonDuration', e.target.value)} />
+                      <Input aria-label="Tiempo en pantalla (Segundos)" type="number" min="1" max="20" value={cfg.welcomeBalloonDuration} onChange={e => updateField('welcomeBalloonDuration', e.target.value)} />
                     </div>
                   </div>
                 )}
@@ -815,14 +862,14 @@ export function SettingsForm({
               <div className="space-y-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div><Label className="text-base font-bold text-slate-800">Tablón de noticias</Label><p className="mt-1 text-xs text-slate-600">Se abre al entrar a la tienda, toma los colores del tema y se muestra una vez por sesión para cada mensaje.</p></div>
-                  <Switch checked={Boolean(cfg.noticeBoardEnabled)} onCheckedChange={value => updateField('noticeBoardEnabled', value)} />
+                  <Switch aria-label="Tablón de noticias" checked={Boolean(cfg.noticeBoardEnabled)} onCheckedChange={value => updateField('noticeBoardEnabled', value)} />
                 </div>
                 {cfg.noticeBoardEnabled && (
                   <div className="space-y-4 animate-in fade-in">
-                    <div className="space-y-2"><Label>Título</Label><Input value={cfg.noticeBoardTitle || ''} onChange={event => updateField('noticeBoardTitle', event.target.value)} maxLength={80} placeholder="Ej: Novedades de esta semana" /></div>
-                    <div className="space-y-2"><Label>Noticia o aviso</Label><Textarea value={cfg.noticeBoardMessage || ''} onChange={event => updateField('noticeBoardMessage', event.target.value)} maxLength={2000} rows={5} placeholder="Contá una promoción, cambio de horario, producto nuevo o cualquier novedad." /><p className="text-right text-[10px] text-slate-500">{(cfg.noticeBoardMessage || '').length}/2000</p></div>
-                    <div className="flex items-center justify-between rounded-xl border bg-white p-3"><div><Label className="font-bold">Cerrar automáticamente</Label><p className="text-xs text-muted-foreground">El botón de cerrar siempre estará disponible.</p></div><Switch checked={Boolean(cfg.noticeBoardAutoClose)} onCheckedChange={value => updateField('noticeBoardAutoClose', value)} /></div>
-                    {cfg.noticeBoardAutoClose && <div className="space-y-2"><Label>Tiempo visible (segundos)</Label><Input type="number" min="3" max="120" value={cfg.noticeBoardDuration || 8} onChange={event => updateField('noticeBoardDuration', event.target.value)} /></div>}
+                    <div className="space-y-2"><Label>Título</Label><Input aria-label="Título" value={cfg.noticeBoardTitle || ''} onChange={event => updateField('noticeBoardTitle', event.target.value)} maxLength={80} placeholder="Ej: Novedades de esta semana" /></div>
+                    <div className="space-y-2"><Label>Noticia o aviso</Label><Textarea aria-label="Noticia o aviso" value={cfg.noticeBoardMessage || ''} onChange={event => updateField('noticeBoardMessage', event.target.value)} maxLength={2000} rows={5} placeholder="Contá una promoción, cambio de horario, producto nuevo o cualquier novedad." /><p className="text-right text-[10px] text-slate-500">{(cfg.noticeBoardMessage || '').length}/2000</p></div>
+                    <div className="flex items-center justify-between rounded-xl border bg-white p-3"><div><Label className="font-bold">Cerrar automáticamente</Label><p className="text-xs text-muted-foreground">El botón de cerrar siempre estará disponible.</p></div><Switch aria-label="Cerrar noticias automáticamente" checked={Boolean(cfg.noticeBoardAutoClose)} onCheckedChange={value => updateField('noticeBoardAutoClose', value)} /></div>
+                    {cfg.noticeBoardAutoClose && <div className="space-y-2"><Label>Tiempo visible (segundos)</Label><Input aria-label="Tiempo visible (segundos)" type="number" min="3" max="120" value={cfg.noticeBoardDuration || 8} onChange={event => updateField('noticeBoardDuration', event.target.value)} /></div>}
                   </div>
                 )}
               </div>
@@ -1034,12 +1081,12 @@ export function SettingsForm({
                 <h4 className="font-bold">Fondo General de la App (Background)</h4>
                 <div className="space-y-2">
                   <Label>URL de Imagen de Fondo</Label>
-                  <Input placeholder="Ej: https://.../fondo.jpg (Dejar vacío para bloque liso)" value={cfg.backgroundUrl || ''} onChange={e => updateField('backgroundUrl', e.target.value)} />
+                  <Input aria-label="URL de Imagen de Fondo" placeholder="Ej: https://.../fondo.jpg (Dejar vacío para bloque liso)" value={cfg.backgroundUrl || ''} onChange={e => updateField('backgroundUrl', e.target.value)} />
                 </div>
                 {cfg.backgroundUrl && (
                   <div className="flex items-center justify-between border rounded-lg p-3 bg-slate-50">
                     <Label>Efecto de Desfoque Oscuro (Blur + Opacity)</Label>
-                    <Switch checked={cfg.backgroundBlur || false} onCheckedChange={v => updateField('backgroundBlur', v)} />
+                    <Switch aria-label="Difuminar el fondo" checked={cfg.backgroundBlur || false} onCheckedChange={v => updateField('backgroundBlur', v)} />
                   </div>
                 )}
               </div>
@@ -1070,7 +1117,7 @@ export function SettingsForm({
                 <div className="space-y-2">
                   <Label className="text-base font-bold text-slate-800">Modo de impresión</Label>
                   <Select value={cfg.printingMode || "BROWSER"} onValueChange={value => updateField("printingMode", value)}>
-                    <SelectTrigger className="bg-white"><SelectValue>{cfg.printingMode === "PRINTNODE" ? "PrintNode — impresión directa" : cfg.printingMode === "NANOLABS_AGENT" ? "NanoLabs Print Agent — impresión silenciosa" : "Navegador — confirmar manualmente"}</SelectValue></SelectTrigger>
+                    <SelectTrigger aria-label="Seleccionar opción" className="bg-white"><SelectValue>{cfg.printingMode === "PRINTNODE" ? "PrintNode — impresión directa" : cfg.printingMode === "NANOLABS_AGENT" ? "NanoLabs Print Agent — impresión silenciosa" : "Navegador — confirmar manualmente"}</SelectValue></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="BROWSER">Navegador — confirmar manualmente</SelectItem>
                       <SelectItem value="NANOLABS_AGENT">NanoLabs Print Agent — impresión silenciosa</SelectItem>
@@ -1099,7 +1146,7 @@ export function SettingsForm({
                   <Label className="text-base text-slate-800 font-bold">Auto-Impresión de Tickets</Label>
                   <p className="text-sm text-muted-foreground">{cfg.printingMode === "PRINTNODE" ? "Los pedidos en efectivo se envían al crearse y los de Mercado Pago al acreditarse." : "La app abrirá el ticket y el diálogo del navegador cuando ingrese un pedido nuevo."}</p>
                 </div>
-                <Switch checked={cfg.autoPrintTickets} onCheckedChange={v => updateField('autoPrintTickets', v)} />
+                <Switch aria-label="Impresión automática" checked={cfg.autoPrintTickets} onCheckedChange={v => updateField('autoPrintTickets', v)} />
               </div>
 
               <div className="space-y-4 rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
@@ -1108,12 +1155,12 @@ export function SettingsForm({
                     <Label className="text-base font-bold text-slate-800">Total de medallones en comanda</Label>
                     <p className="text-sm text-muted-foreground">Muestra al final del ticket de cocina cuántos medallones requiere el pedido, incluidos productos, combos y extras.</p>
                   </div>
-                  <Switch checked={Boolean(cfg.kitchenPattyCountEnabled)} onCheckedChange={v => updateField("kitchenPattyCountEnabled", v)} />
+                  <Switch aria-label="Contar medallones en comanda" checked={Boolean(cfg.kitchenPattyCountEnabled)} onCheckedChange={v => updateField("kitchenPattyCountEnabled", v)} />
                 </div>
                 {cfg.kitchenPattyCountEnabled && (
                   <div className="space-y-2">
                     <Label>Palabras que identifican un medallón</Label>
-                    <Input
+                    <Input aria-label="Palabras que identifican un medallón"
                       value={cfg.kitchenPattyKeywords || ""}
                       onChange={event => updateField("kitchenPattyKeywords", event.target.value)}
                       placeholder="medallón, carne, smash"
@@ -1130,14 +1177,14 @@ export function SettingsForm({
                     <Label className="text-base font-bold text-slate-800">Tercer ticket: armado de hamburguesas</Label>
                     <p className="text-sm text-slate-600">Genera una comanda independiente con nombre del cliente, hamburguesas y tamaños reales, ingredientes quitados, extras y total de panes. Solo se imprime cuando el pedido contiene hamburguesas.</p>
                   </div>
-                  <Switch checked={Boolean(cfg.assemblyPrintEnabled)} onCheckedChange={v=>updateField("assemblyPrintEnabled",v)} />
+                  <Switch aria-label="Ticket de armado" checked={Boolean(cfg.assemblyPrintEnabled)} onCheckedChange={v=>updateField("assemblyPrintEnabled",v)} />
                 </div>
                 {cfg.assemblyPrintEnabled && (
                   <div className="space-y-2 rounded-xl border border-orange-200 bg-white p-3">
                     {cfg.printingMode === "PRINTNODE" ? (
                       <>
                         <Label>ID PrintNode para armado (opcional)</Label>
-                        <Input type="number" min={1} placeholder="Vacío = misma impresora de cocina"
+                        <Input aria-label="ID PrintNode para armado (opcional)" type="number" min={1} placeholder="Vacío = misma impresora de cocina"
                           value={cfg.printNodeAssemblyPrinterId || ""}
                           onChange={e=>updateField("printNodeAssemblyPrinterId",e.target.value)} />
                         <p className="text-xs text-slate-600">En blanco se imprime como tercer ticket en la impresora de cocina. Con ID propio se dirige a otra ticketera.</p>
@@ -1191,7 +1238,7 @@ export function SettingsForm({
                     ) : cfg.printingMode === "PRINTNODE" ? (
                       <>
                         <Label>ID PrintNode — Mostrador</Label>
-                        <Input type="number" min={1} placeholder="Ej: 742113" value={cfg.printNodeCounterPrinterId || ""} onChange={e => updateField("printNodeCounterPrinterId", e.target.value)} />
+                        <Input aria-label="ID PrintNode — Mostrador" type="number" min={1} placeholder="Ej: 742113" value={cfg.printNodeCounterPrinterId || ""} onChange={e => updateField("printNodeCounterPrinterId", e.target.value)} />
                         <Button type="button" variant="outline" disabled={testingPrinter !== null || !printNodeApiKeyConfigured} onClick={() => handlePrinterTest("COUNTER")}>
                           {testingPrinter === "COUNTER" ? "Enviando..." : "Probar mostrador"}
                         </Button>
@@ -1199,7 +1246,7 @@ export function SettingsForm({
                     ) : (
                       <>
                         <Label>Nombre de la impresora (OS)</Label>
-                        <Input placeholder="Ej: POS-58C, XP-80C..." value={cfg.printerCounterName || ''} onChange={e => updateField('printerCounterName', e.target.value)} />
+                        <Input aria-label="Nombre de la impresora (OS)" placeholder="Ej: POS-58C, XP-80C..." value={cfg.printerCounterName || ''} onChange={e => updateField('printerCounterName', e.target.value)} />
                         <p className="text-xs text-muted-foreground leading-tight">La impresora se elige en el diálogo del navegador.</p>
                       </>
                     )}
@@ -1207,7 +1254,7 @@ export function SettingsForm({
                   <div className="space-y-2">
                     <Label>Ancho del Rollo de Papel</Label>
                     <Select value={cfg.printerCounterSize || "80mm"} onValueChange={v => updateField('printerCounterSize', v)}>
-                      <SelectTrigger className="bg-white"><SelectValue>{cfg.printerCounterSize === "58mm" ? "58mm (rollo angosto)" : "80mm (rollo estándar)"}</SelectValue></SelectTrigger>
+                      <SelectTrigger aria-label="Seleccionar opción" className="bg-white"><SelectValue>{cfg.printerCounterSize === "58mm" ? "58mm (rollo angosto)" : "80mm (rollo estándar)"}</SelectValue></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="58mm">58mm (Rollos angostos)</SelectItem>
                         <SelectItem value="80mm">80mm (Rollos estándar de ticketadora)</SelectItem>
@@ -1230,7 +1277,7 @@ export function SettingsForm({
                     ) : cfg.printingMode === "PRINTNODE" ? (
                       <>
                         <Label>ID PrintNode — Cocina</Label>
-                        <Input type="number" min={1} placeholder="Ej: 742114" value={cfg.printNodeKitchenPrinterId || ""} onChange={e => updateField("printNodeKitchenPrinterId", e.target.value)} />
+                        <Input aria-label="ID PrintNode — Cocina" type="number" min={1} placeholder="Ej: 742114" value={cfg.printNodeKitchenPrinterId || ""} onChange={e => updateField("printNodeKitchenPrinterId", e.target.value)} />
                         <Button type="button" variant="outline" disabled={testingPrinter !== null || !printNodeApiKeyConfigured} onClick={() => handlePrinterTest("KITCHEN")}>
                           {testingPrinter === "KITCHEN" ? "Enviando..." : "Probar cocina"}
                         </Button>
@@ -1238,7 +1285,7 @@ export function SettingsForm({
                     ) : (
                       <>
                         <Label>Nombre de la impresora (OS)</Label>
-                        <Input placeholder="Ej: Cocina-80..." value={cfg.printerKitchenName || ''} onChange={e => updateField('printerKitchenName', e.target.value)} />
+                        <Input aria-label="Nombre de la impresora (OS)" placeholder="Ej: Cocina-80..." value={cfg.printerKitchenName || ''} onChange={e => updateField('printerKitchenName', e.target.value)} />
                         <p className="text-xs text-muted-foreground leading-tight">La impresora se elige en el diálogo del navegador.</p>
                       </>
                     )}
@@ -1246,7 +1293,7 @@ export function SettingsForm({
                   <div className="space-y-2">
                     <Label>Ancho del Rollo de Papel</Label>
                     <Select value={cfg.printerKitchenSize || "80mm"} onValueChange={v => updateField('printerKitchenSize', v)}>
-                      <SelectTrigger className="bg-white"><SelectValue>{cfg.printerKitchenSize === "58mm" ? "58mm (rollo angosto)" : "80mm (rollo estándar)"}</SelectValue></SelectTrigger>
+                      <SelectTrigger aria-label="Seleccionar opción" className="bg-white"><SelectValue>{cfg.printerKitchenSize === "58mm" ? "58mm (rollo angosto)" : "80mm (rollo estándar)"}</SelectValue></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="58mm">58mm (Rollos angostos)</SelectItem>
                         <SelectItem value="80mm">80mm (Rollos estándar de ticketadora)</SelectItem>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useAdminRole } from "@/components/admin/AdminRoleContext";
+import { orderStatusLabel } from "@/lib/order-status-guidance";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,7 @@ export function OrderDetailModal({
   onMessengerChange,
   onPrint,
 }: OrderDetailModalProps) {
+  const canPrint = useAdminRole() !== "DELIVERY" && Boolean(onPrint);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -67,6 +70,10 @@ export function OrderDetailModal({
   if (!order) return null;
 
   const isDelivery = Boolean(order.needsDelivery);
+  const isTerminal = ["CANCELLED", "DELIVERED"].includes(order.status);
+  const paymentBlocked = ["MP", "TRANSFER"].includes(order.paymentMethod) && order.paymentStatus !== "PAID";
+  const nextStatus = order.status === "NEW" ? "IN_PROCESS" : order.status === "IN_PROCESS" ? (isDelivery ? "PENDING_DELIVERY" : "FINISHED") : order.status === "PENDING_DELIVERY" || (isDelivery && order.status === "FINISHED") ? "OUT_FOR_DELIVERY" : "DELIVERED";
+  const nextLabel = nextStatus === "IN_PROCESS" ? "Comenzar preparación" : nextStatus === "PENDING_DELIVERY" ? "Listo para reparto" : nextStatus === "FINISHED" ? "Listo para retirar" : nextStatus === "OUT_FOR_DELIVERY" ? "Marcar en camino" : "Marcar entregado";
   const isPaid = order.paymentStatus === "PAID" || order.paymentMethod === "ADMIN";
 
   const handleStatus = async (status: string) => {
@@ -113,7 +120,7 @@ export function OrderDetailModal({
   const cleanPhone = order.clientPhone ? order.clientPhone.replace(/\D/g, "") : "";
   const whatsappUrl = cleanPhone
     ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-        `¡Hola ${order.clientName || "cliente"}! Nos comunicamos de BeatsBurgers sobre tu pedido #${order.id.slice(-6).toUpperCase()}`
+        `¡Hola ${order.clientName || "cliente"}! Nos comunicamos del comercio sobre tu pedido #${order.id.slice(-6).toUpperCase()}`
       )}`
     : null;
 
@@ -221,7 +228,7 @@ export function OrderDetailModal({
                   : "bg-red-600 text-white"
               }`}
             >
-              Etapa: {order.status}
+              Etapa: {orderStatusLabel(order.status)}
             </Badge>
 
             {/* Pago */}
@@ -232,7 +239,7 @@ export function OrderDetailModal({
                   : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
               }`}
             >
-              Pago: {order.paymentMethod === "ADMIN" ? "Manual Pagado" : order.paymentMethod === "MP" ? `Mercado Pago (${order.paymentStatus || "PENDIENTE"})` : "Efectivo al recibir"}
+              Pago: {order.paymentMethod === "ADMIN" ? "Manual Pagado" : order.paymentMethod === "MP" ? `Mercado Pago (${isPaid ? "Pagado" : "Pendiente"})` : order.paymentMethod === "TRANSFER" ? `Transferencia (${isPaid ? "Aprobada" : "Pendiente de aprobación"})` : `Efectivo (${isPaid ? "Pagado" : "Al recibir"})`}
             </Badge>
           </div>
         </div>
@@ -466,16 +473,7 @@ export function OrderDetailModal({
                       <XCircle className="w-4 h-4 text-red-600 shrink-0" />
                       Pedido actualmente cancelado
                     </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={isUpdating}
-                      onClick={() => handleStatus("IN_PROCESS")}
-                      className="h-7 text-xs bg-white hover:bg-red-100 text-red-900 border-red-300 font-bold rounded-lg"
-                    >
-                      Reactivar a Cocina
-                    </Button>
+
                   </div>
                 )}
 
@@ -488,7 +486,9 @@ export function OrderDetailModal({
                 )}
 
                 {/* Botones de Cambio de Etapa */}
-                <div className="space-y-2 pt-2 border-t border-slate-100">
+                {!isTerminal && <div className="space-y-2 pt-2 border-t border-slate-100">
+                  {paymentBlocked ? <p className="rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">Esperando acreditación del pago. Verificá el cobro antes de preparar o entregar.</p> : <Button type="button" disabled={isUpdating} onClick={() => handleStatus(nextStatus)} className="h-11 w-full bg-orange-600 font-bold text-white">{nextLabel}</Button>}
+                  <details><summary className="cursor-pointer py-2 text-sm font-bold">Más cambios de etapa</summary>
                   <span className="text-xs font-bold text-slate-700 block">
                     Avanzar Etapa del Pedido:
                   </span>
@@ -496,7 +496,7 @@ export function OrderDetailModal({
                   <div className="grid grid-cols-1 gap-2">
                     <Button
                       type="button"
-                      disabled={isUpdating || order.status === "IN_PROCESS"}
+                      disabled={isUpdating || paymentBlocked || order.status === "IN_PROCESS"}
                       onClick={() => handleStatus("IN_PROCESS")}
                       className={`w-full justify-start h-10 font-bold text-xs rounded-xl transition-all border ${
                         order.status === "IN_PROCESS"
@@ -511,7 +511,7 @@ export function OrderDetailModal({
 
                     <Button
                       type="button"
-                      disabled={isUpdating || order.status === "PENDING_DELIVERY" || order.status === "FINISHED"}
+                      disabled={isUpdating || paymentBlocked || order.status === "PENDING_DELIVERY" || order.status === "FINISHED"}
                       onClick={() => handleStatus(isDelivery ? "PENDING_DELIVERY" : "FINISHED")}
                       className={`w-full justify-start h-10 font-bold text-xs rounded-xl transition-all border ${
                         order.status === "PENDING_DELIVERY" || order.status === "FINISHED"
@@ -527,7 +527,7 @@ export function OrderDetailModal({
                     {isDelivery && (
                       <Button
                         type="button"
-                        disabled={isUpdating || order.status === "OUT_FOR_DELIVERY"}
+                        disabled={isUpdating || paymentBlocked || order.status === "OUT_FOR_DELIVERY"}
                         onClick={() => handleStatus("OUT_FOR_DELIVERY")}
                         className={`w-full justify-start h-10 font-bold text-xs rounded-xl transition-all border ${
                           order.status === "OUT_FOR_DELIVERY"
@@ -543,7 +543,7 @@ export function OrderDetailModal({
 
                     <Button
                       type="button"
-                      disabled={isUpdating || order.status === "DELIVERED"}
+                      disabled={isUpdating || paymentBlocked || order.status === "DELIVERED"}
                       onClick={() => handleStatus("DELIVERED")}
                       className={`w-full justify-start h-10 font-bold text-xs rounded-xl transition-all border ${
                         order.status === "DELIVERED"
@@ -556,7 +556,8 @@ export function OrderDetailModal({
                       {order.status === "DELIVERED" && <Check className="ml-auto w-4 h-4" />}
                     </Button>
                   </div>
-                </div>
+                  </details>
+                </div>}
               </div>
 
               {/* Tarjeta de Resumen Financiero */}
@@ -604,7 +605,7 @@ export function OrderDetailModal({
                   </div>
 
                   <div className="text-[11px] font-bold text-slate-500 text-right pt-1">
-                    Método: {order.paymentMethod === "ADMIN" ? "Pedido manual pagado" : order.paymentMethod === "MP" ? "Mercado Pago" : "Efectivo"}
+                    Método: {order.paymentMethod === "ADMIN" ? "Pedido manual pagado" : order.paymentMethod === "MP" ? "Mercado Pago" : order.paymentMethod === "TRANSFER" ? "Transferencia" : "Efectivo"}
                   </div>
                 </div>
               </div>

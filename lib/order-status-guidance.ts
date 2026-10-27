@@ -1,3 +1,8 @@
+export function orderStatusLabel(status: string): string {
+  const labels: Record<string, string> = {NEW:"Nuevo",IN_PROCESS:"En preparación",PENDING_DELIVERY:"Listo para reparto",OUT_FOR_DELIVERY:"En camino",FINISHED:"Listo",DELIVERED:"Entregado",CANCELLED:"Cancelado"};
+  return labels[status] || status;
+}
+
 export function orderHelpText(status: string, needsDelivery: boolean): string {
   switch (status) {
     case "NEW": return "El comercio recibió tu pedido. Te avisaremos cuando comience a prepararlo.";

@@ -54,7 +54,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
 
   // Pagos y entrega
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "MP" | "ADMIN">("CASH");
-  const [paymentStatus, setPaymentStatus] = useState<"PAID" | "PENDING">("PAID");
+  const [paymentStatus, setPaymentStatus] = useState<"PAID" | "PENDING">("PENDING");
   const [directDelivered, setDirectDelivered] = useState(false);
 
   const [whatsappOptIn, setWhatsappOptIn] = useState(false);
@@ -234,7 +234,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
       setOrderType("IMMEDIATE");
       setScheduledDate("");
       setPaymentMethod("CASH");
-      setPaymentStatus("PAID");
+      setPaymentStatus("PENDING");
       setDirectDelivered(false);
       setCatalog(null);
       onCreated(result.orderId);
@@ -252,7 +252,7 @@ export function AdminOrderComposer({ open, onClose, onCreated }: { open: boolean
         <header className="flex items-center justify-between border-b bg-white px-4 py-3 sm:px-6">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.2em] text-orange-600">Venta desde mostrador / POS</p>
-            <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">Nuevo pedido manual</h2>
+            <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">Nuevo pedido</h2><p className="text-sm text-slate-500">Agregá productos, elegí entrega y revisá el cobro antes de confirmar.</p>
           </div>
           <button type="button" onClick={onClose} disabled={submitting} aria-label="Cerrar" className="grid size-10 place-items-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"><X className="size-5" /></button>
         </header>

@@ -27,19 +27,19 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     steps: [
       { title: "Completá los controles reales", detail: "Entrá en Puesta en Marcha y resolvé identidad, catálogo activo, modalidades y franjas, cobros, dominio verificado y pedido de prueba." },
       { title: "Probá la tienda", detail: "Usá Ver mi tienda online, agregá un producto al carrito y recorré el checkout como lo haría un cliente." },
-      { title: "Hacé un pedido de prueba", detail: "Creá un pedido pequeño y comprobá que aparezca en Pedidos Hoy con el medio de pago y modalidad correctos." },
-      { title: "Abrí al público", detail: "Cuando todos los controles estén listos, abrí el local desde Pedidos Hoy y recién entonces compartí el dominio asignado." },
+      { title: "Hacé un pedido de prueba", detail: "Creá un pedido pequeño y comprobá que aparezca en Pedidos de hoy con el medio de pago y modalidad correctos." },
+      { title: "Abrí al público", detail: "Cuando todos los controles estén listos, abrí el local desde Pedidos de hoy y recién entonces compartí el dominio asignado." },
     ],
     tips: ["No publiques el enlace hasta completar un pedido de prueba.", "Si cambiás precios u horarios, repetí una compra de control."],
     keywords: ["inicio", "onboarding", "abrir", "publicar", "primer pedido"],
   },
   {
-    id: "pedidos-hoy", title: "Pedidos Hoy", category: "Operación", href: "/admin/live", icon: "orders", feature: "orders", minutes: 6,
+    id: "pedidos-hoy", title: "Pedidos de hoy", category: "Operación", href: "/admin/live", icon: "orders", feature: "orders", minutes: 6,
     summary: "Tablero en tiempo real para recibir, preparar, despachar y completar pedidos.",
     purpose: "Centralizar la operación del día y mantener informado al cliente sobre el estado de su compra.",
     steps: [
       { title: "Revisá los nuevos", detail: "Los pedidos ingresan ordenados por hora de entrega y ese horario queda visible en cada tarjeta. Abrí el detalle y verificá productos, variantes, pago, entrega y observaciones." },
-      { title: "Cargá ventas de mostrador", detail: "Usá Nuevo pedido manual para elegir productos o combos, personalizar ingredientes y extras, cargar al cliente y dejar la venta pagada en efectivo." },
+      { title: "Cargá ventas de mostrador", detail: "Usá Nuevo pedido para elegir productos o combos, cargar al cliente y revisar el estado del cobro. Se inicia pendiente: marcá pagado solo cuando hayas cobrado." },
       { title: "Confirmá o rechazá", detail: "Confirmá únicamente cuando puedas producirlo. Los rechazados pasan a la papelera de Cancelados y desaparecen automáticamente de la agenda, pero conservan trazabilidad en el historial." },
       { title: "Avanzá por etapas", detail: "Mové el pedido a Cocina, luego a Despacho o Reparto y finalmente a Completado. En Despacho podés filtrar rápidamente envíos o retiros y ver cuántos hay de cada tipo." },
       { title: "Imprimí cuando corresponda", detail: "Usá el ticket manual o la impresión automática configurada. En Configuración > Impresoras podés activar el total de medallones de la comanda y definir las palabras que identifican ingredientes y extras. No dupliques impresiones si el pedido ya fue enviado." },
@@ -48,7 +48,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     keywords: ["pedido", "cocina", "delivery", "estado", "ticket", "rechazar"],
   },
   {
-    id: "agenda", title: "Agenda y calendario", category: "Operación", href: "/admin/calendar", icon: "calendar", feature: "orders", minutes: 5,
+    id: "agenda", title: "Programados", category: "Operación", href: "/admin/calendar", icon: "calendar", feature: "orders", minutes: 5,
     summary: "Vista por fecha para organizar pedidos programados y producción futura.",
     purpose: "Anticipar compras, cocina y logística de pedidos para mañana o por encargo.",
     steps: [
@@ -68,7 +68,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
       { title: "Definí el período", detail: "Filtrá las fechas que necesitás investigar o comparar." },
       { title: "Aplicá filtros", detail: "Buscá por cliente, pedido o estado para reducir el listado." },
       { title: "Abrí el detalle", detail: "Consultá productos, descuentos, modalidad, pago y cambios de estado guardados." },
-      { title: "Leé los indicadores", detail: "Usá facturación, cantidad de pedidos y ticket promedio como resumen del período." },
+      { title: "Leé los indicadores", detail: "Consultá el valor de pedidos, la cantidad y el ticket promedio de todos los resultados del filtro. El valor incluye pagos pendientes y no equivale a cobros." },
     ],
     tips: ["No confundas pedido cancelado con venta efectiva.", "Para movimientos de efectivo usá Caja diaria."],
     keywords: ["historial", "venta", "buscar", "facturación", "ticket promedio", "reclamo"],
@@ -191,7 +191,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     keywords: ["configuración", "horario", "diseño", "tema", "envío", "abierto", "splash", "tablón", "noticias", "aviso"],
   },
   {
-    id: "mercado-pago", title: "Mercado Pago del comercio", category: "Configuración", href: "/admin/settings", icon: "payment", feature: "orders", minutes: 7,
+    id: "mercado-pago", title: "Mercado Pago del comercio", category: "Configuración", href: "/admin/settings?section=mercadopago", icon: "payment", feature: "orders", minutes: 7,
     summary: "Cobro online de pedidos directamente en la cuenta del comercio.",
     purpose: "Aceptar pagos digitales y confirmar pedidos según el estado autoritativo del proveedor.",
     steps: [
@@ -204,7 +204,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     keywords: ["mercado pago", "access token", "public key", "pago online", "webhook"],
   },
   {
-    id: "whatsapp", title: "Avisos por WhatsApp", category: "Automatización", href: "/admin/settings", icon: "whatsapp", feature: "whatsapp", minutes: 12,
+    id: "whatsapp", title: "Avisos por WhatsApp", category: "Automatización", href: "/admin/settings?section=whatsapp", icon: "whatsapp", feature: "whatsapp", minutes: 12,
     summary: "Notificaciones automáticas de confirmación, cocina y pedido listo mediante Meta Cloud API.",
     purpose: "Mantener al cliente informado sin usar WhatsApp para tomar pedidos.",
     steps: [
@@ -218,7 +218,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     keywords: ["whatsapp", "meta", "avisos", "plantillas", "token", "webhook", "phone number id"],
   },
   {
-    id: "impresion", title: "Impresión de tickets", category: "Automatización", href: "/admin/settings", icon: "printer", minutes: 8,
+    id: "impresion", title: "Impresión de tickets", category: "Automatización", href: "/admin/settings?section=printers", icon: "printer", minutes: 8,
     summary: "Impresión térmica desde navegador, NanoLabs Print Agent o PrintNode.",
     purpose: "Enviar comandas a mostrador y cocina con menos intervención operativa.",
     steps: [
@@ -245,7 +245,7 @@ export const ADMIN_GUIDES: AdminGuide[] = [
     keywords: ["sucursal", "local", "ubicación", "location", "caja"],
   },
   {
-    id: "dominio", title: "Dominio personalizado", category: "Configuración", href: "/admin/settings", icon: "domain", feature: "customDomain", minutes: 7,
+    id: "dominio", title: "Dominio personalizado", category: "Configuración", href: "/admin/settings?section=domain", icon: "domain", feature: "customDomain", minutes: 7,
     summary: "Uso de un dominio propio además del subdominio incluido.",
     purpose: "Publicar la tienda bajo la dirección web elegida por la marca.",
     steps: [

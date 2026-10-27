@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef, useMemo } from "react";
+import { useAdminRole } from "@/components/admin/AdminRoleContext";
 import Link from "next/link";
 import {
   Navigation,
@@ -98,6 +99,17 @@ function compareByDeliveryTime(a: any, b: any) {
 }
 
 export default function LiveDashboardPage() {
+  const role = useAdminRole();
+  const canManage = ["OWNER", "MANAGER", "SUPERADMIN"].includes(role);
+  const canCreate = canManage || ["CASHIER", "STAFF"].includes(role);
+  const canPrint = role !== "DELIVERY";
+  const canApprove = canManage || role === "CASHIER";
+  const canPlanDelivery = canCreate || role === "DELIVERY";
+
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
+  const [boardView, setBoardView] = useState("NEW");
+  const [operationConfig, setOperationConfig] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [messengers, setMessengers] = useState<any[]>([]);
   const [slots, setSlots] = useState<any[]>([]);
@@ -167,16 +179,18 @@ export default function LiveDashboardPage() {
           }).catch((error) => console.error("Payment reconciliation failed", error));
         }
         const [ordersRes, messengersRes, configRes, slotsRes] = await Promise.all([
-          fetch("/api/orders"),
-          fetch("/api/messengers"),
-          fetch("/api/config"),
-          fetch("/api/slots")
+          fetch("/api/orders", {signal: AbortSignal.timeout(10000), cache: "no-store"}),
+          fetch("/api/messengers", {signal: AbortSignal.timeout(10000), cache: "no-store"}),
+          fetch("/api/config", {signal: AbortSignal.timeout(10000), cache: "no-store"}),
+          fetch("/api/slots", {signal: AbortSignal.timeout(10000), cache: "no-store"})
         ]);
 
+        if (!ordersRes.ok || !configRes.ok || !slotsRes.ok || !messengersRes.ok) throw new Error("Actualización incompleta");
         if (configRes.ok) {
           const nextConfig = await configRes.json();
           autoPrintRef.current = Boolean(nextConfig.autoPrintTickets && nextConfig.printingMode === "BROWSER");
           setIsStoreOpen(Boolean(nextConfig.isStoreOpen));
+          setOperationConfig(nextConfig);
           setModuleStates({
             allowImmediateOrders: nextConfig.allowImmediateOrders !== false,
             allowScheduledTomorrow: nextConfig.allowScheduledTomorrow !== false,
@@ -204,10 +218,13 @@ export default function LiveDashboardPage() {
           hasLoadedOrdersRef.current = true;
         }
 
+        setLastUpdated(new Date());
+        setConnectionError(false);
         if (messengersRes.ok) setMessengers(await messengersRes.json());
         if (slotsRes.ok) setSlots(await slotsRes.json());
 
       } catch (err) {
+        setConnectionError(true);
         console.error("Polling error", err);
       }
     };
@@ -708,7 +725,7 @@ export default function LiveDashboardPage() {
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
                 </a>
-                <button
+{canPrint && <>                <button
                   type="button"
                   disabled={printingOrderId === order.id}
                   onClick={() => handlePrintOrder(order.id)}
@@ -729,7 +746,7 @@ export default function LiveDashboardPage() {
                   <option value="KITCHEN">Cocina</option>
                   <option value="COUNTER">Cliente</option>
                   <option value="ASSEMBLY">Armado</option>
-                </select>
+                </select></>}
                 <Button
                   size="sm"
                   variant="ghost"
@@ -754,14 +771,14 @@ export default function LiveDashboardPage() {
         <div className="flex items-center gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Operación en Vivo</span>
+              <span className={`h-2.5 w-2.5 rounded-full ${connectionError ? "bg-red-500" : lastUpdated ? "bg-emerald-500" : "bg-amber-500"}`} />
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">{connectionError ? "Sin conexión · reintentando" : lastUpdated ? `Actualizado ${lastUpdated.toLocaleTimeString("es-AR")}` : "Conectando…"}</span>
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Cocina y Despacho</h1>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Pedidos de hoy</h1><p className="mt-1 text-xs text-slate-500" role="status">{connectionError ? "Los pedidos pueden estar desactualizados. Revisá tu conexión." : operationConfig?.storeAvailabilityReason || "Consultando disponibilidad de la tienda…"}</p>
           </div>
 
           {/* Store Open / Closed Switch */}
-          <Button
+          {canManage && <Button
             onClick={() => void handleStoreStateChange()}
             disabled={isStoreOpen === null || updatingStoreState}
             className={`rounded-2xl font-black text-xs h-10 px-4 transition-all shadow-sm ${
@@ -777,8 +794,8 @@ export default function LiveDashboardPage() {
             ) : (
               <PowerOff className="w-4 h-4 mr-2" />
             )}
-            {isStoreOpen ? "Local Abierto" : "Local Cerrado"}
-          </Button>
+            {isStoreOpen ? "Pausar pedidos" : "Habilitar pedidos"}
+          </Button>}
         </div>
 
         {/* Center: Realtime Metrics Pill */}
@@ -820,12 +837,12 @@ export default function LiveDashboardPage() {
           </div>
 
           {/* New Order Composer */}
-          <Button
+          {canCreate && <Button
             onClick={() => setIsOrderComposerOpen(true)}
             className="bg-orange-600 hover:bg-orange-500 text-white font-black text-xs h-9 rounded-xl shadow-sm"
           >
-            <PlusCircle className="w-4 h-4 mr-1.5" /> + Pedido
-          </Button>
+            <PlusCircle className="w-4 h-4 mr-1.5" /> Nuevo pedido
+          </Button>}
 
           {/* Sound Alert Toggle */}
           <Button
@@ -841,7 +858,7 @@ export default function LiveDashboardPage() {
           </Button>
 
           {/* Settings & Modules Quick Button */}
-          <Button
+          {canManage && <Button
             variant="outline"
             size="icon"
             onClick={() => setIsSettingsModalOpen(true)}
@@ -849,7 +866,7 @@ export default function LiveDashboardPage() {
             title="Ajustes de módulos y cupos"
           >
             <SlidersHorizontal className="w-4 h-4 text-slate-700" />
-          </Button>
+          </Button>}
 
           {/* Refresh Button */}
           <Button
@@ -865,7 +882,7 @@ export default function LiveDashboardPage() {
       </div>
 
       {/* Bandeja de acreditación: aislada de las comandas de cocina. */}
-      <section aria-labelledby="transfer-approval-title" className="rounded-3xl border border-blue-200 bg-blue-50/60 p-4 sm:p-5 space-y-3">
+      {canApprove && transferPendingBatches.length > 0 && <section aria-labelledby="transfer-approval-title" className="rounded-3xl border border-blue-200 bg-blue-50/60 p-4 sm:p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 id="transfer-approval-title" className="flex items-center gap-2 text-base font-black text-blue-950">
@@ -907,14 +924,15 @@ export default function LiveDashboardPage() {
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
-      <DeliveryBatchPlanner orders={orders} messengers={messengers} />
+      {canPlanDelivery && <details className="rounded-2xl border bg-white p-4"><summary className="cursor-pointer font-bold">Organizar reparto</summary><DeliveryBatchPlanner orders={orders} messengers={messengers} /></details>}
 
+      <div className="md:hidden"><label className="text-sm font-bold">Ver etapa<select aria-label="Etapa de pedidos" value={boardView} onChange={event => setBoardView(event.target.value)} className="mt-2 h-11 w-full rounded-xl border bg-white px-3"><option value="NEW">Nuevos ({stageNew.length})</option><option value="PREP">En preparación ({stageInPrep.length})</option><option value="READY">Listos / reparto ({stageReadyOrDelivery.length})</option><option value="DONE">Finalizados</option></select></label></div>
       {/* ═══ 4 OPERATIONAL KANBAN STAGES ═══ */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
         {/* STAGE 1: 🔔 Nuevos / Por Aceptar */}
-        <div className="bg-blue-50/40 rounded-3xl border border-blue-200/80 p-3.5 flex flex-col min-h-[600px] shadow-xs">
+        <div className={`bg-blue-50/40 rounded-3xl border border-blue-200/80 p-3.5 flex flex-col min-h-[600px] shadow-xs ${boardView === "NEW" ? "" : "hidden md:flex"}`}>
           <div className="flex items-center justify-between pb-3 border-b border-blue-200 mb-3 px-1">
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-blue-500" />
@@ -938,7 +956,7 @@ export default function LiveDashboardPage() {
         </div>
 
         {/* STAGE 2: 🔥 En Cocina / Preparando */}
-        <div className="bg-amber-50/40 rounded-3xl border border-amber-200/80 p-3.5 flex flex-col min-h-[600px] shadow-xs">
+        <div className={`bg-amber-50/40 rounded-3xl border border-amber-200/80 p-3.5 flex flex-col min-h-[600px] shadow-xs ${boardView === "PREP" ? "" : "hidden md:flex"}`}>
           <div className="flex items-center justify-between pb-3 border-b border-amber-200 mb-3 px-1">
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-amber-500 animate-pulse" />
@@ -962,7 +980,7 @@ export default function LiveDashboardPage() {
         </div>
 
         {/* STAGE 3: 🛵 En Reparto / Listos */}
-        <div className="bg-purple-50/40 rounded-3xl border border-purple-200/80 p-3.5 flex flex-col min-h-[600px] shadow-xs">
+        <div className={`bg-purple-50/40 rounded-3xl border border-purple-200/80 p-3.5 flex flex-col min-h-[600px] shadow-xs ${boardView === "READY" ? "" : "hidden md:flex"}`}>
           <div className="space-y-2.5 border-b border-purple-200 px-1 pb-3 mb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1005,7 +1023,7 @@ export default function LiveDashboardPage() {
         </div>
 
         {/* STAGE 4: ✅ Entregados / Completados Hoy */}
-        <div className="bg-slate-100/60 rounded-3xl border border-slate-200 p-3.5 flex flex-col min-h-[600px] shadow-xs">
+        <div className={`bg-slate-100/60 rounded-3xl border border-slate-200 p-3.5 flex flex-col min-h-[600px] shadow-xs ${boardView === "DONE" ? "" : "hidden md:flex"}`}>
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3 px-1">
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-emerald-500" />

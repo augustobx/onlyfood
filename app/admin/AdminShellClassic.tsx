@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { LogoutButton } from "./LogoutButton";
+import { canAccessAdminRoute } from "@/lib/admin-navigation";
 import { ClientResetNotificationBell } from "@/components/admin/ClientResetNotificationBell";
 
 /**
@@ -34,29 +35,29 @@ import { ClientResetNotificationBell } from "@/components/admin/ClientResetNotif
  * Preservado para permitir recuperación inmediata o pruebas de compatibilidad.
  */
 const routes = [
-  { name: "Pedidos Hoy", href: "/admin/live", icon: LayoutDashboard, feature: "orders" },
-  { name: "Agenda / Calendario", href: "/admin/calendar", icon: CalendarDays, feature: "orders" },
+  { name: "Pedidos de hoy", href: "/admin/live", icon: LayoutDashboard, feature: "orders" },
+  { name: "Programados", href: "/admin/calendar", icon: CalendarDays, feature: "orders" },
   { name: "Historial", href: "/admin/history", icon: History, feature: "orders" },
   { name: "Valoraciones", href: "/admin/reviews", icon: MessageSquareHeart, feature: "orders" },
   { name: "Caja diaria", href: "/admin/cash", icon: WalletCards, feature: "cashRegister" },
-  { name: "Catálogo", href: "/admin/catalog", icon: ShoppingBag, feature: "orders" },
-  { name: "Promociones", href: "/admin/promotions", icon: BadgePercent, feature: "quantityDiscounts" },
+  { name: "Productos y combos", href: "/admin/catalog", icon: ShoppingBag, feature: "orders" },
+  { name: "Descuentos por cantidad", href: "/admin/promotions", icon: BadgePercent, feature: "quantityDiscounts" },
   { name: "Galería de Medios", href: "/admin/media", icon: ImageIcon, feature: "orders" },
-  { name: "Métricas", href: "/admin/metricas", icon: TrendingUp, feature: "advancedReports" },
-  { name: "Canje de Puntos", href: "/admin/rewards", icon: Gift, feature: "loyalty" },
+  { name: "Resultados", href: "/admin/metricas", icon: TrendingUp, feature: "advancedReports" },
+  { name: "Beneficios y puntos", href: "/admin/rewards", icon: Gift, feature: "loyalty" },
   { name: "Ruleta de Premios", href: "/admin/games", icon: Dices, feature: "roulette" },
   { name: "Clientes y cuentas", href: "/admin/users", icon: Users },
   { name: "Puesta en Marcha", href: "/admin/wizard", icon: Sparkles },
   { name: "Guías", href: "/admin/guides", icon: BookOpenCheck },
-  { name: "Configuración", href: "/admin/settings", icon: Settings },
+  { name: "Ajustes", href: "/admin/settings", icon: Settings },
 ];
 
-function NavigationLinks({ compact = false, enabledFeatures = [] }: { compact?: boolean; enabledFeatures?: string[] }) {
+function NavigationLinks({ compact = false, enabledFeatures = [], currentRole = "STAFF" }: { compact?: boolean; enabledFeatures?: string[]; currentRole?: string }) {
   const pathname = usePathname();
 
   return (
     <div className="space-y-1">
-      {routes.filter((route) => !route.feature || enabledFeatures.includes(route.feature)).map((route) => {
+      {routes.filter((route) => canAccessAdminRoute(route.href, currentRole) && (!route.feature || enabledFeatures.includes(route.feature))).map((route) => {
         const active = pathname === route.href || pathname.startsWith(`${route.href}/`);
         return (
           <Link
@@ -79,6 +80,7 @@ export function AdminShellClassic({
   children,
   enabledFeatures = [],
   tenantName = "OnlyFood",
+  currentRole = "STAFF",
 }: {
   children: React.ReactNode;
   enabledFeatures?: string[];
@@ -141,7 +143,7 @@ export function AdminShellClassic({
         </button>
 
         <nav className="flex flex-1 flex-col p-3">
-          <NavigationLinks compact={collapsed} enabledFeatures={enabledFeatures} />
+          <NavigationLinks currentRole={currentRole} compact={collapsed} enabledFeatures={enabledFeatures} />
           <div className="mt-auto border-t border-slate-800 pt-3">
             <LogoutButton collapsed={collapsed} />
           </div>
@@ -159,7 +161,7 @@ export function AdminShellClassic({
               <SheetContent side="left" className="w-72 border-none bg-slate-900 p-0 text-white" showCloseButton={false}>
                 <div className="flex h-16 items-center border-b border-slate-800 px-4 text-xl font-black">{tenantName || "OnlyFood Admin"}</div>
                 <nav className="flex flex-1 flex-col p-4">
-                  <NavigationLinks enabledFeatures={enabledFeatures} />
+                  <NavigationLinks currentRole={currentRole} enabledFeatures={enabledFeatures} />
                   <div className="mt-auto border-t border-slate-800 pt-4"><LogoutButton /></div>
                 </nav>
               </SheetContent>
@@ -167,7 +169,7 @@ export function AdminShellClassic({
           </div>
           <span className="font-black text-slate-900">{tenantName || "OnlyFood Admin"}</span>
           <div className="ml-auto flex items-center gap-3">
-            <ClientResetNotificationBell />
+            {canAccessAdminRoute("/admin/users", currentRole) && <ClientResetNotificationBell />}
           </div>
         </header>
         <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">{pageContent}</main>

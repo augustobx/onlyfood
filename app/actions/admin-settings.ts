@@ -80,9 +80,21 @@ const configSchema = z.object({
     message: "Para usar PrintNode completá los IDs de cocina y mostrador.",
   });
 
-export async function updateConfig(id: string, data: unknown) {
+export async function updateConfig(id: string, data: unknown, changedFields?: string[]) {
   await requireAdmin(["OWNER", "MANAGER"]);
   const parsedId = idSchema.safeParse(id);
+  if (changedFields !== undefined) {
+    const fields = z.array(z.enum(Object.keys(configSchema.shape) as [string, ...string[]])).max(100).safeParse(changedFields);
+    if (!fields.success) return { success: false, error: "Campos de configuración inválidos." };
+    const current = await (await getTenantDb()).systemConfig.findFirst();
+    if (current && data && typeof data === "object") {
+      const merged = {...data} as Record<string, unknown>;
+      for (const key of Object.keys(configSchema.shape)) {
+        if (!fields.data.includes(key) && key in current && !["mpAccessToken", "mpPublicKey", "metaApiToken", "metaPhoneNumberId", "metaVerifyToken", "vapidPrivateKey"].includes(key)) merged[key] = (current as Record<string, unknown>)[key];
+      }
+      data = merged;
+    }
+  }
   const parsed = configSchema.safeParse(data);
   if (!parsedId.success || !parsed.success) return { success: false, error: parsed.error?.issues[0]?.message || "Configuracion invalida." };
   try {
@@ -107,9 +119,9 @@ export async function updateConfig(id: string, data: unknown) {
     ]);
 
     // Guardar integraciones de forma cifrada si se modificaron
-    const mpAccessTokenProvided = Boolean(parsed.data.mpAccessToken && parsed.data.mpAccessToken.trim().length > 0);
+    const mpAccessTokenProvided = (!changedFields || changedFields.includes("mpAccessToken")) && Boolean(parsed.data.mpAccessToken && parsed.data.mpAccessToken.trim().length > 0);
     const currentMpPublic = existingMp?.publicKey || "";
-    const requestedMpPublic = parsed.data.mpPublicKey !== undefined && parsed.data.mpPublicKey !== null ? parsed.data.mpPublicKey.trim() : currentMpPublic;
+    const requestedMpPublic = (!changedFields || changedFields.includes("mpPublicKey")) && parsed.data.mpPublicKey !== undefined && parsed.data.mpPublicKey !== null ? parsed.data.mpPublicKey.trim() : currentMpPublic;
     const mpPublicKeyChanged = parsed.data.mpPublicKey !== undefined && parsed.data.mpPublicKey !== null && requestedMpPublic !== currentMpPublic;
     const mpCredentialsTouched = mpAccessTokenProvided || mpPublicKeyChanged;
 
@@ -127,16 +139,16 @@ export async function updateConfig(id: string, data: unknown) {
     }
 
     const nextWhatsApp: WhatsAppCredentials = {
-      apiToken: parsed.data.metaApiToken || existingWhatsApp?.apiToken || "",
-      phoneNumberId: parsed.data.metaPhoneNumberId || existingWhatsApp?.phoneNumberId || "",
-      verifyToken: parsed.data.metaVerifyToken || existingWhatsApp?.verifyToken || "",
-      apiVersion: parsed.data.metaApiVersion || existingWhatsApp?.apiVersion || "v23.0",
+      apiToken: (!changedFields || changedFields.includes("metaApiToken") ? parsed.data.metaApiToken : null) || existingWhatsApp?.apiToken || "",
+      phoneNumberId: (!changedFields || changedFields.includes("metaPhoneNumberId") ? parsed.data.metaPhoneNumberId : null) || existingWhatsApp?.phoneNumberId || "",
+      verifyToken: (!changedFields || changedFields.includes("metaVerifyToken") ? parsed.data.metaVerifyToken : null) || existingWhatsApp?.verifyToken || "",
+      apiVersion: (!changedFields || changedFields.includes("metaApiVersion") ? parsed.data.metaApiVersion : null) || existingWhatsApp?.apiVersion || "v23.0",
     };
-    const whatsappCredentialsTouched = Boolean(parsed.data.metaApiToken || parsed.data.metaPhoneNumberId || parsed.data.metaVerifyToken);
+    const whatsappCredentialsTouched = changedFields ? changedFields.some(key => ["metaApiToken", "metaPhoneNumberId", "metaVerifyToken", "metaApiVersion"].includes(key)) : Boolean(parsed.data.metaApiToken || parsed.data.metaPhoneNumberId || parsed.data.metaVerifyToken);
     if ((parsed.data.whatsappNotificationsEnabled || whatsappCredentialsTouched) && (!nextWhatsApp.apiToken || !nextWhatsApp.phoneNumberId || !nextWhatsApp.verifyToken)) {
       return { success: false, error: "Para activar WhatsApp completá el token permanente, Phone Number ID y token de verificación." };
     }
-    if (whatsappCredentialsTouched || existingWhatsApp) {
+    if (whatsappCredentialsTouched) {
       await saveTenantIntegration(tenant.id, "WHATSAPP", {
         ...nextWhatsApp,
       });
@@ -151,7 +163,7 @@ export async function updateConfig(id: string, data: unknown) {
       metaApiVersion: _metaApiVersion,
       ...configData
     } = parsed.data;
-    const safeConfigData = {
+    const allSafeConfigData = {
       ...configData,
       mpAccessToken: null,
       mpPublicKey: null,
@@ -161,10 +173,11 @@ export async function updateConfig(id: string, data: unknown) {
       vapidPrivateKey: null,
     };
 
+    const safeConfigData = changedFields ? Object.fromEntries(Object.entries(allSafeConfigData).filter(([key]) => changedFields.includes(key) && !["mpAccessToken", "metaApiToken", "metaVerifyToken", "vapidPrivateKey"].includes(key))) : allSafeConfigData;
     await db.$transaction(async (tx) => {
       const config = await tx.systemConfig.findFirst();
       if (!config) {
-        await tx.systemConfig.create({ data: { ...safeConfigData, tenantId: tenant.id } });
+        await tx.systemConfig.create({ data: { ...allSafeConfigData, tenantId: tenant.id } });
       } else {
         await tx.systemConfig.update({ where: { id: config.id }, data: safeConfigData });
       }
