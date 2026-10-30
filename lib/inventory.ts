@@ -1,8 +1,11 @@
+import { unitLabel } from "./ingredient-units";
 export type InventoryRequirement = {
   ingredientId: string;
   name: string;
   required: number;
   available: number;
+  unit?: string;
+  unitCost?: number;
 };
 
 export type InventoryIssue = InventoryRequirement & {
@@ -12,7 +15,7 @@ export type InventoryIssue = InventoryRequirement & {
 type IngredientUsage = {
   ingredientId: string;
   quantity: number;
-  ingredient: { name: string; stock: number };
+  ingredient: { name: string; stock: number; unit?: string; costPerUnit?: number };
 };
 
 type RemovedIngredient = { ingredientId: string };
@@ -43,6 +46,8 @@ export function calculateOrderRequirements(items: InventoryOrderItem[]): Invento
       name: usage.ingredient.name,
       required: roundStock((current?.required ?? 0) + amount),
       available: usage.ingredient.stock,
+      unit: usage.ingredient.unit || "UNIT",
+      unitCost: usage.ingredient.costPerUnit || 0,
     });
   };
 
@@ -79,5 +84,5 @@ export function getInventoryIssues(requirements: InventoryRequirement[]): Invent
 }
 
 export function formatInventoryIssue(issue: InventoryIssue) {
-  return `${issue.name}: necesitás ${issue.required.toLocaleString("es-AR")}, hay ${issue.available.toLocaleString("es-AR")} (faltan ${issue.missing.toLocaleString("es-AR")})`;
+  return `${issue.name}: necesitás ${issue.required.toLocaleString("es-AR")} ${unitLabel(issue.unit)}, hay ${issue.available.toLocaleString("es-AR")} ${unitLabel(issue.unit)} (faltan ${issue.missing.toLocaleString("es-AR")} ${unitLabel(issue.unit)})`;
 }

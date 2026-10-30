@@ -1,3 +1,4 @@
+import { stockOverview } from "@/lib/stock-overview";
 import { getTenantDb } from "@/lib/tenant-db";
 import { CatalogClient } from "./CatalogClient";
 import { requireAdmin } from "@/lib/admin-session";
@@ -26,10 +27,7 @@ export default async function CatalogPage({ searchParams }: { searchParams?: Pro
     orderBy: { name: 'asc' }
   });
 
-  const allIngredients = await db.ingredient.findMany({
-    orderBy: { name: 'asc' },
-    include: { categories: true }
-  });
+  const { ingredients: allIngredients, reserved } = await stockOverview();
   const initialRestockId = allIngredients.some((ingredient) => ingredient.id === params?.restock) ? params?.restock : undefined;
 
   const allCombos = await db.product.findMany({
@@ -50,6 +48,7 @@ export default async function CatalogPage({ searchParams }: { searchParams?: Pro
         allExtras={allExtras} 
         allIngredients={allIngredients} 
         allCombos={allCombos}
+        reserved={reserved}
         initialTab={initialTab}
         initialRestockId={initialRestockId}
       />

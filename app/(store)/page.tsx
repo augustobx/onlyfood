@@ -1,8 +1,8 @@
+import { orderRequirements } from "@/lib/inventory-snapshot";
 import { createTenantDb } from "@/lib/tenant-db";
 import { getTenantContext } from "@/lib/tenant-context";
 import { StorefrontClient } from "./StorefrontClient";
 import { getLoggedClient } from "@/lib/auth";
-import { calculateOrderRequirements } from "@/lib/inventory";
 import { publicConfigSelect } from "@/lib/public-config";
 
 export default async function StorePage() {
@@ -67,7 +67,7 @@ export default async function StorePage() {
   });
   const legacyDemand = new Map<string, number>();
   for (const order of legacyPendingOrders) {
-    for (const requirement of calculateOrderRequirements(order.items)) {
+    for (const requirement of orderRequirements(order)) {
       legacyDemand.set(requirement.ingredientId, (legacyDemand.get(requirement.ingredientId) ?? 0) + requirement.required);
     }
   }

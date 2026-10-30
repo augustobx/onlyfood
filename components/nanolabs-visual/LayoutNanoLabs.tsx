@@ -11,6 +11,7 @@ import {
   MessageSquareHeart,
   WalletCards,
   ShoppingBag,
+  Package,
   BadgePercent,
   Image as ImageIcon,
   TrendingUp,
@@ -76,6 +77,7 @@ export const ADMIN_CATEGORIES: AdminCategoryGroup[] = [
   {name:'Historial',href:'/admin/history',icon:History,feature:'orders'}]},
  {title:'Menú',items:[
   {name:'Productos y combos',href:'/admin/catalog',icon:ShoppingBag,feature:'orders'},
+  {name:'Ingredientes y stock',href:'/admin/stock',icon:Package,feature:'orders'},
   {name:'Imágenes',href:'/admin/media',icon:ImageIcon,feature:'orders'}]},
  {title:'Clientes',items:[
   {name:'Clientes y cuentas',href:'/admin/users',icon:Users},

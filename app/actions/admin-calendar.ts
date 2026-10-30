@@ -1,8 +1,9 @@
 "use server";
+import { orderRequirements } from "@/lib/inventory-snapshot";
 
 import { getTenantDb } from "@/lib/tenant-db";
 import { requireAdmin } from "@/lib/admin-session";
-import { calculateOrderRequirements, getInventoryIssues } from "@/lib/inventory";
+import { getInventoryIssues } from "@/lib/inventory";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
 
@@ -89,7 +90,7 @@ export async function getCalendarOrders(startDateIso: string, endDateIso: string
 
     const enrichedOrders = orders.map((order) => ({
       ...order,
-      stockIssues: order.stockCommitted ? [] : getInventoryIssues(calculateOrderRequirements(order.items)),
+      stockIssues: order.stockCommitted ? [] : getInventoryIssues(orderRequirements(order)),
     }));
 
     return {

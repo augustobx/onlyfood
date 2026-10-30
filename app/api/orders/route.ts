@@ -1,8 +1,9 @@
+import { orderRequirements } from "@/lib/inventory-snapshot";
 import { getTenantDb } from "@/lib/tenant-db";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-session";
 import { startOfBusinessDayUtc } from "@/lib/time";
-import { calculateOrderRequirements, getInventoryIssues } from "@/lib/inventory";
+import { getInventoryIssues } from "@/lib/inventory";
 import { getTenantContext } from "@/lib/tenant-context";
 import { requireTenantFeature } from "@/lib/features";
 
@@ -44,7 +45,7 @@ export async function GET() {
     });
     return NextResponse.json(orders.map((order) => ({
       ...order,
-      stockIssues: order.stockCommitted ? [] : getInventoryIssues(calculateOrderRequirements(order.items)),
+      stockIssues: order.stockCommitted ? [] : getInventoryIssues(orderRequirements(order)),
     })));
   } catch (error) {
     const status = error instanceof Error && error.message === "UNAUTHORIZED" ? 401 : 500;

@@ -41,6 +41,7 @@ const routes = [
   { name: "Valoraciones", href: "/admin/reviews", icon: MessageSquareHeart, feature: "orders" },
   { name: "Caja diaria", href: "/admin/cash", icon: WalletCards, feature: "cashRegister" },
   { name: "Productos y combos", href: "/admin/catalog", icon: ShoppingBag, feature: "orders" },
+  { name: "Ingredientes y stock", href: "/admin/stock", icon: ShoppingBag, feature: "orders" },
   { name: "Descuentos por cantidad", href: "/admin/promotions", icon: BadgePercent, feature: "quantityDiscounts" },
   { name: "Galería de Medios", href: "/admin/media", icon: ImageIcon, feature: "orders" },
   { name: "Resultados", href: "/admin/metricas", icon: TrendingUp, feature: "advancedReports" },
