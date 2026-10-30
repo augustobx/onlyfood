@@ -1,7 +1,9 @@
 "use client";
 
+import { IngredientsPanel } from "./IngredientsPanel";
+import { unitLabel } from "@/lib/ingredient-units";
 import { useState } from "react";
-import { Plus, Tag, Carrot, Sparkles, Layers, Trash2, Pen, PackagePlus, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Tag, Carrot, Sparkles, Layers, Trash2, Pen, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +18,7 @@ import { toast } from "sonner";
 import {
   addCategory, toggleCategory, renameCategory,
   upsertProduct, toggleProduct, toggleProductImage, reorderProducts,
-  addIngredient, toggleIngredient, deleteIngredient, restockIngredient,
+
   upsertExtra, toggleExtra, deleteExtra
 } from "@/app/actions/admin-catalog";
 import {
@@ -28,7 +30,7 @@ import {
 } from "@/lib/weekly-menu";
 import { MediaPickerInput } from "@/components/admin/MediaPickerInput";
 
-export function CatalogClient({ initialCategories, allExtras, allIngredients, allCombos = [], initialTab, initialRestockId }: { initialCategories: any[], allExtras: any[], allIngredients: any[], allCombos?: any[], initialTab?: string, initialRestockId?: string }) {
+export function CatalogClient({ initialCategories, allExtras, allIngredients, allCombos = [], initialTab, initialRestockId, reserved = {} }: { initialCategories: any[], allExtras: any[], allIngredients: any[], allCombos?: any[], initialTab?: string, initialRestockId?: string, reserved?: Record<string, number> }) {
 
   const categories = initialCategories;
   const ingredients = allIngredients;
@@ -56,13 +58,6 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
     groupName: "Guarnición / Papas",
     selectionType: "SINGLE" as "SINGLE" | "MULTIPLE"
   });
-
-  const [newIngredient, setNewIngredient] = useState({
-    name: "", categoryIds: [] as string[],
-    purchaseVolume: "", purchasePrice: "", yieldUnits: ""
-  });
-  const [restockModal, setRestockModal] = useState<string | null>(initialRestockId || null);
-  const [restockForm, setRestockForm] = useState({ purchaseVolume: "", purchasePrice: "", yieldUnits: "" });
 
   const [newProduct, setNewProduct] = useState({
     id: undefined as string | undefined,
@@ -112,47 +107,6 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
     toast.success("Orden actualizado");
     window.location.reload();
   };
-
-  const handleCreateIngredient = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newIngredient.name || newIngredient.categoryIds.length === 0) {
-      return toast.error("Selecciona un nombre y al menos una categoría");
-    }
-    if (!newIngredient.purchasePrice || !newIngredient.yieldUnits) {
-      return toast.error("Completá el precio de compra y cuánto rinde");
-    }
-
-    const res = await addIngredient({
-      name: newIngredient.name,
-      categoryIds: newIngredient.categoryIds,
-      purchaseVolume: newIngredient.purchaseVolume,
-      purchasePrice: Number(newIngredient.purchasePrice),
-      yieldUnits: Number(newIngredient.yieldUnits)
-    });
-
-    if (res.success) {
-      toast.success("Ingrediente y Stock creados");
-      setNewIngredient({ name: "", categoryIds: [], purchaseVolume: "", purchasePrice: "", yieldUnits: "" });
-    }
-    else { toast.error("Error al crear ingrediente"); }
-  };
-
-  const handleRestock = async () => {
-    if (!restockModal || !restockForm.purchasePrice || !restockForm.yieldUnits) return toast.error("Completá los datos");
-    const res = await restockIngredient(
-      restockModal,
-      Number(restockForm.purchasePrice),
-      Number(restockForm.yieldUnits),
-      restockForm.purchaseVolume
-    );
-    if (res.success) {
-      toast.success("Stock actualizado y costo recalculado");
-      setRestockModal(null);
-      setRestockForm({ purchaseVolume: "", purchasePrice: "", yieldUnits: "" });
-    }
-  };
-
-  const handleToggleIngredient = async (id: string, current: boolean) => await toggleIngredient(id, !current);
 
   const handleCreateExtra = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,12 +182,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
   const handleToggleProduct = async (id: string, current: boolean) => await toggleProduct(id, !current);
   const handleToggleImage = async (id: string, current: boolean) => await toggleProductImage(id, !current);
 
-  const handleDeleteIngredient = async (id: string) => {
-    if (confirm("¿Eliminar este ingrediente?")) {
-      const res = await deleteIngredient(id);
-      if (res.success) toast.success("Eliminado correctamente");
-    }
-  };
+
 
   const handleDeleteExtra = async (id: string) => {
     if (confirm("¿Eliminar este extra?")) {
@@ -636,12 +585,12 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                           {/* INDICADOR INTELIGENTE DE COSTOS Y PRECIO SUGERIDO */}
                           <div className="flex gap-4 rounded-lg border bg-slate-100 px-3 py-1.5 text-sm">
                             <div>Costo Prod: <strong className="text-red-600">${calculateRecipeCost().toFixed(2)}</strong></div>
-                            <div>Venta Sugerida (x3): <strong className="text-green-600">${(calculateRecipeCost() * 3).toFixed(2)}</strong></div>
+                            <div>Referencia de precio (x3): <strong className="text-green-600">${(calculateRecipeCost() * 3).toFixed(2)}</strong></div>
                           </div>
                         </div>
 
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                          {ingredients.filter((ing: any) => ing.categories.some((c: any) => c.categoryId === cat.id) && ing.isActive).map((ing: any) => {
+                          {ingredients.filter((ing: any) => ing.isActive && (!ing.categories.length || ing.categories.some((c: any) => c.categoryId === cat.id))).map((ing: any) => {
                             const isSelected = newProduct.ingredientsData.some(i => i.id === ing.id);
                             const qty = newProduct.ingredientsData.find(i => i.id === ing.id)?.quantity || 1;
                             return (
@@ -656,13 +605,13 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                                     }}
                                   />
                                   <label htmlFor={`ing-${ing.id}`} className="text-sm font-semibold cursor-pointer">
-                                    {ing.name} <span className="text-[10px] text-slate-400">(${(ing.costPerUnit || 0).toFixed(0)} c/u)</span>
+                                    {ing.name} <span className="text-[10px] text-slate-400">(${(ing.costPerUnit || 0).toLocaleString("es-AR", { maximumFractionDigits: 3 })} / {unitLabel(ing.unit)})</span>
                                   </label>
                                 </div>
                                 {isSelected && (
                                   <div className="flex items-center space-x-2 ml-6 bg-white p-1.5 rounded border shadow-sm">
-                                    <Label className="text-xs font-medium">Lleva (Uds):</Label>
-                                    <Input aria-label="Lleva (Uds):" type="number" min="0.01" step="0.01" className="h-7 w-20 text-xs px-2 text-center" value={qty} onChange={e => {
+                                    <Label className="text-xs font-medium">Lleva ({unitLabel(ing.unit)}):</Label>
+                                    <Input aria-label={`Cantidad de ${ing.name} (${unitLabel(ing.unit)})`} type="number" min="0.001" step="0.001" className="h-7 w-20 text-xs px-2 text-center" value={qty} onChange={e => {
                                       const val = parseFloat(e.target.value) || 0;
                                       setNewProduct({
                                         ...newProduct,
@@ -674,7 +623,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
                               </div>
                             )
                           })}
-                          {ingredients.filter((ing: any) => ing.categories.some((c: any) => c.categoryId === cat.id)).length === 0 && (
+                          {ingredients.filter((ing: any) => ing.isActive && (!ing.categories.length || ing.categories.some((c: any) => c.categoryId === cat.id))).length === 0 && (
                             <p className="text-sm text-muted-foreground italic col-span-2">No hay ingredientes asignados a esta categoría.</p>
                           )}
                         </div>
@@ -806,116 +755,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
         </DialogContent>
       </Dialog>
 
-      <TabsContent value="ingredients" className="space-y-6 animate-in fade-in">
-        <Card className="bg-slate-50 border-dashed border-2">
-          <CardHeader className="pb-3 border-b bg-white/50">
-            <CardTitle className="flex items-center gap-2">Ingresar Nuevo Ingrediente al Stock</CardTitle>
-            <CardDescription>Cargá lo que compraste, cuánto te costó y cuánto te rinde. Nosotros calculamos el resto.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <form className="space-y-4" onSubmit={handleCreateIngredient}>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Nombre del Ingrediente Final</Label>
-                  <Input aria-label="Nombre del Ingrediente Final" placeholder="Ej. Medallón de Carne 150g" className="bg-white" value={newIngredient.name} onChange={e => setNewIngredient({ ...newIngredient, name: e.target.value })} required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Referencia de Compra (Opcional)</Label>
-                  <Input aria-label="Referencia de Compra (Opcional)" placeholder="Ej. 100 Kg de carne picada" className="bg-white" value={newIngredient.purchaseVolume} onChange={e => setNewIngredient({ ...newIngredient, purchaseVolume: e.target.value })} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white border rounded-xl">
-                <div className="space-y-2">
-                  <Label className="text-slate-500">¿Cuánto pagaste en total?</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-500 font-bold">$</span>
-                    <Input type="number" min="0" className="pl-8 font-bold" placeholder="Ej: 10000" value={newIngredient.purchasePrice} onChange={e => setNewIngredient({ ...newIngredient, purchasePrice: e.target.value })} required />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-500">¿Cuántas unidades sacás?</Label>
-                  <div className="relative">
-                    <Input type="number" min="1" className="pr-12 font-bold" placeholder="Ej: 100" value={newIngredient.yieldUnits} onChange={e => setNewIngredient({ ...newIngredient, yieldUnits: e.target.value })} required />
-                    <span className="absolute right-3 top-2.5 text-slate-500 text-xs font-bold">Uds.</span>
-                  </div>
-                </div>
-                <div className="space-y-2 flex flex-col justify-end">
-                  {newIngredient.purchasePrice && newIngredient.yieldUnits ? (
-                    <div className="bg-green-50 border border-green-200 text-green-800 p-2 rounded-md text-center">
-                      <span className="text-xs block">El costo de tu ingrediente es:</span>
-                      <span className="font-black text-lg">${(Number(newIngredient.purchasePrice) / Number(newIngredient.yieldUnits)).toFixed(2)} c/u</span>
-                    </div>
-                  ) : (
-                    <div className="bg-slate-100 p-2 rounded-md text-center text-slate-400 text-xs h-full flex items-center justify-center">Costo automático</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2 pt-2">
-                <Label>Aplica para las categorías:</Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white p-4 border rounded-md">
-                  {categories.map((c: any) => (
-                    <div key={c.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`cat-${c.id}`}
-                        checked={newIngredient.categoryIds.includes(c.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) setNewIngredient({ ...newIngredient, categoryIds: [...newIngredient.categoryIds, c.id] });
-                          else setNewIngredient({ ...newIngredient, categoryIds: newIngredient.categoryIds.filter(id => id !== c.id) });
-                        }}
-                      />
-                      <label htmlFor={`cat-${c.id}`} className="text-sm font-medium leading-none cursor-pointer">{c.name}</label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <Button type="submit" className="w-full h-12 text-lg font-bold"><Plus className="w-5 h-5 mr-2" /> Crear Ingrediente y Sumar Stock</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Control de Stock de Ingredientes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y border-t mt-2">
-              {ingredients.map((ing: any) => (
-                <div key={ing.id} className="p-4 flex flex-col md:flex-row justify-between md:items-center hover:bg-slate-50 gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold text-lg">{ing.name}</h4>
-                      <Badge variant={(ing.stock || 0) > 10 ? "secondary" : "destructive"}>{ing.stock || 0} en Stock</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Categorías: {ing.categories?.map((ic: any) => categories.find((c: any) => c.id === ic.categoryId)?.name).filter(Boolean).join(", ") || "Ninguna"}
-                    </p>
-                    <div className="text-sm mt-1 flex gap-4">
-                      <span>Costo Unitario: <strong className="text-orange-600">${(ing.costPerUnit || 0).toFixed(2)}</strong></span>
-                      {ing.purchaseVolume && <span className="text-muted-foreground">Ref: {ing.purchaseVolume}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{ing.isActive ? 'Activo' : 'Pausado'}</span>
-                      <Switch checked={ing.isActive} onCheckedChange={() => handleToggleIngredient(ing.id, ing.isActive)} />
-                    </div>
-                    <Button variant="outline" size="sm" className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" onClick={() => setRestockModal(ing.id)}>
-                      <PackagePlus className="w-4 h-4 mr-2" /> Recargar Stock
-                    </Button>
-                    <Button variant="ghost" size="icon" aria-label="Eliminar ingrediente o extra" className="text-red-500 hover:bg-red-50" onClick={() => handleDeleteIngredient(ing.id)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {ingredients.length === 0 && <div className="p-8 text-center text-muted-foreground italic">No hay ingredientes registrados.</div>}
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
+      <TabsContent value="ingredients"><IngredientsPanel ingredients={ingredients} categories={categories} reserved={reserved} initialRestockId={initialRestockId}/></TabsContent>
 
       <TabsContent value="extras" className="space-y-6 animate-in fade-in">
         <Card className="bg-slate-50 border-dashed border-2">
@@ -1111,33 +951,7 @@ export function CatalogClient({ initialCategories, allExtras, allIngredients, al
       </TabsContent>
 
       {/* RESTOCK MODAL */}
-      <Dialog open={!!restockModal} onOpenChange={(open) => !open && setRestockModal(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Recargar Stock</DialogTitle>
-            <DialogDescription>Suma unidades al stock y actualiza el precio de costo del ingrediente.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>¿Qué compraste? (Ref opcional)</Label>
-              <Input aria-label="¿Qué compraste? (Ref opcional)" placeholder="Ej: 10 Kg de carne" value={restockForm.purchaseVolume} onChange={e => setRestockForm({ ...restockForm, purchaseVolume: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Pagué en total ($)</Label>
-                <Input aria-label="Pagué en total ($)" type="number" min="0" value={restockForm.purchasePrice} onChange={e => setRestockForm({ ...restockForm, purchasePrice: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Rinde (Unidades)</Label>
-                <Input aria-label="Rinde (Unidades)" type="number" min="1" value={restockForm.yieldUnits} onChange={e => setRestockForm({ ...restockForm, yieldUnits: e.target.value })} />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleRestock} className="w-full bg-blue-600 hover:bg-blue-700">Actualizar Stock y Costo</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
     </Tabs>
   );

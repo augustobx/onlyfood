@@ -10,6 +10,7 @@ const TENANT_SCOPED_MODELS = new Set([
   "Category",
   "Product",
   "Ingredient",
+  "IngredientMovement",
   "Extra",
   "Order",
   "CustomerTier",

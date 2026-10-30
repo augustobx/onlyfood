@@ -305,6 +305,9 @@ model Ingredient {
   yieldUnits     Float   @default(1)
   costPerUnit    Float   @default(0)
   stock          Float   @default(0)
+  unit           String  @default("UNIT") @db.VarChar(10)
+  minimumStock   Float   @default(0)
+  movements      IngredientMovement[]
 
   tenant               Tenant?                           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   categories           IngredientCategory[]
@@ -313,6 +316,24 @@ model Ingredient {
   comboRemovedInOrders OrderItemComboRemovedIngredient[]
 
   @@index([tenantId, isActive])
+}
+
+model IngredientMovement {
+  id String @id @default(uuid())
+  tenantId String
+  ingredientId String
+  type String @db.VarChar(24)
+  quantity Float
+  balance Float
+  unitCost Float
+  reason String @db.VarChar(250)
+  actorId String? @db.VarChar(128)
+  orderId String? @db.VarChar(128)
+  createdAt DateTime @default(now())
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId, ingredientId, createdAt])
+  @@index([tenantId, orderId])
 }
 
 model IngredientCategory {
@@ -412,6 +433,7 @@ model Order {
   earnedPoints   Int     @default(0)
   pointsAwarded  Boolean @default(false)
   stockCommitted Boolean @default(false)
+  inventorySnapshot Json?
 
   tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
@@ -928,6 +950,7 @@ model Tenant {
   categories             Category[]
   products               Product[]
   ingredients            Ingredient[]
+  ingredientMovements    IngredientMovement[]
   extras                 Extra[]
   orders                 Order[]
   orderReviews           OrderReview[]

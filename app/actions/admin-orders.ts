@@ -6,6 +6,8 @@ import { after } from "next/server";
 import { getTenantDb } from "@/lib/tenant-db";
 import { requireAdmin } from "@/lib/admin-session";
 import { sendOrderPush } from "@/lib/push-notifications";
+import { orderRequirements } from "@/lib/inventory-snapshot";
+import { changeIngredientStock } from "@/lib/inventory-ledger";
 import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue } from "@/lib/inventory";
 import { findAndReconcileMercadoPagoOrder } from "@/lib/mercadopago-payments";
 import { dispatchOrderPrint } from "@/lib/printnode";
@@ -207,29 +209,19 @@ export async function reconcilePendingMercadoPagoOrders() {
   return { success: true, updated: newlyPaid.length };
 }
 
-async function reserveStock(tx: any, requirements: ReturnType<typeof calculateOrderRequirements>) {
+async function reserveStock(tx: any, requirements: ReturnType<typeof calculateOrderRequirements>, tenantId: string, orderId: string) {
   const issues = getInventoryIssues(requirements);
   if (issues.length) throw new Error(`STOCK_SHORTAGE:${encodeURIComponent(JSON.stringify(issues))}`);
 
   for (const requirement of requirements) {
-    const updated = await tx.ingredient.updateMany({
-      where: { id: requirement.ingredientId, stock: { gte: requirement.required } },
-      data: { stock: { decrement: requirement.required } },
-    });
-    if (updated.count !== 1) {
-      const issue: InventoryIssue = { ...requirement, missing: requirement.required };
-      throw new Error(`STOCK_SHORTAGE:${encodeURIComponent(JSON.stringify([issue]))}`);
-    }
+    await changeIngredientStock(tx, { tenantId, orderId, ingredientId: requirement.ingredientId, quantity: -requirement.required, type: "RESERVE", reason: "Reserva de pedido anterior" });
   }
 }
 
-async function releaseStock(tx: any, requirements: ReturnType<typeof calculateOrderRequirements>) {
+async function releaseStock(tx: any, requirements: ReturnType<typeof calculateOrderRequirements>, tenantId: string, orderId: string) {
   for (const requirement of requirements) {
     if (requirement.required > 0) {
-      await tx.ingredient.update({
-        where: { id: requirement.ingredientId },
-        data: { stock: { increment: requirement.required } },
-      });
+      await changeIngredientStock(tx, { tenantId, orderId, ingredientId: requirement.ingredientId, quantity: requirement.required, returnUnitCost: requirement.unitCost, type: "RELEASE", reason: "Pedido cancelado" });
     }
   }
 }
@@ -325,7 +317,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
       if (parsedStatus.data === current.status) return current;
       if (!transitions[current.status]?.includes(parsedStatus.data)) throw new Error("INVALID_TRANSITION");
 
-      const requirements = calculateOrderRequirements(current.items);
+      const requirements = orderRequirements(current);
 
       const shouldAwardPointsOnDelivered = parsedStatus.data === "DELIVERED" && current.clientId !== null && current.earnedPoints > 0 && !current.pointsAwarded;
       const shouldRevokePointsOnCancelled = parsedStatus.data === "CANCELLED" && current.clientId !== null && current.earnedPoints > 0 && current.pointsAwarded;
@@ -348,11 +340,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
       if (transitioned.count !== 1) throw new Error("CONCURRENT_TRANSITION");
 
       if (current.status === "NEW" && parsedStatus.data !== "CANCELLED" && !current.stockCommitted) {
-        try {
-          await reserveStock(tx, requirements);
-        } catch (e) {
-          console.warn("Could not reserve stock on admin status change:", e);
-        }
+        await reserveStock(tx, requirements, current.tenantId, current.id);
       }
 
       if (parsedStatus.data === "CANCELLED") {
@@ -364,7 +352,7 @@ export async function updateOrderStatus(orderId: string, requestedStatus: string
         }
 
         if (current.stockCommitted) {
-          await releaseStock(tx, requirements);
+          await releaseStock(tx, requirements, current.tenantId, current.id);
         }
 
         // Restituir cupones canjeados utilizados en este pedido

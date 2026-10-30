@@ -1,5 +1,6 @@
 "use server";
 
+import { recordIngredientMovement } from "@/app/actions/ingredients";
 import { getTenantDb } from "@/lib/tenant-db";
 import { withProductCapacity } from "@/lib/tenant-capacity";
 import { revalidatePath } from "next/cache";
@@ -24,7 +25,7 @@ export async function addCategory(name: string) {
   try {
     const db = await getTenantDb();
     await db.category.create({ data: { name: parsedName.data, isActive: true } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al crear categoría" }; }
 }
@@ -36,7 +37,7 @@ export async function toggleCategory(id: string, isActive: boolean) {
   try {
     const db = await getTenantDb();
     await db.category.update({ where: { id }, data: { isActive } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al actualizar categoría" }; }
 }
@@ -179,7 +180,7 @@ export async function upsertProduct(data: {
       }));
     }
 
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error: any) {
     console.error("Error al guardar producto en BD:", error);
@@ -199,7 +200,7 @@ export async function toggleProduct(id: string, isActive: boolean) {
   try {
     const db = await getTenantDb();
     await db.product.update({ where: { id }, data: { isActive } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al actualizar producto" }; }
 }
@@ -211,7 +212,7 @@ export async function toggleProductImage(id: string, showImage: boolean) {
   try {
     const db = await getTenantDb();
     await db.product.update({ where: { id }, data: { showImage } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al actualizar mostrar imagen" }; }
 }
@@ -257,7 +258,11 @@ export async function addIngredient(data: { name: string, categoryIds: string[],
     const db = await getTenantDb();
     const costPerUnit = data.yieldUnits > 0 ? data.purchasePrice / data.yieldUnits : 0;
 
-    await db.ingredient.create({
+    const tenant = await getTenantContext();
+    const validCategories = await db.category.count({ where: { id: { in:data.categoryIds } } });
+    if (validCategories !== new Set(data.categoryIds).size) return { success:false, error:"Categorías inválidas." };
+    await db.$transaction(async tx => {
+    const ingredient = await tx.ingredient.create({
       data: {
         name: data.name,
         purchaseVolume: data.purchaseVolume,
@@ -269,6 +274,8 @@ export async function addIngredient(data: { name: string, categoryIds: string[],
           create: data.categoryIds.map(id => ({ categoryId: id }))
         }
       }
+    });
+      await tx.ingredientMovement.create({ data: { tenantId:tenant.id, ingredientId:ingredient.id, type:"OPENING", quantity:ingredient.stock, balance:ingredient.stock, unitCost:ingredient.costPerUnit, reason:"Carga inicial desde formulario anterior" } });
     });
     revalidatePath("/admin/catalog");
     return { success: true };
@@ -282,24 +289,10 @@ export async function restockIngredient(id: string, purchasePrice: number, yield
   await requireOrdersModule();
   const parsed = z.object({ id: idSchema, purchasePrice: z.number().min(0).max(10_000_000), yieldUnits: z.number().positive().max(1_000_000), purchaseVolume: z.string().trim().max(100) }).safeParse({ id, purchasePrice, yieldUnits, purchaseVolume });
   if (!parsed.success) return { success: false, error: "Datos de reposicion invalidos." };
-  try {
-    const db = await getTenantDb();
-    const costPerUnit = yieldUnits > 0 ? purchasePrice / yieldUnits : 0;
-    await db.ingredient.update({
-      where: { id },
-      data: {
-        purchasePrice,
-        yieldUnits,
-        purchaseVolume,
-        costPerUnit,
-        stock: { increment: yieldUnits }
-      }
-    });
-    revalidatePath("/admin/catalog");
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: "Error al recargar stock." };
-  }
+  const db = await getTenantDb();
+  const ingredient = await db.ingredient.findFirst({ where: { id } });
+  if (!ingredient) return { success: false, error: "Ingrediente no disponible." };
+  return recordIngredientMovement({ ingredientId:id, type:"PURCHASE", quantity:yieldUnits, purchaseUnit:ingredient.unit as "UNIT" | "G" | "ML", price:purchasePrice, reason:purchaseVolume || "Compra de ingredientes", expectedStock:ingredient.stock });
 }
 
 export async function toggleIngredient(id: string, isActive: boolean) {
@@ -309,7 +302,7 @@ export async function toggleIngredient(id: string, isActive: boolean) {
   try {
     const db = await getTenantDb();
     await db.ingredient.update({ where: { id }, data: { isActive } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al actualizar ingrediente" }; }
 }
@@ -372,7 +365,7 @@ export async function toggleExtra(id: string, isActive: boolean) {
   try {
     const db = await getTenantDb();
     await db.extra.update({ where: { id }, data: { isActive } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al actualizar extra" }; }
 }
@@ -383,8 +376,8 @@ export async function deleteIngredient(id: string) {
   if (!idSchema.safeParse(id).success) return { success: false, error: "ID invalido" };
   try {
     const db = await getTenantDb();
-    await db.ingredient.delete({ where: { id } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    await db.ingredient.update({ where: { id }, data: { isActive:false } });
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al eliminar ingrediente." }; }
 }
@@ -396,7 +389,7 @@ export async function deleteExtra(id: string) {
   try {
     const db = await getTenantDb();
     await db.extra.delete({ where: { id } });
-    revalidatePath("/admin/catalog"); revalidatePath("/");
+    revalidatePath("/admin/catalog"); revalidatePath("/admin/stock"); revalidatePath("/");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al eliminar extra." }; }
 }

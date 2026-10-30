@@ -78,7 +78,7 @@ export default async function TrackOrderPage(props: {
     ? config?.deliveryCost || 0
     : 0;
 
-  const { trackingTokenHash: _trackingTokenHash, ...safeOrder } = order;
+  const { trackingTokenHash: _trackingTokenHash, inventorySnapshot: _inventorySnapshot, ...safeOrder } = order;
 
   return (
     <TrackOrderClient

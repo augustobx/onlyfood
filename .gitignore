@@ -49,3 +49,6 @@ next-env.d.ts
 # respaldos locales con datos personales o credenciales antiguas
 /dbbkpd/
 *.sql
+
+# Versioned schema changes are source, not database backups.
+!/prisma/migrations/**/migration.sql

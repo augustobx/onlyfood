@@ -13,7 +13,9 @@ import { getPublicConfig } from "@/lib/public-config";
 import { requiresClientLogin } from "@/lib/checkout-auth-policy";
 import { allowsTierBenefit, calculateTierPaymentBenefits } from "@/lib/tier-payment-policy";
 import { consumeRateLimit, getRequestIp, getRequestOrigin } from "@/lib/request-security";
-import { calculateOrderRequirements, formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
+import { makeInventorySnapshot, orderRequirements } from "@/lib/inventory-snapshot";
+import { changeIngredientStock } from "@/lib/inventory-ledger";
+import { formatInventoryIssue, getInventoryIssues, type InventoryIssue, type InventoryRequirement } from "@/lib/inventory";
 import { dispatchOrderPrint } from "@/lib/printnode";
 import { reconcileMercadoPagoPayment } from "@/lib/mercadopago-payments";
 import { dispatchWhatsAppNotification, queueOrderWhatsAppNotification, queueRelatedOrderConfirmationNotifications } from "@/lib/whatsapp-notifications";
@@ -78,6 +80,7 @@ type PreparedItem = {
   extras: { id: string; price: number }[];
   comboItems: { productId: string; quantity: number; pieces?: number | null; removedIngredientIds: string[] }[];
   stockRequirements: InventoryRequirement[];
+  missingRecipe?: boolean;
   points: number;
   targetDateStr: string;
   targetScheduledDate: Date;
@@ -348,6 +351,8 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             name: usage.ingredient.name,
             required: amount,
             available: usage.ingredient.stock,
+            unit: usage.ingredient.unit,
+            unitCost: usage.ingredient.costPerUnit,
           });
         };
         if (product.isCombo) {
@@ -434,6 +439,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           extras,
           comboItems,
           stockRequirements,
+          missingRecipe: product.isCombo ? !product.comboItemsConfig.length || product.comboItemsConfig.some(c => !c.product.ingredients.length) : !product.ingredients.length || Boolean(secondHalf && !secondHalf.ingredients.length),
           points: itemPoints,
           targetDateStr,
           targetScheduledDate,
@@ -464,6 +470,8 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
                 name: usage.ingredient.name,
                 required: usage.quantity * comboItem.quantity * qty,
                 available: usage.ingredient.stock,
+            unit: usage.ingredient.unit,
+            unitCost: usage.ingredient.costPerUnit,
               });
             }
           }
@@ -474,6 +482,8 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
               name: usage.ingredient.name,
               required: usage.quantity * qty,
               available: usage.ingredient.stock,
+            unit: usage.ingredient.unit,
+            unitCost: usage.ingredient.costPerUnit,
             });
           }
         }
@@ -487,8 +497,9 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           secondHalfProductId: null,
           removedIngredientIds: [],
           extras: [],
-          comboItems: (product.comboItemsConfig || []).map((item: any) => ({ productId: item.productId, quantity: item.quantity * qty, pieces: item.pieces ? item.pieces * qty : null, removedIngredientIds: [] })),
+          comboItems: (product.comboItemsConfig || []).map((item: any) => ({ productId: item.productId, quantity: item.quantity, pieces: item.pieces || null, removedIngredientIds: [] })),
           stockRequirements,
+          missingRecipe: product.isCombo ? !(product.comboItemsConfig || []).length || product.comboItemsConfig.some((c: any) => !c.product.ingredients.length) : !product.ingredients.length,
           points: 0,
           targetDateStr,
           targetScheduledDate,
@@ -597,7 +608,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       });
       const legacyDemand = new Map<string, number>();
       for (const pendingOrder of legacyPendingOrders) {
-        for (const requirement of calculateOrderRequirements(pendingOrder.items)) {
+        for (const requirement of orderRequirements(pendingOrder)) {
           legacyDemand.set(requirement.ingredientId, (legacyDemand.get(requirement.ingredientId) ?? 0) + requirement.required);
         }
       }
@@ -608,16 +619,6 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
       const stockIssues = getInventoryIssues(effectiveRequirements);
       if (stockIssues.length) throw new Error(`STOCK_SHORTAGE:${encodeURIComponent(JSON.stringify(stockIssues))}`);
 
-      for (const requirement of stockRequirements) {
-        const reservedStock = await tx.ingredient.updateMany({
-          where: { id: requirement.ingredientId, stock: { gte: requirement.required } },
-          data: { stock: { decrement: requirement.required } },
-        });
-        if (reservedStock.count !== 1) {
-          const issue: InventoryIssue = { ...requirement, missing: requirement.required };
-          throw new Error(`STOCK_SHORTAGE:${encodeURIComponent(JSON.stringify([issue]))}`);
-        }
-      }
 
       // Group items by target delivery date
       const dateGroupsMap = new Map<string, { dateStr: string; scheduledDate: Date; orderType: string; dayName: string; items: PreparedItem[] }>();
@@ -849,6 +850,7 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             earnedPoints: groupEarnedPoints,
             pointsAwarded: isPointsAwardedDirect,
             stockCommitted: true,
+            inventorySnapshot: makeInventorySnapshot(group.items.flatMap(item => item.stockRequirements), group.items.filter(item => item.missingRecipe).length),
             tenantId: tenant.id,
             locationId: tenant.primaryLocationId || null,
             items: {
@@ -883,6 +885,9 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
           });
         }
 
+        for (const entry of makeInventorySnapshot(group.items.flatMap(item => item.stockRequirements)).entries) {
+          await changeIngredientStock(tx as never, { tenantId: tenant.id, ingredientId: entry.ingredientId, quantity: -entry.required, type: "RESERVE", reason: "Reserva de pedido", orderId: order.id });
+        }
         createdOrders.push(order);
       }
       if (data.paymentMethod === "TRANSFER") {
@@ -960,11 +965,9 @@ async function createOrderInternal(input: unknown, adminDirectPaid: boolean) {
             await tx.order.update({ where: { id: ord.id }, data: { status: "CANCELLED", stockCommitted: false, history: { create: { status: "CANCELLED" } } } });
           }
           for (const requirement of result.stockRequirements) {
-            await tx.ingredient.update({
-              where: { id: requirement.ingredientId },
-              data: { stock: { increment: requirement.required } },
-            });
+            await changeIngredientStock(tx as never, { tenantId: tenant.id, ingredientId: requirement.ingredientId, quantity: requirement.required, returnUnitCost: requirement.unitCost, type: "RELEASE", reason: "Compra cancelada: no se pudo iniciar Mercado Pago", orderId: result.primaryOrder.id });
           }
+
           if (result.consumedRedemptionId) {
             await tx.pointRedemption.updateMany({
               where: { id: result.consumedRedemptionId, usedOrderId: result.primaryOrder.id },
