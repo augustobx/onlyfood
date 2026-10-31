@@ -847,7 +847,7 @@ export function TrackOrderClient({ order, relatedOrders = [], config, deliveryCo
               <span>${(order.total - deliveryCost).toLocaleString("es-AR")}</span>
             </div>
 
-            {order.needsDelivery && (
+            {order.needsDelivery && deliveryCost > 0 && (
               <div className={`flex justify-between font-medium ${s.subtext}`}>
                 <span>Costo de envío</span>
                 <span>${deliveryCost.toLocaleString("es-AR")}</span>

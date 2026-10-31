@@ -974,11 +974,11 @@ export default function CheckoutPage() {
                   </div>
                   <span className="text-sm font-extrabold leading-snug">Envío a domicilio</span>
                   <span className="text-[11px] leading-snug opacity-85">Te lo llevamos</span>
-                  <span className="mt-auto text-[11px] font-bold">
-                    {(config?.deliveryCost || 0) > 0
-                      ? `+ $${(config.deliveryCost as number).toLocaleString("es-AR")}`
-                      : "Sin cargo"}
-                  </span>
+                  {(config?.deliveryCost || 0) > 0 && (
+                    <span className="mt-auto text-[11px] font-bold">
+                      {`+ $${(config!.deliveryCost as number).toLocaleString("es-AR")}`}
+                    </span>
+                  )}
                 </button>
                 <button type="button"
                   data-checkout-choice aria-pressed={fulfillmentChoice === "PICKUP"}
@@ -992,7 +992,6 @@ export default function CheckoutPage() {
                   </div>
                   <span className="text-sm font-extrabold leading-snug">Retiro en local</span>
                   <span className="text-[11px] leading-snug opacity-85">Pasás a buscarlo</span>
-                  <span className="mt-auto text-[11px] font-bold">Sin costo de envío</span>
                 </button>
               </div>
 
@@ -1133,7 +1132,7 @@ export default function CheckoutPage() {
               {fulfillmentChoice === "PICKUP" && (
                 <p className={`flex items-start gap-2 rounded-xl border p-3 text-xs leading-relaxed ${t.switchBg}`}>
                   <Info className="h-4 w-4 shrink-0" aria-hidden="true"/>
-                  Elegiste retiro. No se cobrará envío; pasá por el local en el horario seleccionado.
+                  Elegiste retiro. Pasá por el local en el horario seleccionado.
                 </p>
               )}
             </section>
@@ -1322,7 +1321,6 @@ export default function CheckoutPage() {
                     {fulfillmentChoice === "DELIVERY" && addressParts.street && (
                       <div className="break-words opacity-80">{formData.deliveryAddress}</div>
                     )}
-                    {fulfillmentChoice === "PICKUP" && <div className="opacity-80">Sin costo de envío</div>}
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -1396,7 +1394,7 @@ export default function CheckoutPage() {
                   <span>{productCouponBonus > 0 ? `-$${productCouponBonus.toLocaleString("es-AR")}` : "Bonificado en pedido"}</span>
                 </div>
               )}
-              {formData.needsDelivery && (
+              {formData.needsDelivery && deliveryCost > 0 && (
                 <div className={`flex justify-between font-medium text-[11px] ${t.summaryText}`}>
                   <span>Costo de envío</span>
                   <span>${deliveryCost.toLocaleString("es-AR")}</span>
